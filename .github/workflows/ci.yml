@@ -1,0 +1,125 @@
+name: CI
+
+# Compile and test on every push to main and on every pull request.
+# Previously, regressions were only caught during release. This workflow
+# catches errors earlier, preventing bad assets from being published.
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  host-tests:
+    name: Host Tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Run host tests
+        run: |
+          set -e
+          for t in tools/tests/test_*.cpp; do
+            echo "=== $t ==="
+            # Aggiornato il riferimento alla cartella KomaBon_Core
+            g++ -std=c++17 -Wall -Werror -I lib/KomaBon_Core "$t" -o "/tmp/$(basename "$t" .cpp)"
+            "/tmp/$(basename "$t" .cpp)"
+          done
+
+  build:
+    name: Build Firmware
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Cache PlatformIO
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.platformio
+            ~/.cache/pip
+          key: pio-${{ runner.os }}-${{ hashFiles('platformio.ini') }}
+
+      - name: Install PlatformIO
+        run: pip install --upgrade platformio
+
+      - name: Build firmware
+        run: pio run
+
+      - name: Build filesystem image
+        run: pio run --target buildfs
+
+  web-ui:
+    name: Web UI Syntax
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Check script.js
+        run: node --check data/script.js
+
+  format:
+    name: Formatting (clang-format)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Install clang-format
+        run: sudo apt-get update && sudo apt-get install -y clang-format-18
+
+      - name: Determine base commit
+        id: base
+        run: |
+          set -e
+          if [ "${{ github.event_name }}" = "pull_request" ]; then
+            git fetch origin "${{ github.base_ref }}" --depth=50
+            echo "sha=$(git merge-base "origin/${{ github.base_ref }}" HEAD)" >> "$GITHUB_OUTPUT"
+          else
+            echo "sha=$(git rev-parse HEAD~1)" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Check formatting of changed code
+        run: |
+          set -e
+          mapfile -t ignore_patterns < <(grep -v '^#' .clang-format-ignore | grep -v '^\s*$')
+          is_ignored() {
+            local file="$1"
+            for pattern in "${ignore_patterns[@]}"; do
+              # shellcheck disable=SC2053
+              [[ "$file" == $pattern ]] && return 0
+            done
+            return 1
+          }
+
+          mapfile -t changed_files < <(git diff --name-only --diff-filter=ACMR "${{ steps.base.outputs.sha }}" -- '*.cpp' '*.h')
+          files_to_check=()
+          for f in "${changed_files[@]}"; do
+            is_ignored "$f" || files_to_check+=("$f")
+          done
+
+          if [ ${#files_to_check[@]} -eq 0 ]; then
+            echo "No unignored .cpp/.h files changed — nothing to check."
+            exit 0
+          fi
+
+          set +e
+          git-clang-format-18 --binary clang-format-18 --extensions cpp,h --diff "${{ steps.base.outputs.sha }}" -- "${files_to_check[@]}"
+          STATUS=$?
+          set -e
+          
+          if [ $STATUS -ne 0 ]; then
+            echo "::error::Changed code is not formatted correctly. Run 'clang-format -i <file>' (or tools/format.sh) and resubmit."
+            exit 1
+          fi

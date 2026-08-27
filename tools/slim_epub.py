@@ -1,0 +1,240 @@
+#!/usr/bin/env python3
+"""Remove embedded images and fonts from EPUB files.
+
+The KomaBon ebook partition has ~9.9 MB. A commercial EPUB spends most of
+its size on covers, illustrations, and embedded fonts — none of which the
+reader uses: EpubLoader only extracts text and the renderer uses fonts compiled into
+the firmware (lib/KomaBon_Core/Fonts/). Stripping this weight usually reduces a book to
+less than a tenth of its size, without losing a single line of text.
+
+Usage:
+    python tools/slim_epub.py book.epub                 # creates book.slim.epub
+    python tools/slim_epub.py book.epub -o output.epub
+    python tools/slim_epub.py *.epub --in-place          # replaces original
+"""
+
+import argparse
+import os
+import re
+import shutil
+import sys
+import tempfile
+import zipfile
+
+# Removed extensions. SVG is included because it's treated as an image: the reader
+# ignores it and cover SVG files can be hundreds of KB in size.
+STRIP_EXTENSIONS = {
+    ".png", ".jpg", ".jpeg", ".gif", ".bmp", ".webp", ".tif", ".tiff", ".svg",
+    ".ttf", ".otf", ".woff", ".woff2", ".eot",
+}
+
+# Corresponding MIME types to catch resources with unusual extensions.
+STRIP_MIME_PREFIXES = ("image/", "font/")
+STRIP_MIME_EXACT = {
+    "application/x-font-ttf",
+    "application/x-font-truetype",
+    "application/x-font-opentype",
+    "application/vnd.ms-opentype",
+    "application/font-woff",
+    "application/font-sfnt",
+}
+
+
+def is_strippable(name, media_type=""):
+    if os.path.splitext(name)[1].lower() in STRIP_EXTENSIONS:
+        return True
+    media_type = media_type.lower()
+    return media_type.startswith(STRIP_MIME_PREFIXES) or media_type in STRIP_MIME_EXACT
+
+
+def find_opf_paths(zf):
+    """Paths to OPF files via META-INF/container.xml.
+
+    If the container is missing or unreadable, falls back to searching for any .opf: an
+    invalid EPUB will still be trimmed, just without certainty of the root.
+    """
+    try:
+        container = zf.read("META-INF/container.xml").decode("utf-8", "replace")
+        paths = re.findall(r'full-path\s*=\s*"([^"]+)"', container)
+        if paths:
+            return paths
+    except KeyError:
+        pass
+    return [n for n in zf.namelist() if n.lower().endswith(".opf")]
+
+
+def resolve(opf_path, href):
+    """Resolve a manifest href to a path inside the ZIP."""
+    href = href.split("#", 1)[0].split("?", 1)[0]
+    base = os.path.dirname(opf_path)
+    joined = os.path.join(base, href) if base else href
+    return os.path.normpath(joined).replace("\\", "/")
+
+
+def clean_opf(xml, opf_path):
+    """Remove items we are stripping from the ZIP out of the manifest.
+
+    Leaving dangling entries would make the reader look for missing files,
+    so the manifest must be kept in sync. Returns (new_xml, zip_paths).
+    """
+    removed_ids = set()
+    removed_paths = set()
+
+    def drop_item(match):
+        tag = match.group(0)
+        href = re.search(r'href\s*=\s*"([^"]*)"', tag)
+        if not href:
+            return tag
+        media = re.search(r'media-type\s*=\s*"([^"]*)"', tag)
+        if not is_strippable(href.group(1), media.group(1) if media else ""):
+            return tag
+        item_id = re.search(r'\bid\s*=\s*"([^"]*)"', tag)
+        if item_id:
+            removed_ids.add(item_id.group(1))
+        removed_paths.add(resolve(opf_path, href.group(1)))
+        return ""
+
+    xml = re.sub(r"<item\b[^>]*/?>", drop_item, xml)
+
+    # The spine should not reference these resources, but a malformed EPUB might
+    # do so — and then the reader would open a "page" that no longer exists.
+    def drop_itemref(match):
+        idref = re.search(r'idref\s*=\s*"([^"]*)"', match.group(0))
+        return "" if idref and idref.group(1) in removed_ids else match.group(0)
+
+    xml = re.sub(r"<itemref\b[^>]*/?>", drop_itemref, xml)
+
+    # <meta name="cover" content="cover-id"/> points to an image that
+    # no longer exists.
+    def drop_meta(match):
+        tag = match.group(0)
+        content = re.search(r'content\s*=\s*"([^"]*)"', tag)
+        if content and content.group(1) in removed_ids and 'name="cover"' in tag:
+            return ""
+        return tag
+
+    xml = re.sub(r"<meta\b[^>]*/?>", drop_meta, xml)
+    return xml, removed_paths
+
+
+def slim(src, dst):
+    """Write to dst a copy of src without images or fonts.
+
+    Returns (original_bytes, final_bytes, removed_count).
+    """
+    with zipfile.ZipFile(src) as zin:
+        opf_paths = find_opf_paths(zin)
+        rewritten = {}
+        from_manifest = set()
+        for opf in opf_paths:
+            try:
+                xml = zin.read(opf).decode("utf-8", "replace")
+            except KeyError:
+                continue
+            new_xml, removed = clean_opf(xml, opf)
+            rewritten[opf] = new_xml.encode("utf-8")
+            from_manifest |= removed
+
+        names = zin.namelist()
+        # Extension dictates rules; manifest catches the rest. Files inside the ZIP
+        # that are not even in the manifest (common in EPUBs generated by authoring tools)
+        # are still caught by extension.
+        to_remove = {n for n in names if is_strippable(n)} | from_manifest
+        to_remove &= set(names)
+
+        with zipfile.ZipFile(dst, "w", zipfile.ZIP_DEFLATED) as zout:
+            # "mimetype" must be the first entry and uncompressed, otherwise
+            # some readers will reject the file.
+            if "mimetype" in names:
+                zout.writestr(
+                    zipfile.ZipInfo("mimetype"),
+                    zin.read("mimetype"),
+                    zipfile.ZIP_STORED,
+                )
+            for info in zin.infolist():
+                if info.filename == "mimetype" or info.filename in to_remove:
+                    continue
+                if info.is_dir():
+                    continue
+                data = rewritten.get(info.filename) or zin.read(info.filename)
+                zout.writestr(info.filename, data, zipfile.ZIP_DEFLATED)
+
+    return os.path.getsize(src), os.path.getsize(dst), len(to_remove)
+
+
+def human(n):
+    for unit in ("B", "KB", "MB"):
+        if n < 1024 or unit == "MB":
+            return f"{n:,.0f} {unit}" if unit == "B" else f"{n:.1f} {unit}"
+        n /= 1024
+
+
+def main(argv=None):
+    parser = argparse.ArgumentParser(
+        description="Remove embedded images and fonts from EPUBs for KomaBon."
+    )
+    parser.add_argument("files", nargs="+", help=".epub files to process")
+    parser.add_argument("-o", "--output", help="output file (only with a single input)")
+    parser.add_argument(
+        "--in-place",
+        action="store_true",
+        help="replace the original instead of creating a .slim.epub",
+    )
+    args = parser.parse_args(argv)
+
+    if args.output and len(args.files) > 1:
+        parser.error("-o can only be used with a single input file")
+    if args.output and args.in_place:
+        parser.error("-o and --in-place are mutually exclusive")
+
+    total_before = total_after = 0
+    failures = 0
+
+    for src in args.files:
+        if not os.path.isfile(src):
+            print(f"ERROR: {src}: not found", file=sys.stderr)
+            failures += 1
+            continue
+        if not zipfile.is_zipfile(src):
+            print(f"ERROR: {src}: not a valid EPUB (not a ZIP file)", file=sys.stderr)
+            failures += 1
+            continue
+
+        if args.output:
+            dst = args.output
+        elif args.in_place:
+            dst = src
+        else:
+            base, ext = os.path.splitext(src)
+            dst = base + ".slim" + ext
+
+        # Always write to a temporary file: --in-place must not truncate the
+        # original before the new version is complete, and a mid-process error
+        # should not leave a half-written EPUB in place of a good one.
+        tmp_fd, tmp_path = tempfile.mkstemp(suffix=".epub", dir=os.path.dirname(os.path.abspath(dst)))
+        os.close(tmp_fd)
+        try:
+            before, after, removed = slim(src, tmp_path)
+            shutil.move(tmp_path, dst)
+        except Exception as exc:  # noqa: BLE001 - any failure belongs to the file
+            if os.path.exists(tmp_path):
+                os.remove(tmp_path)
+            print(f"ERROR: {src}: {exc}", file=sys.stderr)
+            failures += 1
+            continue
+
+        total_before += before
+        total_after += after
+        pct = (1 - after / before) * 100 if before else 0
+        print(f"{os.path.basename(src)}: {human(before)} -> {human(after)} "
+              f"(-{pct:.0f}%, {removed} resources removed) => {dst}")
+
+    if total_before and len(args.files) > 1:
+        pct = (1 - total_after / total_before) * 100
+        print(f"\nTotal: {human(total_before)} -> {human(total_after)} (-{pct:.0f}%)")
+
+    return 1 if failures else 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())

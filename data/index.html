@@ -1,0 +1,192 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>KomaBon OS</title>
+    <link rel="stylesheet" href="style.css">
+    <!-- Using system sans-serif to match FreeSans on the e-reader -->
+</head>
+
+<body>
+    <div class="container">
+        <div class="nav-overlay" onclick="closeNav()"></div>
+        <nav class="sidebar">
+            <div class="brand">KomaBon <span style="font-size: 0.5em; opacity: 0.7;"></span></div>
+            <ul class="nav-links">
+                <li class="active" onclick="showTab('dashboard')">Dashboard</li>
+                <li onclick="showTab('ereader')">Ereader</li>
+                <li onclick="showTab('settings')">Settings</li>
+            </ul>
+            <div class="version">v<span id="version-display">1.0</span></div>
+        </nav>
+
+        <main class="content">
+            <header class="top-bar">
+                <button class="nav-toggle" type="button" aria-label="Menu" aria-expanded="false"
+                    onclick="toggleNav()">&#9776;</button>
+                <div class="battery-status">
+                    <span id="header-voltage"></span>
+                    <i class="battery-icon" id="battery-icon" data-level="100"></i>
+                </div>
+            </header>
+
+            <!-- Dashboard Tab -->
+            <section id="dashboard" class="tab-content active">
+                <h1>System Status</h1>
+                <div class="stats-grid">
+                    <div class="card stat">
+                        <h3>Battery</h3>
+                        <p id="battery-val">--%</p>
+                    </div>
+                    <div class="card stat">
+                        <h3>Uptime</h3>
+                        <p id="uptime-val">--</p>
+                    </div>
+                    <div class="card stat">
+                        <h3>Free Space</h3>
+                        <p id="freespace-val">--</p>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Ereader Tab -->
+            <section id="ereader" class="tab-content">
+                <h1>Ereader Library</h1>
+
+                <div class="card">
+                    <h3>Reader Options</h3>
+                    <div class="setting-row">
+                        <label for="font-size">Reading Font Size</label>
+                        <select id="font-size">
+                            <option value="9">Small</option>
+                            <option value="12">Medium</option>
+                            <option value="18">Large</option>
+                        </select>
+                    </div>
+                    <p class="hint">Applies to the book text. A larger size fits fewer words per page; pages reflow automatically.</p>
+                    <div class="setting-row">
+                        <label for="font-family">Reading Font</label>
+                        <select id="font-family">
+                            <option value="0">System (Sans-serif)</option>
+                            <option value="1">Merriweather</option>
+                            <option value="2">Literata</option>
+                            <option value="3">Source Serif Pro</option>
+                            <option value="4">Gelasio</option>
+                            <option value="5">Open Sans</option>
+                        </select>
+                    </div>
+                    <p class="hint">Changes the typeface used for the book text. Pages reflow automatically.</p>
+                    <div class="setting-row">
+                        <label for="refresh-rate">Full Refresh Interval (Pages)</label>
+                        <input type="number" id="refresh-rate" min="1" max="100" value="6" class="input-narrow">
+                    </div>
+                    <button class="btn secondary" onclick="saveReaderSettings()">Save Settings</button>
+                    <div id="reader-settings-status" class="status-msg"></div>
+                </div>
+
+                <div class="card">
+                    <h3>Reading Progress</h3>
+                    <p id="reader-progress-status" class="hint">Loading saved position...</p>
+                    <button class="btn secondary" onclick="resetReaderProgress()">Reset Reading Progress</button>
+                    <div id="reader-progress-reset-status" class="status-msg"></div>
+                </div>
+
+                <div class="card">
+                    <h3>Library State</h3>
+                    <p class="hint">Reading positions, book names and manual order. Does not include the .epub files.</p>
+                    <button class="btn secondary" onclick="exportLibraryState()">Export State</button>
+                    <input type="file" id="import-state-file" accept=".json,application/json" style="display:none" onchange="importLibraryState(this)">
+                    <button class="btn secondary" onclick="document.getElementById('import-state-file').click()">Import State</button>
+                    <div id="library-state-status" class="status-msg"></div>
+                </div>
+
+                <div class="card">
+                    <h3>Upload Book</h3>
+                    <p class="hint">Upload EPUB books directly</p>
+                    <input type="file" id="book-file" accept=".epub,.ttf">
+                    <button class="btn primary" onclick="uploadBook()">Upload</button>
+                    <div id="upload-progress" class="progress-container hidden">
+                        <div id="upload-progress-bar" class="progress-bar"></div>
+                    </div>
+                    <div id="upload-status"></div>
+                </div>
+
+                <div class="card">
+                    <h3>Your Books</h3>
+                    <div id="book-list">
+                        <!-- Books injected by JS -->
+                    </div>
+                </div>
+            </section>
+
+            <!-- Settings Tab -->
+            <section id="settings" class="tab-content">
+                <h1>Settings</h1>
+
+                <div class="card">
+                    <h3>Sleep Settings</h3>
+                    <div class="setting-row">
+                        <label for="sleep-timeout">Idle Sleep Timeout (Minutes)</label>
+                        <input type="number" id="sleep-timeout" min="0" max="60" value="5" class="input-narrow">
+                    </div>
+                    <p class="hint">Set to 0 to disable auto-sleep. Device sleeps after this many minutes of inactivity.</p>
+                    <div class="setting-row stacked spaced">
+                        <label for="sleep-message">Sleep Message</label>
+                        <input type="text" id="sleep-message" maxlength="100" placeholder="Press button to wake" class="input-full">
+                    </div>
+                    <p class="hint">Message displayed on screen when device enters sleep mode.</p>
+                    <button class="btn secondary" onclick="saveSleepSettings()">Save Sleep Settings</button>
+                    <div id="sleep-settings-status" class="status-msg"></div>
+                </div>
+
+                <div class="card">
+                    <h3>Display Orientation</h3>
+                    <div class="setting-row">
+                        <label for="display-rotation">Button Side</label>
+                        <select id="display-rotation">
+                            <option value="3">Left (default)</option>
+                            <option value="1">Right (rotate 180°)</option>
+                        </select>
+                    </div>
+                    <p class="hint">Flips the entire screen 180° so the button sits on your preferred side. Applies immediately.</p>
+                    <button class="btn secondary" onclick="saveDisplaySettings()">Apply Orientation</button>
+                    <div id="display-settings-status" class="status-msg"></div>
+                </div>
+
+                <div class="card">
+                    <h3>Wi-Fi &amp; Hotspot</h3>
+                    <p id="wifi-status" class="hint">Checking connection...</p>
+                    <div class="setting-row spaced">
+                        <label for="wifi-ssid">Network</label>
+                        <select id="wifi-ssid" class="input-grow">
+                            <option value="">Tap Scan to list networks…</option>
+                        </select>
+                    </div>
+                    <div class="setting-row spaced">
+                        <label for="wifi-pass">Password</label>
+                        <input type="password" id="wifi-pass" placeholder="(leave blank if open)" class="input-grow">
+                    </div>
+                    <p class="hint">Connect KomaBon to a network, or manage it directly over the KomaBon hotspot when no network is available.</p>
+                    <div class="btn-row">
+                        <button class="btn secondary" onclick="scanWifi()">Scan</button>
+                        <button class="btn primary" onclick="connectWifi()">Connect</button>
+                    </div>
+                    <div id="wifi-connect-status" class="status-msg"></div>
+                </div>
+
+                <div class="card update-card">
+                    <h3>Software Update</h3>
+                    <p>Current Version: <span id="current-ver">1.0</span></p>
+                    <div id="update-status" class="status-msg"></div>
+                    <button id="check-update-btn" class="btn primary" onclick="checkUpdate()">Check for Updates</button>
+                    <button id="update-btn" class="btn primary hidden" onclick="performUpdate()">Install Update</button>
+                </div>
+            </section>
+        </main>
+    </div>
+    <script src="script.js"></script>
+</body>
+
+</html>

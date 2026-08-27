@@ -1,0 +1,16 @@
+pio
+.vscode
+.idea
+*.log
+include/Secrets.h
+
+# Images produced by the build. The release workflow builds them from the
+# source code and publishes them as assets; versioning them only adds ~2.7 MB
+# to the history with each release and leaves old artifacts lurking in the tree.
+firmware.bin
+littlefs.bin
+dist/
+
+# Backups left by editors
+*.bk
+*.orig

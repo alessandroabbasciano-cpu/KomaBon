@@ -1,0 +1,165 @@
+name: Release
+
+# Builds firmware/filesystem images and publishes them with SHA-256 digests 
+# and Ed25519 signatures. The device verifies these before flashing to defend 
+# against MITM attacks during OTA updates. Tags must match Semantic Versioning (e.g., v1.6.0).
+
+on:
+  push:
+    tags:
+      - 'v[0-9]+.[0-9]+.[0-9]+'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Cache PlatformIO
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.platformio
+            ~/.cache/pip
+          key: pio-${{ runner.os }}-${{ hashFiles('platformio.ini') }}
+
+      - name: Install PlatformIO
+        run: pip install --upgrade platformio
+
+      - name: Run host tests
+        run: |
+          set -e
+          for t in tools/tests/test_*.cpp; do
+            echo "=== $t ==="
+            # Aggiornato il riferimento alla cartella KomaBon_Core
+            g++ -std=c++17 -Wall -I lib/KomaBon_Core "$t" -o /tmp/$(basename "$t" .cpp)
+            /tmp/$(basename "$t" .cpp)
+          done
+
+      - name: Verify tag matches SYSTEM_VERSION
+        run: |
+          TAG="${GITHUB_REF_NAME#v}"
+          SRC=$(grep -oP '#define SYSTEM_VERSION "\K[^"]+' include/Config.h)
+          echo "tag=$TAG  Config.h=$SRC"
+          if [ "$TAG" != "$SRC" ]; then
+            echo "::error::Tag $TAG does not match SYSTEM_VERSION $SRC in include/Config.h"
+            exit 1
+          fi
+
+      - name: Build firmware
+        run: pio run
+
+      - name: Build filesystem image
+        run: pio run --target buildfs
+
+      - name: Collect artefacts
+        id: collect
+        run: |
+          set -e
+          mkdir -p dist
+          cp .pio/build/seeed_xiao_esp32s3/firmware.bin dist/firmware.bin
+          cp .pio/build/seeed_xiao_esp32s3/littlefs.bin dist/littlefs.bin
+          ls -l dist
+
+      - name: Compute checksums
+        id: sums
+        run: |
+          set -e
+          cd dist
+          FW=$(sha256sum firmware.bin | cut -d' ' -f1)
+          FS=$(sha256sum littlefs.bin | cut -d' ' -f1)
+          echo "fw=$FW" >> "$GITHUB_OUTPUT"
+          echo "fs=$FS" >> "$GITHUB_OUTPUT"
+          echo "firmware.bin  $FW"
+          echo "littlefs.bin  $FS"
+
+      - name: Sign checksums (Ed25519)
+        id: sigs
+        env:
+          OTA_PRIVATE_KEY: ${{ secrets.OTA_ED25519_PRIVATE_KEY }}
+        run: |
+          set -e
+          if [ -z "$OTA_PRIVATE_KEY" ]; then
+            echo "::error::OTA_ED25519_PRIVATE_KEY secret is not set."
+            exit 1
+          fi
+
+          KEY_FILE=$(mktemp)
+          trap 'rm -f "$KEY_FILE"' EXIT
+          printf '%s\n' "$OTA_PRIVATE_KEY" > "$KEY_FILE"
+
+          sign_asset() {
+            local file="$1" out_var="$2"
+            openssl dgst -sha256 -binary "dist/$file" > /tmp/digest.bin
+            openssl pkeyutl -sign -inkey "$KEY_FILE" -rawin -in /tmp/digest.bin -out /tmp/sig.bin
+            local hex
+            hex=$(python3 -c "print(open('/tmp/sig.bin','rb').read().hex())")
+            echo "${out_var}=${hex}" >> "$GITHUB_OUTPUT"
+            echo "$file  $hex"
+          }
+
+          sign_asset firmware.bin fw_sig
+          sign_asset littlefs.bin fs_sig
+
+      - name: Write release notes
+        run: |
+          cat > notes.md <<EOF
+          KomaBon ${GITHUB_REF_NAME}
+
+          Install over the air from the device web interface, or flash by USB
+          with \`pio run --target upload\` and \`pio run --target uploadfs\`.
+
+          ### Checksums
+
+          The device verifies these before flashing and refuses to install an
+          asset whose digest or signature is missing or does not match.
+
+          \`\`\`
+          SHA256 (firmware.bin) = ${{ steps.sums.outputs.fw }}
+          SHA256 (littlefs.bin) = ${{ steps.sums.outputs.fs }}
+          ED25519 (firmware.bin) = ${{ steps.sigs.outputs.fw_sig }}
+          ED25519 (littlefs.bin) = ${{ steps.sigs.outputs.fs_sig }}
+          \`\`\`
+          EOF
+          cat notes.md
+
+      - name: Publish release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            dist/firmware.bin
+            dist/littlefs.bin
+          body_path: notes.md
+
+      - name: Update browser installer assets
+        run: |
+          set -e
+          VERSION="${GITHUB_REF_NAME#v}"
+
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+          git fetch origin main
+          git switch -c installer-assets-update origin/main
+
+          rm -f docs/firmware/*.bin
+          cp dist/firmware.bin "docs/firmware/firmware-v${VERSION}.bin"
+          cp dist/littlefs.bin "docs/firmware/littlefs-v${VERSION}.bin"
+          printf '{\n  "version": "%s"\n}\n' "$VERSION" > docs/latest.json
+
+          git add docs/firmware docs/latest.json
+          if git diff --cached --quiet; then
+            echo "No installer asset changes to commit"
+          else
+            git commit -m "docs: update browser installer assets for ${GITHUB_REF_NAME}"
+            git push origin installer-assets-update:main
+          fi
