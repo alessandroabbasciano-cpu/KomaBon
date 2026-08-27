@@ -1,11 +1,11 @@
 #include "DisplayMgr.h"
 #include "../../include/Config.h"
-#include "Book32FS.h"
+#include "KomaBonFS.h"
 #include <ArduinoJson.h>
 // Local FreeSans with Latin-1 Supplement (0x20-0xFF).
 #include "Fonts/FreeSans.h"
 
-static void drawCenteredText(Book32Display& display, const char* text, const GFXfont* font, int16_t baseline, uint16_t color) {
+static void drawCenteredText(KomaBonDisplay& display, const char* text, const GFXfont* font, int16_t baseline, uint16_t color) {
     int16_t x1, y1;
     uint16_t w, h;
     display.setFont(font);
@@ -16,7 +16,7 @@ static void drawCenteredText(Book32Display& display, const char* text, const GFX
     display.print(text);
 }
 
-static void drawBootProgress(Book32Display& display, uint8_t progress, const char* status) {
+static void drawBootProgress(KomaBonDisplay& display, uint8_t progress, const char* status) {
     int16_t screenW = display.width();
     const int16_t barW = 320;
     const int16_t barH = 28;
@@ -140,7 +140,7 @@ void DisplayMgr::showBootScreen(uint8_t progress, const char* status) {
             display.drawFastHLine(logoX + 72, logoY + 46, 28, GxEPD_BLACK);
 
             drawCenteredText(display, DEVICE_NAME, &FreeSansBold24pt8b, titleY, GxEPD_BLACK);
-            drawCenteredText(display, "Starting Book32 OS", &FreeSans12pt8b, titleY + 42, GxEPD_BLACK);
+            drawCenteredText(display, "Starting KomaBon OS", &FreeSans12pt8b, titleY + 42, GxEPD_BLACK);
 
             char versionText[20];
             snprintf(versionText, sizeof(versionText), "v%s", SYSTEM_VERSION);

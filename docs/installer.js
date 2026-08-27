@@ -6,8 +6,8 @@
 // Firmware and filesystem paths are versioned (firmware-vX.bin) rather than
 // reused (firmware.bin) so a browser or CDN cache can never serve a stale
 // binary under a name that still matches the current manifest.
-const FIRMWARE_OFFSET = 65536;   // app0, see partitions_16MB.csv[cite: 70]
-const LITTLEFS_OFFSET = 5308416; // spiffs, see partitions_16MB.csv[cite: 70]
+const FIRMWARE_OFFSET = 65536;   // app0, see partitions_16MB.csv
+const LITTLEFS_OFFSET = 5308416; // spiffs, see partitions_16MB.csv
 
 const versionBadge = document.querySelector('[data-version-badge]');
 const installButton = document.querySelector('esp-web-install-button');
@@ -51,7 +51,7 @@ async function init() {
     // support Improv Serial"). Only `true` shows the user a confirmation
     // dialog where they can decline the erase. A `false` here silently
     // wiped a real device's bootloader, WiFi settings and ebook library on
-    // 2026-08-25 before this was caught - do not change it back.[cite: 70]
+    // 2026-08-25 before this was caught - do not change it back.
     new_install_prompt_erase: true,
     builds: [
       {

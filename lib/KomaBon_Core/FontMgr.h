@@ -28,13 +28,13 @@ public:
     bool hasTTFFont() { return true; }
 
     // Draw text at position using Adafruit GFX fonts
-    void drawText(Book32Display& display, const char* text, int x, int y, int fontSize, uint16_t color = GxEPD_BLACK);
+    void drawText(KomaBonDisplay& display, const char* text, int x, int y, int fontSize, uint16_t color = GxEPD_BLACK);
 
     // Draw text centered horizontally
-    void drawTextCentered(Book32Display& display, const char* text, int y, int fontSize, uint16_t color = GxEPD_BLACK);
+    void drawTextCentered(KomaBonDisplay& display, const char* text, int y, int fontSize, uint16_t color = GxEPD_BLACK);
 
     // Draw text right-aligned
-    void drawTextRight(Book32Display& display, const char* text, int x, int y, int fontSize, uint16_t color = GxEPD_BLACK);
+    void drawTextRight(KomaBonDisplay& display, const char* text, int x, int y, int fontSize, uint16_t color = GxEPD_BLACK);
 
     // Get text width for layout calculations
     int getTextWidth(const char* text, int fontSize);
@@ -68,4 +68,4 @@ private:
     void cacheCharWidths(const GFXfont* font);
 };
 
-#endif
+#endif;

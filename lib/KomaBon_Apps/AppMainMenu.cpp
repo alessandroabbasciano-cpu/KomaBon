@@ -4,13 +4,13 @@
 #include "../KomaBon_Core/BatteryMgr.h"
 #include "../KomaBon_Core/InputMgr.h"
 #include "../KomaBon_Core/FontMgr.h"
-#include "../KomaBon_Web/WebMgr.h"
+#include "../Book32_Web/WebMgr.h"
 #include "../KomaBon_Core/DeviceCred.h"
 #include "../../include/Config.h"
 #include "../../include/NetworkState.h"
 #include <WiFi.h>
 #include "icon_update.h"
-#include "../KomaBon_Update/GitHubMgr.h"
+#include "../Book32_Update/GitHubMgr.h"
 
 struct MenuDirtyRect {
     int x;
@@ -317,7 +317,7 @@ void AppMainMenu::draw() {
     _needsRedraw = false;
 
     DisplayMgr& dispMgr = DisplayMgr::getInstance();
-    Book32Display& display = dispMgr.getDisplay();
+    KomaBonDisplay& display = dispMgr.getDisplay();
     FontMgr& fontMgr = FontMgr::getInstance();
     AppMgr& appMgr = AppMgr::getInstance();
     std::vector<App*>& apps = appMgr.getApps();

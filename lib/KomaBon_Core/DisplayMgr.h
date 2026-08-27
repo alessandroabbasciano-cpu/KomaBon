@@ -6,7 +6,7 @@
 
 // Define the display class here to be used across the app
 // Using 800x480 BW (Waveshare 7.5 V2)
-typedef GxEPD2_BW<GxEPD2_750_T7, GxEPD2_750_T7::HEIGHT> Book32Display;
+typedef GxEPD2_BW<GxEPD2_750_T7, GxEPD2_750_T7::HEIGHT> KomaBonDisplay;
 
 class DisplayMgr {
 public:
@@ -15,7 +15,7 @@ public:
     void init();
     void update(); // Handles partial updates if needed
 
-    Book32Display& getDisplay() { return display; }
+    KomaBonDisplay& getDisplay() { return display; }
 
     void clear();
     void fullRefresh();
@@ -30,7 +30,7 @@ public:
 
 private:
     DisplayMgr();
-    Book32Display display;
+    KomaBonDisplay display;
     bool _bootScreenActive = false;
     int _rotation = 3;  // Default: portrait, button on the left
 };

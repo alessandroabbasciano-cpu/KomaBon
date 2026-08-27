@@ -123,7 +123,7 @@ const GFXfont* TextRenderer::getGFXFont(TextStyle style, int& lineHeight) {
     return font;
 }
 
-RenderResult TextRenderer::renderRichPageDynamic(Book32Display& display, const std::vector<ContentNode>& content, 
+RenderResult TextRenderer::renderRichPageDynamic(KomaBonDisplay& display, const std::vector<ContentNode>& content, 
                                                  int startNode, int startOffset, int pageNum, int pageNumForDisplay, bool draw) {
     if (draw) {
         display.setTextColor(GxEPD_BLACK);

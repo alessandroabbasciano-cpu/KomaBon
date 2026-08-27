@@ -45,7 +45,7 @@ void FontMgr::cacheCharWidths(const GFXfont* font) {
     }
 }
 
-void FontMgr::drawText(Book32Display& display, const char* text, int x, int y, int fontSize, uint16_t color) {
+void FontMgr::drawText(KomaBonDisplay& display, const char* text, int x, int y, int fontSize, uint16_t color) {
     // Strings arrive as UTF-8 (filenames, EPUB metadata, WiFi SSIDs, ...) but
     // the GFX layer draws one byte per glyph, so convert to Latin-1 here.
     char latin1[512];
@@ -57,13 +57,13 @@ void FontMgr::drawText(Book32Display& display, const char* text, int x, int y, i
     display.print(latin1);
 }
 
-void FontMgr::drawTextCentered(Book32Display& display, const char* text, int y, int fontSize, uint16_t color) {
+void FontMgr::drawTextCentered(KomaBonDisplay& display, const char* text, int y, int fontSize, uint16_t color) {
     int width = getTextWidth(text, fontSize);
     int x = (display.width() - width) / 2;
     drawText(display, text, x, y, fontSize, color);
 }
 
-void FontMgr::drawTextRight(Book32Display& display, const char* text, int x, int y, int fontSize, uint16_t color) {
+void FontMgr::drawTextRight(KomaBonDisplay& display, const char* text, int x, int y, int fontSize, uint16_t color) {
     int width = getTextWidth(text, fontSize);
     drawText(display, text, x - width, y, fontSize, color);
 }

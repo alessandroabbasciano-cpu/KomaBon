@@ -16,8 +16,8 @@
 // Fixed slack for LittleFS metadata (directory entries, partially used blocks).
 // An EPUB that fits "tightly" would still fail to write without this margin.
 // In addition to this, there is a component that scales with size — see checkUpload.
-#ifndef BOOK32_UPLOAD_SLACK
-#define BOOK32_UPLOAD_SLACK 8192
+#ifndef KOMABON_UPLOAD_SLACK
+#define KOMABON_UPLOAD_SLACK 8192
 #endif
 
 enum class UploadVerdict { Ok, BadExtension, UnsafeName, NoSpace };
@@ -26,7 +26,7 @@ enum class UploadVerdict { Ok, BadExtension, UnsafeName, NoSpace };
 // handler extracts it before calling. `contentLength` is the size of the
 // multipart body, always larger than the file, hence a conservative estimate.
 // `contentLength == 0` means unknown: it doesn't prevent acceptance, but the
-// space check still runs, so a partition with less than BOOK32_UPLOAD_SLACK
+// space check still runs, so a partition with less than _UPLOAD_SLACK
 // free returns NoSpace nonetheless.
 //
 // The required space scales with size: littlefs keeps CTZ skip-list pointers
@@ -44,7 +44,7 @@ UploadVerdict checkUpload(const S& filename, size_t contentLength, size_t freeBy
     if (!isSafeBookName(filename)) {
         return UploadVerdict::UnsafeName;
     }
-    if (freeBytes < contentLength + contentLength / 256 + BOOK32_UPLOAD_SLACK) {
+    if (freeBytes < contentLength + contentLength / 256 + KOMABON_UPLOAD_SLACK) {
         return UploadVerdict::NoSpace;
     }
     return UploadVerdict::Ok;

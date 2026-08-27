@@ -1,5 +1,5 @@
 #include "SettingsStore.h"
-#include "Book32FS.h"
+#include "KomaBonFS.h"
 #include <ArduinoJson.h>
 
 static const char* READER_CONFIG_PATH = "/reader_config.json";

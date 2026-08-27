@@ -62,7 +62,7 @@ public:
     void calculateDimensions();
 
     // New Dynamic Rendering
-    RenderResult renderRichPageDynamic(Book32Display& display, const std::vector<ContentNode>& content, 
+    RenderResult renderRichPageDynamic(KomaBonDisplay& display, const std::vector<ContentNode>& content, 
                                      int startNode, int startOffset, int pageNum, int pageNumForDisplay, bool draw = true);
 
     void clearCache();

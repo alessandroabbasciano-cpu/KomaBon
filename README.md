@@ -231,3 +231,4 @@ Fresh hardware setup uses three pieces:
   partition named `spiffs`.
 - The 10 MB `ebooks` partition is not flashed by PlatformIO. KomaBon formats it
   automatically the first time it sees that partition is blank.
+  

@@ -1,5 +1,5 @@
 #include "ProgressStore.h"
-#include "Book32FS.h"
+#include "KomaBonFS.h"
 #include "BookMeta.h"
 
 // All public methods open with a Book32Guard. load() and save() are left 

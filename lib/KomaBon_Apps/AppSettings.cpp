@@ -5,8 +5,8 @@
 #include "../KomaBon_Core/FontMgr.h"
 #include "../KomaBon_Core/BatteryMgr.h"
 #include "../KomaBon_Core/KomaBonFS.h"
-#include "../KomaBon_Web/WebMgr.h"
-#include "../KomaBon_Update/GitHubMgr.h"
+#include "../Book32_Web/WebMgr.h"
+#include "../Book32_Update/GitHubMgr.h"
 #include "../../include/Config.h"
 #include <WiFi.h>
 #include <WiFiManager.h>
@@ -498,7 +498,7 @@ void AppSettings::update() {
 
 // --- Drawing ----------------------------------------------------------------
 void AppSettings::drawHeader(const char* title) {
-    Book32Display& display = DisplayMgr::getInstance().getDisplay();
+    KomaBonDisplay& display = DisplayMgr::getInstance().getDisplay();
     FontMgr& font = FontMgr::getInstance();
 
     font.drawText(display, title, 20, 45, FONT_SIZE_SUBTITLE, GxEPD_BLACK);
@@ -511,7 +511,7 @@ void AppSettings::drawHeader(const char* title) {
 }
 
 void AppSettings::drawFooter(const char* hint) {
-    Book32Display& display = DisplayMgr::getInstance().getDisplay();
+    KomaBonDisplay& display = DisplayMgr::getInstance().getDisplay();
     FontMgr& font = FontMgr::getInstance();
     int h = display.height();
 
@@ -523,7 +523,7 @@ void AppSettings::drawFooter(const char* hint) {
 }
 
 void AppSettings::drawMainScreen() {
-    Book32Display& display = DisplayMgr::getInstance().getDisplay();
+    KomaBonDisplay& display = DisplayMgr::getInstance().getDisplay();
     FontMgr& font = FontMgr::getInstance();
     int w = display.width();
 
@@ -557,7 +557,7 @@ void AppSettings::drawMainScreen() {
 }
 
 void AppSettings::drawFontScreen() {
-    Book32Display& display = DisplayMgr::getInstance().getDisplay();
+    KomaBonDisplay& display = DisplayMgr::getInstance().getDisplay();
     FontMgr& font = FontMgr::getInstance();
     int w = display.width();
 
@@ -582,7 +582,7 @@ void AppSettings::drawFontScreen() {
 }
 
 void AppSettings::drawNetworkScreen() {
-    Book32Display& display = DisplayMgr::getInstance().getDisplay();
+    KomaBonDisplay& display = DisplayMgr::getInstance().getDisplay();
     FontMgr& font = FontMgr::getInstance();
 
     drawHeader("Network");
@@ -619,7 +619,7 @@ void AppSettings::drawNetworkScreen() {
 }
 
 void AppSettings::drawSystemScreen() {
-    Book32Display& display = DisplayMgr::getInstance().getDisplay();
+    KomaBonDisplay& display = DisplayMgr::getInstance().getDisplay();
     FontMgr& font = FontMgr::getInstance();
     int w = display.width();
 
@@ -659,7 +659,7 @@ void AppSettings::drawSystemScreen() {
 }
 
 void AppSettings::drawConfirmScreen() {
-    Book32Display& display = DisplayMgr::getInstance().getDisplay();
+    KomaBonDisplay& display = DisplayMgr::getInstance().getDisplay();
     FontMgr& font = FontMgr::getInstance();
     int w = display.width();
 
@@ -685,7 +685,7 @@ void AppSettings::drawConfirmScreen() {
 }
 
 void AppSettings::drawConfirmForgetWifiScreen() {
-    Book32Display& display = DisplayMgr::getInstance().getDisplay();
+    KomaBonDisplay& display = DisplayMgr::getInstance().getDisplay();
     FontMgr& font = FontMgr::getInstance();
     int w = display.width();
 
@@ -716,7 +716,7 @@ void AppSettings::draw() {
     if (!_needsRedraw) return;
     _needsRedraw = false;
 
-    Book32Display& display = DisplayMgr::getInstance().getDisplay();
+    KomaBonDisplay& display = DisplayMgr::getInstance().getDisplay();
 
     // Moving the highlighted row on SCREEN_MAIN/SCREEN_FONT only touches that
     // row and the one it left, so it doesn't need the full-window e-ink flash

@@ -1,5 +1,5 @@
 #include "WebMgr.h"
-#include "../Book32_Core/SettingsStore.h"
+#include "../KomaBon_Core/SettingsStore.h"
 #include <ESPAsyncWebServer.h>
 #include <AsyncJson.h>
 #include <WiFi.h>
@@ -8,18 +8,18 @@
 #include <esp_partition.h>
 #include <vector>
 #include <map>
-#include "../Book32_Core/Book32FS.h"
-#include "../Book32_Core/FileExt.h"
-#include "../Book32_Core/SafeName.h"
-#include "../Book32_Core/UploadGuard.h"
-#include "../Book32_Core/DeviceCred.h"
-#include "../Book32_Core/BookOrderLogic.h"
-#include "../Book32_Core/BookMeta.h"
-#include "../Book32_Core/ProgressStore.h"
+#include "../KomaBon_Core/KomaBonFS.h"
+#include "../KomaBon_Core/FileExt.h"
+#include "../KomaBon_Core/SafeName.h"
+#include "../KomaBon_Core/UploadGuard.h"
+#include "../KomaBon_Core/DeviceCred.h"
+#include "../KomaBon_Core/BookOrderLogic.h"
+#include "../KomaBon_Core/BookMeta.h"
+#include "../KomaBon_Core/ProgressStore.h"
 #include "../Book32_Update/GitHubMgr.h"
-#include "../Book32_Core/BatteryMgr.h"
-#include "../Book32_Core/AppMgr.h"
-#include "../Book32_Core/DisplayMgr.h"
+#include "../KomaBon_Core/BatteryMgr.h"
+#include "../KomaBon_Core/AppMgr.h"
+#include "../KomaBon_Core/DisplayMgr.h"
 #include "../../include/Config.h"
 
 // v1.9.0: HTTP Basic Auth was removed from every endpoint by request.

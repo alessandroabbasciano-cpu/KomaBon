@@ -11,9 +11,9 @@
 #include "BatteryMgr.h"
 #include "FontMgr.h"
 
-#include "../Book32_Apps/AppMainMenu.h"
+#include "../KomaBon_Apps/AppMainMenu.h"
 #include "../Apps/AppReader/AppReader.h"
-#include "../Book32_Apps/AppSettings.h"
+#include "../KomaBon_Apps/AppSettings.h"
 #include <WiFiManager.h>
 
 volatile bool gNetworkStartupInProgress = false;
@@ -28,9 +28,9 @@ static void networkStartupTask(void* parameter) {
     }
     // Don't let the setup portal block forever when no known network is in
     // range. On timeout autoConnect returns false and the main menu brings up
-    // the KomaBon management hotspot instead[cite: 43].
+    // the KomaBon management hotspot instead.
     gWifiManager->setConfigPortalTimeout(120);
-    bool connected = gWifiManager->autoConnect("KomaBon-Setup");[cite: 43]
+    bool connected = gWifiManager->autoConnect("KomaBon-Setup");
 
     if (!connected) {
         Serial.println("WiFi setup did not connect; continuing offline");

@@ -1,3 +1,3 @@
-#include "Book32FS.h"
+#include "KomaBonFS.h"
 
 fs::LittleFSFS EbookFS;

@@ -2,7 +2,7 @@
 #include "../../include/Config.h"
 #include "Config.h"
 #include <esp_sleep.h>
-#include "Book32FS.h"
+#include "KomaBonFS.h"
 #include "DisplayMgr.h"
 #include <ArduinoJson.h>
 // Local FreeSans with Latin-1 Supplement (0x20-0xFF).
@@ -360,7 +360,7 @@ void BatteryMgr::enterIdleSleep(const char* reason) {
     Serial.flush();
 
     // Display sleep message on e-ink
-    Book32Display& display = DisplayMgr::getInstance().getDisplay();
+    KomaBonDisplay& display = DisplayMgr::getInstance().getDisplay();
     display.setFullWindow();
     display.firstPage();
     do {
@@ -414,7 +414,7 @@ void BatteryMgr::drawStatusIndicator() {
     }
 
     // Get display reference
-    Book32Display& display = DisplayMgr::getInstance().getDisplay();
+    KomaBonDisplay& display = DisplayMgr::getInstance().getDisplay();
 
     // Indicator position (top-right corner)
     // Small 50x25 area for a battery icon with charging indicator

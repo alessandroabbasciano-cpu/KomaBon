@@ -27,7 +27,7 @@
 // a signature (by the release workflow, using a private key that never
 // leaves the OTA_ED25519_PRIVATE_KEY GitHub Actions secret) over the raw
 // 32-byte SHA-256 digest of the asset. The public key is embedded in the
-// firmware (lib/Book32_Core/OtaEd25519PublicKey.h) and never changes over
+// firmware (lib/KomaBon_Core/OtaEd25519PublicKey.h) and never changes over
 // the air. Forging the GitHub API response no longer suffices — the
 // attacker would also need the private key. See
 // docs/plans/2026-08-23-ota-ed25519-signing-design.md.

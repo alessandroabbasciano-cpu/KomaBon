@@ -1,5 +1,5 @@
 #include "PageCountStore.h"
-#include "Book32FS.h"
+#include "KomaBonFS.h"
 #include <ArduinoJson.h>
 
 // Only ever touched from AppReader on the main loop (unlike ProgressStore /
