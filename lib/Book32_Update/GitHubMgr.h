@@ -22,26 +22,27 @@ struct UpdateInfo {
 };
 
 class GitHubMgr {
-public:
+  public:
     static GitHubMgr& getInstance();
 
     void init();
     UpdateInfo checkUpdate(const char* currentVersion);
     bool performFirmwareUpdate(const char* url, bool restartAfter = true, int step = 0, int totalSteps = 0,
-                               const char* expectedSha256 = nullptr, const char* expectedEd25519Sig = nullptr);
+                               const char* expectedSha256 = nullptr,
+                               const char* expectedEd25519Sig = nullptr);
     bool performFilesystemUpdate(const char* url, bool restartAfter = true, int step = 0, int totalSteps = 0,
-                                 const char* expectedSha256 = nullptr, const char* expectedEd25519Sig = nullptr);
+                                 const char* expectedSha256 = nullptr,
+                                 const char* expectedEd25519Sig = nullptr);
     bool performFullUpdate(const char* currentVersion);
     void triggerUpdate(const char* currentVersion);
 
-private:
+  private:
     GitHubMgr();
 
     // Shared body for both performXxxUpdate() methods. The two variants were
     // 130 copied lines that only differed in the target partition and screen texts
-    // — meaning every fix (stream halt, digest check) had to be made twice, 
+    // — meaning every fix (stream halt, digest check) had to be made twice,
     // risking being applied to only one. `partition` is U_FLASH or U_SPIFFS.
-    bool downloadAndFlash(const char* url, int partition, const char* label,
-                          bool restartAfter, int step, int totalSteps,
-                          const char* expectedSha256, const char* expectedEd25519Sig);
+    bool downloadAndFlash(const char* url, int partition, const char* label, bool restartAfter, int step,
+                          int totalSteps, const char* expectedSha256, const char* expectedEd25519Sig);
 };

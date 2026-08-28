@@ -2,18 +2,18 @@
 #include <Arduino.h>
 
 class App {
-public:
+  public:
     virtual ~App() {}
-    
+
     // Called when the app is first loaded/switched to
     virtual void start() {}
-    
+
     // Called every loop iteration
     virtual void update() {}
-    
+
     // Called when screen updates needed
     virtual void draw() {}
-    
+
     // Called when app is being switched away from
     virtual void stop() {}
 
@@ -31,12 +31,18 @@ public:
     // superior direito, a partir do loop principal e sem passar pelo app.
     // Ecrãs que ocupam a área toda (a página do leitor) devolvem false para
     // que não lhes apareça um ícone por cima do conteúdo.
-    virtual bool allowsSystemStatusIndicator() { return true; }
+    virtual bool allowsSystemStatusIndicator() {
+        return true;
+    }
 
     // Metadata
     virtual const char* getName() = 0;
     // Returns font icon char (if using font) or empty
-    virtual const char* getIcon() { return ""; } 
+    virtual const char* getIcon() {
+        return "";
+    }
     // Returns bitmap icon (if using bitmap) or nullptr
-    virtual const uint8_t* getIconImage() { return nullptr; }
+    virtual const uint8_t* getIconImage() {
+        return nullptr;
+    }
 };

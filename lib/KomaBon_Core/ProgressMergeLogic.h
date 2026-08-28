@@ -31,9 +31,9 @@ struct BookProgress {
 };
 
 enum class MergeResult {
-    Added,       // no local entry existed
-    Merged,      // imported position was further ahead and won
-    KeptLocal    // local position was equal or further ahead
+    Added,    // no local entry existed
+    Merged,   // imported position was further ahead and won
+    KeptLocal // local position was equal or further ahead
 };
 
 // Merge one imported entry over the local one, if any.
@@ -44,9 +44,7 @@ enum class MergeResult {
 //
 // local may be null (book unknown here). fileExists says whether the matching
 // .epub is present on this device, which decides the pending flag.
-inline MergeResult mergeProgress(const BookProgress* local,
-                                 const BookProgress& imported,
-                                 bool fileExists,
+inline MergeResult mergeProgress(const BookProgress* local, const BookProgress& imported, bool fileExists,
                                  BookProgress& out) {
     if (local == nullptr) {
         out = imported;
@@ -71,8 +69,7 @@ inline MergeResult mergeProgress(const BookProgress* local,
 // Templated on the string type so the same code serves Arduino String on
 // device and std::string in the host test; only c_str() and construction from
 // const char* are assumed.
-template <typename Str, typename Resolve>
-Str migrateProgressKey(const Str& raw, Resolve resolve) {
+template <typename Str, typename Resolve> Str migrateProgressKey(const Str& raw, Resolve resolve) {
     const char* s = raw.c_str();
     size_t lastSep = 0;
     for (size_t i = 0; s[i] != '\0'; ++i) {

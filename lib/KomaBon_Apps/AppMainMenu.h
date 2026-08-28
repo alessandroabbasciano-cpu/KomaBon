@@ -5,9 +5,11 @@
 #include "../KomaBon_Core/Lock.h"
 
 class AppMainMenu : public App {
-public:
-    const char* getName() override { return "Main Menu"; }
-    
+  public:
+    const char* getName() override {
+        return "Main Menu";
+    }
+
     void start() override;
     void update() override;
     void draw() override;
@@ -20,8 +22,8 @@ public:
     // trigger it when a station connection can't be established.
     void startHotspot();
     void stopHotspot();
-    
-private:
+
+  private:
     int selectedIndex = 0;
     bool _needsRedraw = false;
     bool _firstDraw = true;
@@ -37,10 +39,10 @@ private:
     unsigned long _lastNetworkPoll = 0;
     unsigned long _lastBatteryPoll = 0;
     BatteryStatus _lastBatteryStatus = {0.0f, -1, false};
-    
+
     // Update Notification.
-    // Written by the updateCheckTask task and read by draw() in the main loop. 
-    // _updateVersion is a String: a write in the middle of a read would change 
+    // Written by the updateCheckTask task and read by draw() in the main loop.
+    // _updateVersion is a String: a write in the middle of a read would change
     // the pointer underneath the reader, not just an outdated value. See Lock.h.
     Book32Mutex _updateMutex;
     bool _updateAvailable = false;

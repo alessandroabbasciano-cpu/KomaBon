@@ -26,6 +26,7 @@ void applyBookOrderT(const OrderVec& order, ItemVec& items, Matches matches) {
             }
         }
     }
-    for (auto& rest : items) result.push_back(rest);
+    for (auto& rest : items)
+        result.push_back(rest);
     items = result;
 }

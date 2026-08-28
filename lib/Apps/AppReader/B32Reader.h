@@ -11,7 +11,7 @@
 #include <rom/miniz.h>
 
 class B32Reader {
-public:
+  public:
     B32Reader();
     ~B32Reader();
 
@@ -19,24 +19,32 @@ public:
     void close();
 
     // Metadata
-    uint16_t getWidth() const { return _width; }
-    uint16_t getHeight() const { return _height; }
-    uint16_t getPageCount() const { return _pageCount; }
-    
+    uint16_t getWidth() const {
+        return _width;
+    }
+    uint16_t getHeight() const {
+        return _height;
+    }
+    uint16_t getPageCount() const {
+        return _pageCount;
+    }
+
     // Cover
-    bool hasCover() const { return _coverLen > 0; }
-    // Returns a pointer to the decompressed cover bitmap (allocates memory, caller must free? No, let's keep it internal or return raw)
-    // Actually, Display works best with raw buffers.
-    // For now, let's just expose a method to load cover into a buffer.
+    bool hasCover() const {
+        return _coverLen > 0;
+    }
+    // Returns a pointer to the decompressed cover bitmap (allocates memory, caller must free? No, let's keep
+    // it internal or return raw) Actually, Display works best with raw buffers. For now, let's just expose a
+    // method to load cover into a buffer.
     bool getCover(uint8_t* buffer, size_t bufferSize);
 
     // Reading
     // Decompresses page 'index' into 'buffer'. Buffer must be large enough (width*height/8 bytes).
     bool readPage(uint16_t index, uint8_t* buffer);
 
-private:
+  private:
     File _file;
-    
+
     uint16_t _width;
     uint16_t _height;
     uint16_t _pageCount;

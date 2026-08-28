@@ -90,13 +90,13 @@ String findFilenameForOriginal(const String& originalName) {
 // which also knows the legacy location (EbookFS). Without this, on a device
 // migrated from old firmware, the first upload would read an empty SystemFS
 // and write a file with a single entry; since openMetaForRead() prefers SystemFS,
-// that file would hide the one in EbookFS and all previous original names 
-// would disappear — truncated titles in the library and reading progress 
+// that file would hide the one in EbookFS and all previous original names
+// would disappear — truncated titles in the library and reading progress
 // lacking matching files.
 
-// Size of the existing metadata file, regardless of partition; 0 when none 
-// exists yet. Used to size the document before reading it — the document must 
-// be created with the final capacity, because assigning a DynamicJsonDocument 
+// Size of the existing metadata file, regardless of partition; 0 when none
+// exists yet. Used to size the document before reading it — the document must
+// be created with the final capacity, because assigning a DynamicJsonDocument
 // shrinks the pool to what is already in use and would leave no room for the new entry.
 static size_t existingMetaSize() {
     File metaFile;
@@ -122,8 +122,8 @@ static bool loadMetaDoc(DynamicJsonDocument& doc) {
 }
 
 static bool writeMetaDoc(const DynamicJsonDocument& doc) {
-    // Same lesson as ProgressStore: it is better to refuse writing than to 
-    // replace a good file with a truncated one, which would erase the entries of 
+    // Same lesson as ProgressStore: it is better to refuse writing than to
+    // replace a good file with a truncated one, which would erase the entries of
     // all other books.
     if (doc.overflowed()) {
         Serial.println("BookMeta: document exceeded capacity — write refused");
@@ -144,7 +144,7 @@ void saveBookMetadata(const String& truncatedName, const String& originalName) {
     Book32Guard guard(g_metaMutex);
     size_t extra = truncatedName.length() + originalName.length() + 64;
     DynamicJsonDocument doc(metaCapacityFor(existingMetaSize()) + extra);
-    loadMetaDoc(doc);  // file missing or unreadable: start empty
+    loadMetaDoc(doc); // file missing or unreadable: start empty
 
     doc[truncatedName] = originalName;
 
@@ -156,7 +156,7 @@ void saveBookMetadata(const String& truncatedName, const String& originalName) {
 void removeBookMetadata(const String& truncatedName) {
     Book32Guard guard(g_metaMutex);
     size_t existingSize = existingMetaSize();
-    if (existingSize == 0) return;  // nothing recorded yet
+    if (existingSize == 0) return; // nothing recorded yet
 
     DynamicJsonDocument doc(metaCapacityFor(existingSize));
     if (!loadMetaDoc(doc)) return;

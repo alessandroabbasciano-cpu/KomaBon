@@ -10,7 +10,7 @@ struct BatteryStatus {
 };
 
 class BatteryMgr {
-public:
+  public:
     static BatteryMgr& getInstance();
 
     void init();
@@ -34,30 +34,30 @@ public:
     void shutdownLowBattery();
 
     // Idle sleep management
-    void loadSleepSettings();             // Load from EbookFS
-    void resetIdleTimer();                // Call when user interacts
+    void loadSleepSettings(); // Load from EbookFS
+    void resetIdleTimer();    // Call when user interacts
     // reason: label of the path that requested sleep ("IDLE-TIMEOUT",
     // "KEY2-LONGPRESS", etc.). Logged immediately before deep sleep, allowing
     // identification of the triggering path in the serial log.
     void enterIdleSleep(const char* reason = "unspecified");
 
     // Status indicator on e-ink display (partial update)
-    void drawStatusIndicator();           // Draw charging indicator if state changed
+    void drawStatusIndicator(); // Draw charging indicator if state changed
 
-private:
+  private:
     BatteryMgr();
 
     // Internal: performs actual ADC read and updates cache
     void updateCache(bool clearStaleCharging = false);
 
-    // Serializes access to the ADC and state below. Three tasks are involved: 
-    // the main loop (update/getStatus), the web server task 
-    // (GET /api/status, POST /api/settings/sleep), and the input task (resetIdleTimer). 
-    // Measurement turns on a GPIO switch, takes 30 readings, and turns it off—two 
-    // tasks executing this simultaneously would cut power to the switch mid-reading. 
+    // Serializes access to the ADC and state below. Three tasks are involved:
+    // the main loop (update/getStatus), the web server task
+    // (GET /api/status, POST /api/settings/sleep), and the input task (resetIdleTimer).
+    // Measurement turns on a GPIO switch, takes 30 readings, and turns it off—two
+    // tasks executing this simultaneously would cut power to the switch mid-reading.
     // See Lock.h.
     //
-    // The mutex is never held during e-ink drawing: methods that draw take a 
+    // The mutex is never held during e-ink drawing: methods that draw take a
     // copy of the state and release the mutex beforehand.
     Book32Mutex _mutex;
 
@@ -67,32 +67,33 @@ private:
     static const unsigned long CACHE_DURATION_MS = 5000; // Cache for 5 seconds
 
     // Charge detection via voltage trend
-    float _voltageHistory[5];          // Store 5 readings over time (for 2+ minute trend)
-    unsigned long _historyTimes[5];    // Timestamps for each reading
-    int _historyIndex;                 // Current index in circular buffer
-    unsigned long _lastHistoryUpdate;  // Last time we added to history
-    float _previousVoltage;            // Previous voltage reading for short-term trend
-    static const unsigned long HISTORY_INTERVAL_MS = 30000; // Sample every 30 seconds (better for slow charging)
-    static const float CHARGE_THRESHOLD;  // Voltage increase threshold to detect charging
-    static const float HIGH_VOLTAGE_THRESHOLD;  // Consider charging if voltage above this (near full)
+    float _voltageHistory[5];         // Store 5 readings over time (for 2+ minute trend)
+    unsigned long _historyTimes[5];   // Timestamps for each reading
+    int _historyIndex;                // Current index in circular buffer
+    unsigned long _lastHistoryUpdate; // Last time we added to history
+    float _previousVoltage;           // Previous voltage reading for short-term trend
+    static const unsigned long HISTORY_INTERVAL_MS =
+        30000;                                 // Sample every 30 seconds (better for slow charging)
+    static const float CHARGE_THRESHOLD;       // Voltage increase threshold to detect charging
+    static const float HIGH_VOLTAGE_THRESHOLD; // Consider charging if voltage above this (near full)
 
     // Critical battery threshold
-    static const float CRITICAL_VOLTAGE;  // Shutdown below this voltage
+    static const float CRITICAL_VOLTAGE; // Shutdown below this voltage
 
     // Spike rejection and false-shutdown protection
-    float _lastValidVoltage;              // Last plausible voltage reading
-    int _criticalCount;                   // Consecutive critical readings counter
-    unsigned long _lastChargingTime;      // Last time charging was detected
-    static const int CRITICAL_CONFIRM_COUNT = 3;     // Require N consecutive critical readings
-    static const float SPIKE_REJECT_THRESHOLD;       // Max plausible V change per read (0.5V)
-    static const unsigned long CHARGING_GRACE_MS = 60000;  // 60s grace after charging detected
+    float _lastValidVoltage;                              // Last plausible voltage reading
+    int _criticalCount;                                   // Consecutive critical readings counter
+    unsigned long _lastChargingTime;                      // Last time charging was detected
+    static const int CRITICAL_CONFIRM_COUNT = 3;          // Require N consecutive critical readings
+    static const float SPIKE_REJECT_THRESHOLD;            // Max plausible V change per read (0.5V)
+    static const unsigned long CHARGING_GRACE_MS = 60000; // 60s grace after charging detected
 
     // Idle sleep settings
-    int _sleepTimeoutMinutes;          // 0 = disabled
+    int _sleepTimeoutMinutes; // 0 = disabled
     String _sleepMessage;
-    unsigned long _lastActivityTime;   // Last user interaction
+    unsigned long _lastActivityTime; // Last user interaction
 
     // Status indicator tracking
-    bool _lastDisplayedCharging;       // Last charging state shown on display
-    unsigned long _lastIndicatorUpdate;  // Last time indicator was updated
+    bool _lastDisplayedCharging;        // Last charging state shown on display
+    unsigned long _lastIndicatorUpdate; // Last time indicator was updated
 };

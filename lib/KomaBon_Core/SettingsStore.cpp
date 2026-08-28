@@ -133,8 +133,7 @@ bool SettingsStore::saveReader(const ReaderSettings& s) {
     file.close();
 
     Serial.printf("SettingsStore: saved reader refreshFrequency=%d fontSize=%d fontFamily=%d\n",
-                  doc["refreshFrequency"].as<int>(), doc["fontSize"].as<int>(),
-                  doc["fontFamily"].as<int>());
+                  doc["refreshFrequency"].as<int>(), doc["fontSize"].as<int>(), doc["fontFamily"].as<int>());
     return true;
 }
 
@@ -169,7 +168,7 @@ bool SettingsStore::saveSleep(const SleepSettings& s) {
     serializeJson(doc, file);
     file.close();
 
-    Serial.printf("SettingsStore: saved sleep timeout=%d message=%s\n",
-                  doc["sleepTimeout"].as<int>(), doc["sleepMessage"].as<String>().c_str());
+    Serial.printf("SettingsStore: saved sleep timeout=%d message=%s\n", doc["sleepTimeout"].as<int>(),
+                  doc["sleepMessage"].as<String>().c_str());
     return true;
 }

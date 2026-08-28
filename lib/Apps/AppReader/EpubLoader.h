@@ -18,12 +18,7 @@ enum TextStyle {
     STYLE_HEADER4
 };
 
-enum TextAlign {
-    ALIGN_LEFT,
-    ALIGN_CENTER,
-    ALIGN_RIGHT,
-    ALIGN_JUSTIFY
-};
+enum TextAlign { ALIGN_LEFT, ALIGN_CENTER, ALIGN_RIGHT, ALIGN_JUSTIFY };
 
 // Rich text node for formatted content
 struct RichTextNode {
@@ -32,9 +27,10 @@ struct RichTextNode {
     TextAlign align;
     bool isListItem;
     bool isBlockStart; // Starts a new paragraph/block
-    int indent; 
-    
-    RichTextNode() : style(STYLE_NORMAL), align(ALIGN_LEFT), isListItem(false), isBlockStart(true), indent(0) {}
+    int indent;
+
+    RichTextNode()
+        : style(STYLE_NORMAL), align(ALIGN_LEFT), isListItem(false), isBlockStart(true), indent(0) {}
 };
 
 // Table structures
@@ -43,7 +39,7 @@ struct TableCell {
     int colspan;
     int rowspan;
     bool isHeader;
-    
+
     TableCell() : colspan(1), rowspan(1), isHeader(false) {}
 };
 
@@ -54,7 +50,7 @@ struct TableRow {
 struct Table {
     std::vector<TableRow> rows;
     int columnCount;
-    
+
     Table() : columnCount(0) {}
 };
 
@@ -67,26 +63,23 @@ struct FontInfo {
 };
 
 // Content node - can be text or table
-enum ContentType {
-    CONTENT_TEXT,
-    CONTENT_TABLE
-};
+enum ContentType { CONTENT_TEXT, CONTENT_TABLE };
 
 struct ContentNode {
     ContentType type;
     RichTextNode textNode;
     Table table;
-    
+
     ContentNode() : type(CONTENT_TEXT) {}
 };
 
 class EpubLoader {
-public:
+  public:
     EpubLoader();
     ~EpubLoader();
     bool open(const char* path);
     void close();
-    
+
     // Metadata getters
     String getTitle();
     String getAuthor();
@@ -94,17 +87,17 @@ public:
     String getLanguage();
     String getPublicationDate();
     String getISBN();
-    
+
     // Content getters
     int getChapterCount();
-    String getChapterContent(int index);  // Legacy plain text
-    std::vector<ContentNode> getChapterContentRich(int index);  // Rich formatted content
-    
+    String getChapterContent(int index);                       // Legacy plain text
+    std::vector<ContentNode> getChapterContentRich(int index); // Rich formatted content
+
     // Font support
     std::vector<FontInfo> getFonts();
     uint8_t* getFontData(String path, size_t* outSize);
 
-private:
+  private:
     // Metadata
     String bookTitle;
     String bookAuthor;
@@ -112,12 +105,12 @@ private:
     String bookLanguage;
     String bookPubDate;
     String bookISBN;
-    
+
     // Paths
     String epubPath;
     String opfPath;
     String rootDir; // Directory of the OPF file
-    
+
     // Fonts
     std::vector<FontInfo> fonts;
 
@@ -141,7 +134,7 @@ private:
 
     // Helper to read file from zip
     String readFileFromZip(const char* path);
-    
+
     // Rich content parsing
     std::vector<ContentNode> parseHtmlToRichContent(const String& html);
     Table parseTable(const String& tableHtml);

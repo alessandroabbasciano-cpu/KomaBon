@@ -5,7 +5,8 @@
 // Local FreeSans with Latin-1 Supplement (0x20-0xFF).
 #include "Fonts/FreeSans.h"
 
-static void drawCenteredText(KomaBonDisplay& display, const char* text, const GFXfont* font, int16_t baseline, uint16_t color) {
+static void drawCenteredText(KomaBonDisplay& display, const char* text, const GFXfont* font, int16_t baseline,
+                             uint16_t color) {
     int16_t x1, y1;
     uint16_t w, h;
     display.setFont(font);
@@ -40,8 +41,7 @@ static void drawBootProgress(KomaBonDisplay& display, uint8_t progress, const ch
 
 // Constructor with Pin mapping
 // GxEPD2_420(int16_t cs, int16_t dc, int16_t rst, int16_t busy)
-DisplayMgr::DisplayMgr() : display(GxEPD2_750_T7(EPD_CS, EPD_DC, EPD_RST, EPD_BUSY)) {
-}
+DisplayMgr::DisplayMgr() : display(GxEPD2_750_T7(EPD_CS, EPD_DC, EPD_RST, EPD_BUSY)) {}
 
 DisplayMgr& DisplayMgr::getInstance() {
     static DisplayMgr instance;
@@ -50,8 +50,8 @@ DisplayMgr& DisplayMgr::getInstance() {
 
 void DisplayMgr::init() {
     // For ESP32-S3 we must initialize SPI with custom pins before display.init
-    SPI.begin(EPD_SCK, EPD_MISO, EPD_MOSI, EPD_CS); 
-    
+    SPI.begin(EPD_SCK, EPD_MISO, EPD_MOSI, EPD_CS);
+
     display.init(115200, true, 10, false);
 
     display.setRotation(_rotation); // Portrait mode (480x800); _rotation = 1 or 3
@@ -75,7 +75,7 @@ void DisplayMgr::setRotation(int rotation) {
 }
 
 void DisplayMgr::loadDisplaySettings() {
-    int rotation = 3;  // Default: button on the left
+    int rotation = 3; // Default: button on the left
     if (EbookFS.exists("/display_config.json")) {
         File file = EbookFS.open("/display_config.json", "r");
         if (file) {
@@ -124,7 +124,8 @@ void DisplayMgr::showBootScreen(uint8_t progress, const char* status) {
 
         if (drawFullFrame) {
             display.fillScreen(GxEPD_WHITE);
-            display.drawRect(frameInset, frameInset, screenW - (frameInset * 2), screenH - (frameInset * 2), GxEPD_BLACK);
+            display.drawRect(frameInset, frameInset, screenW - (frameInset * 2), screenH - (frameInset * 2),
+                             GxEPD_BLACK);
             display.drawFastHLine(54, 64, screenW - 108, GxEPD_BLACK);
             display.drawFastHLine(54, screenH - 64, screenW - 108, GxEPD_BLACK);
 

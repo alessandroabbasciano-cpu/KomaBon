@@ -36,8 +36,7 @@ enum class UploadVerdict { Ok, BadExtension, UnsafeName, NoSpace };
 // where 507 is the correct response.
 // (size/256 bounds size/511 = size*4096/4088 - size; no risk of overflow
 // for sizes around 10 MB with 32-bit size_t.)
-template <typename S>
-UploadVerdict checkUpload(const S& filename, size_t contentLength, size_t freeBytes) {
+template <typename S> UploadVerdict checkUpload(const S& filename, size_t contentLength, size_t freeBytes) {
     if (!hasExtensionCI(filename, ".epub") && !hasExtensionCI(filename, ".ttf")) {
         return UploadVerdict::BadExtension;
     }

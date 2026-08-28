@@ -28,18 +28,9 @@ enum SettingsRow {
     ROW_COUNT
 };
 
-static const char* ROW_LABELS[ROW_COUNT] = {
-    "Font size",
-    "Font family",
-    "Orientation",
-    "Refresh screen",
-    "Sleep timeout",
-    "Wi-Fi",
-    "Network",
-    "System",
-    "Save",
-    "Discard"
-};
+static const char* ROW_LABELS[ROW_COUNT] = {"Font size",     "Font family", "Orientation", "Refresh screen",
+                                            "Sleep timeout", "Wi-Fi",       "Network",     "System",
+                                            "Save",          "Discard"};
 
 static const char* FONT_FAMILY_NAMES[6] = {"FreeSans",       "Merriweather", "Literata",
                                            "Source Serif 4", "Gelasio",      "Open Sans"};
@@ -54,7 +45,7 @@ static int cycleInt(const int* values, int count, int current) {
     for (int i = 0; i < count; i++) {
         if (values[i] == current) return values[(i + 1) % count];
     }
-    return values[0];  // Current value not in the set: snap to the first
+    return values[0]; // Current value not in the set: snap to the first
 }
 
 // Layout
@@ -112,8 +103,7 @@ void AppSettings::start() {
     _statusUntil = 0;
     _needsRedraw = true;
 
-    InputMgr::getInstance().setCallback(
-        std::bind(&AppSettings::handleInput, this, std::placeholders::_1));
+    InputMgr::getInstance().setCallback(std::bind(&AppSettings::handleInput, this, std::placeholders::_1));
 }
 
 void AppSettings::stop() {
@@ -127,8 +117,7 @@ void AppSettings::forceRedraw() {
 }
 
 void AppSettings::recomputeDirty() {
-    _dirty = _reader.fontSize != _readerSaved.fontSize ||
-             _reader.fontFamily != _readerSaved.fontFamily ||
+    _dirty = _reader.fontSize != _readerSaved.fontSize || _reader.fontFamily != _readerSaved.fontFamily ||
              _reader.refreshFrequency != _readerSaved.refreshFrequency ||
              _display.rotation != _displaySaved.rotation ||
              _sleep.timeout != SettingsStore::getInstance().loadSleep().timeout;
@@ -136,11 +125,16 @@ void AppSettings::recomputeDirty() {
 
 bool AppSettings::rowChanged(int index) const {
     switch (index) {
-        case ROW_FONT_SIZE:   return _reader.fontSize != _readerSaved.fontSize;
-        case ROW_FONT_FAMILY: return _reader.fontFamily != _readerSaved.fontFamily;
-        case ROW_ROTATION:    return _display.rotation != _displaySaved.rotation;
-        case ROW_REFRESH:     return _reader.refreshFrequency != _readerSaved.refreshFrequency;
-        default:              return false;
+        case ROW_FONT_SIZE:
+            return _reader.fontSize != _readerSaved.fontSize;
+        case ROW_FONT_FAMILY:
+            return _reader.fontFamily != _readerSaved.fontFamily;
+        case ROW_ROTATION:
+            return _display.rotation != _displaySaved.rotation;
+        case ROW_REFRESH:
+            return _reader.refreshFrequency != _readerSaved.refreshFrequency;
+        default:
+            return false;
     }
 }
 
@@ -164,7 +158,7 @@ void AppSettings::toggleWifi() {
         setStatus("Wi-Fi off");
     } else {
         WiFi.mode(WIFI_STA);
-        WiFi.begin();  // Reuses the credentials stored by WiFiManager
+        WiFi.begin(); // Reuses the credentials stored by WiFiManager
         setStatus("Connecting Wi-Fi...");
     }
 }
@@ -196,8 +190,7 @@ String AppSettings::valueForRow(int index) const {
         case ROW_REFRESH:
             return String(_reader.refreshFrequency) + " pages";
         case ROW_SLEEP:
-            return _sleep.timeout == 0 ? String("Off")
-                                       : String(_sleep.timeout) + " min";
+            return _sleep.timeout == 0 ? String("Off") : String(_sleep.timeout) + " min";
         case ROW_WIFI:
             return isWifiOn() ? "On" : "Off";
         case ROW_NETWORK:
@@ -313,8 +306,7 @@ void AppSettings::handleInput(InputAction action) {
     }
 
     if (_screen == SCREEN_NETWORK) {
-        if (action == INPUT_BACK || action == INPUT_GO_TO_MAIN_MENU ||
-            action == INPUT_SELECT) {
+        if (action == INPUT_BACK || action == INPUT_GO_TO_MAIN_MENU || action == INPUT_SELECT) {
             _screen = SCREEN_MAIN;
             _needsRedraw = true;
         }
@@ -335,7 +327,7 @@ void AppSettings::handleInput(InputAction action) {
                     setStatus("No network. Turn on Wi-Fi first.");
                 } else {
                     setStatus("Searching...", 1000);
-                    draw();  // Paint the notice before the blocking HTTP call
+                    draw(); // Paint the notice before the blocking HTTP call
                     UpdateInfo info = GitHubMgr::getInstance().checkUpdate(SYSTEM_VERSION);
                     if (info.available) {
                         // Persist edits first: the update reboots the device.
@@ -422,7 +414,7 @@ bool AppSettings::applyAndSave() {
     {
         // The three writes count as a single operation against the HTTP handlers,
         // which write the same files from the server task. The transaction
-        // closes right after: keeping the lock during the repaint below 
+        // closes right after: keeping the lock during the repaint below
         // (a full e-ink refresh taking seconds) would unnecessarily block the web server.
         SettingsStore::Transaction tx;
         ok = store.saveReader(_reader);
@@ -505,8 +497,7 @@ void AppSettings::drawHeader(const char* title) {
     display.drawLine(20, 62, display.width() - 20, 62, GxEPD_BLACK);
 
     if (_dirty) {
-        font.drawText(display, "* unsaved changes", 20, 90,
-                      FONT_SIZE_SMALL, GxEPD_BLACK);
+        font.drawText(display, "* unsaved changes", 20, 90, FONT_SIZE_SMALL, GxEPD_BLACK);
     }
 }
 
@@ -601,8 +592,8 @@ void AppSettings::drawNetworkScreen() {
     y += ROW_HEIGHT;
 
     font.drawText(display, "IP:", 26, y, FONT_SIZE_BODY, GxEPD_BLACK);
-    font.drawText(display, connected ? WiFi.localIP().toString().c_str() : "-",
-                  200, y, FONT_SIZE_BODY, GxEPD_BLACK);
+    font.drawText(display, connected ? WiFi.localIP().toString().c_str() : "-", 200, y, FONT_SIZE_BODY,
+                  GxEPD_BLACK);
     y += ROW_HEIGHT;
 
     font.drawText(display, "MAC:", 26, y, FONT_SIZE_BODY, GxEPD_BLACK);
@@ -665,8 +656,8 @@ void AppSettings::drawConfirmScreen() {
 
     drawHeader("Unsaved changes");
 
-    font.drawTextCentered(display, "You have changes that you haven't saved.",
-                          LIST_START_Y, FONT_SIZE_BODY, GxEPD_BLACK);
+    font.drawTextCentered(display, "You have changes that you haven't saved.", LIST_START_Y, FONT_SIZE_BODY,
+                          GxEPD_BLACK);
 
     const char* options[3] = {"Save and exit", "Discard and exit", "Cancel"};
     int y = LIST_START_Y + 70;
@@ -691,8 +682,8 @@ void AppSettings::drawConfirmForgetWifiScreen() {
 
     drawHeader("Forget network?");
 
-    font.drawTextCentered(display, "The device will disconnect from the current network", LIST_START_Y, FONT_SIZE_BODY,
-                          GxEPD_BLACK);
+    font.drawTextCentered(display, "The device will disconnect from the current network", LIST_START_Y,
+                          FONT_SIZE_BODY, GxEPD_BLACK);
     font.drawTextCentered(display, "and restart in setup mode.", LIST_START_Y + 30, FONT_SIZE_BODY,
                           GxEPD_BLACK);
 

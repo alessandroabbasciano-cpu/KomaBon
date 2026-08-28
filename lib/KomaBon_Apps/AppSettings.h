@@ -28,7 +28,7 @@ enum SettingsScreen {
 };
 
 class AppSettings : public App {
-public:
+  public:
     AppSettings();
 
     // App interface
@@ -38,7 +38,9 @@ public:
     void stop() override;
     void forceRedraw() override;
 
-    const char* getName() override { return "Settings"; }
+    const char* getName() override {
+        return "Settings";
+    }
     const uint8_t* getIconImage() override;
 
     void handleInput(InputAction action);
@@ -47,7 +49,7 @@ public:
     // enters standby so a KEY2 press never silently discards the user's work.
     void saveDraftIfDirty();
 
-private:
+  private:
     SettingsScreen _screen;
     int _selectedIndex;
     int _subSelectedIndex;

@@ -10,31 +10,36 @@
 #include "Fonts/FreeSans.h"
 
 // Font size presets (in pixels) - mapped to GFX fonts
-#define FONT_SIZE_SMALL     14   // FreeSans9pt8b
-#define FONT_SIZE_BODY      18   // FreeSans12pt8b
-#define FONT_SIZE_MENU      20   // FreeSans12pt8b
-#define FONT_SIZE_SUBTITLE  24   // FreeSans18pt8b
-#define FONT_SIZE_TITLE     28   // FreeSans18pt8b
-#define FONT_SIZE_HEADER    36   // FreeSans24pt8b
+#define FONT_SIZE_SMALL 14    // FreeSans9pt8b
+#define FONT_SIZE_BODY 18     // FreeSans12pt8b
+#define FONT_SIZE_MENU 20     // FreeSans12pt8b
+#define FONT_SIZE_SUBTITLE 24 // FreeSans18pt8b
+#define FONT_SIZE_TITLE 28    // FreeSans18pt8b
+#define FONT_SIZE_HEADER 36   // FreeSans24pt8b
 
 class FontMgr {
-public:
+  public:
     static FontMgr& getInstance();
 
     // Initialize
     bool init();
 
     // Check if font system is ready (always true for GFX fonts)
-    bool hasTTFFont() { return true; }
+    bool hasTTFFont() {
+        return true;
+    }
 
     // Draw text at position using Adafruit GFX fonts
-    void drawText(KomaBonDisplay& display, const char* text, int x, int y, int fontSize, uint16_t color = GxEPD_BLACK);
+    void drawText(KomaBonDisplay& display, const char* text, int x, int y, int fontSize,
+                  uint16_t color = GxEPD_BLACK);
 
     // Draw text centered horizontally
-    void drawTextCentered(KomaBonDisplay& display, const char* text, int y, int fontSize, uint16_t color = GxEPD_BLACK);
+    void drawTextCentered(KomaBonDisplay& display, const char* text, int y, int fontSize,
+                          uint16_t color = GxEPD_BLACK);
 
     // Draw text right-aligned
-    void drawTextRight(KomaBonDisplay& display, const char* text, int x, int y, int fontSize, uint16_t color = GxEPD_BLACK);
+    void drawTextRight(KomaBonDisplay& display, const char* text, int x, int y, int fontSize,
+                       uint16_t color = GxEPD_BLACK);
 
     // Get text width for layout calculations
     int getTextWidth(const char* text, int fontSize);
@@ -55,7 +60,7 @@ public:
     static void utf8ToLatin1(const char* src, char* dst, size_t dstSize);
     static String utf8ToLatin1(const String& src);
 
-private:
+  private:
     FontMgr();
     ~FontMgr();
 

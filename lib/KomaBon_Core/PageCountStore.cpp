@@ -68,7 +68,8 @@ bool PageCountStore::save() {
     doc["fontFamily"] = _fontFamily;
 
     JsonObject totals = doc.createNestedObject("totals");
-    for (const auto& kv : _totals) totals[kv.first] = kv.second;
+    for (const auto& kv : _totals)
+        totals[kv.first] = kv.second;
 
     JsonObject checkpoints = doc.createNestedObject("checkpoints");
     for (const auto& kv : _checkpoints) {

@@ -58,7 +58,6 @@ static void drawOTAProgress(int progress, const char* title, const char* status)
     } while (display.nextPage());
 }
 
-
 GitHubMgr::GitHubMgr() {}
 
 GitHubMgr& GitHubMgr::getInstance() {
@@ -86,7 +85,7 @@ UpdateInfo GitHubMgr::checkUpdate(const char* currentVersion) {
     http.begin(apiURL);
     // Updated User-Agent to KomaBon
     http.setUserAgent("KomaBon-ESP32");
-    http.setTimeout(10000);  // 10 second timeout
+    http.setTimeout(10000); // 10 second timeout
 
     Serial.println("Using public GitHub release API");
 
@@ -95,10 +94,10 @@ UpdateInfo GitHubMgr::checkUpdate(const char* currentVersion) {
 
     if (httpCode == HTTP_CODE_OK) {
         // Filter: the GitHub response brings the `author` object, the `uploader`
-        // of each asset and dozens of URLs we don't use. A release with long notes 
-        // and two assets exceeded the 8 KB of the document and the parse failed 
-        // with NoMemory — meaning the device said "no updates" exactly when there 
-        // was one. Keeping only the fields below maintains the document small 
+        // of each asset and dozens of URLs we don't use. A release with long notes
+        // and two assets exceeded the 8 KB of the document and the parse failed
+        // with NoMemory — meaning the device said "no updates" exactly when there
+        // was one. Keeping only the fields below maintains the document small
         // regardless of the rest.
         StaticJsonDocument<192> filter;
         filter["tag_name"] = true;
@@ -107,8 +106,8 @@ UpdateInfo GitHubMgr::checkUpdate(const char* currentVersion) {
         filter["assets"][0]["browser_download_url"] = true;
 
         DynamicJsonDocument doc(8192);
-        DeserializationError err = deserializeJson(doc, http.getStream(),
-                                                   DeserializationOption::Filter(filter));
+        DeserializationError err =
+            deserializeJson(doc, http.getStream(), DeserializationOption::Filter(filter));
 
         if (err) {
             Serial.printf("JSON parse error: %s\n", err.c_str());
@@ -144,8 +143,8 @@ UpdateInfo GitHubMgr::checkUpdate(const char* currentVersion) {
                     info.firmwareUrl = url;
                     info.hasFirmware = true;
                     Serial.printf("Found firmware: %s\n", name.c_str());
-                }
-                else if (name == "littlefs.bin" || name == "filesystem.bin" || name.endsWith("_littlefs.bin")) {
+                } else if (name == "littlefs.bin" || name == "filesystem.bin" ||
+                           name.endsWith("_littlefs.bin")) {
                     info.filesystemUrl = url;
                     info.hasFilesystem = true;
                     Serial.printf("Found filesystem: %s\n", name.c_str());
@@ -185,7 +184,8 @@ UpdateInfo GitHubMgr::checkUpdate(const char* currentVersion) {
                     extractEd25519Signature(info.notes, "filesystem.bin", info.filesystemEd25519Sig);
                 }
                 if (info.filesystemEd25519Sig.length() == 0) {
-                    Serial.println("WARNING: release publishes no Ed25519 signature for the filesystem image");
+                    Serial.println(
+                        "WARNING: release publishes no Ed25519 signature for the filesystem image");
                 }
             }
         } else {
@@ -202,9 +202,9 @@ UpdateInfo GitHubMgr::checkUpdate(const char* currentVersion) {
     return info;
 }
 
-bool GitHubMgr::downloadAndFlash(const char* url, int partition, const char* label,
-                                 bool restartAfter, int step, int totalSteps,
-                                 const char* expectedSha256, const char* expectedEd25519Sig) {
+bool GitHubMgr::downloadAndFlash(const char* url, int partition, const char* label, bool restartAfter,
+                                 int step, int totalSteps, const char* expectedSha256,
+                                 const char* expectedEd25519Sig) {
     if (WiFi.status() != WL_CONNECTED) return false;
 
     Serial.printf("Downloading %s from: %s\n", label, url);
@@ -243,7 +243,7 @@ bool GitHubMgr::downloadAndFlash(const char* url, int partition, const char* lab
     // Updated User-Agent to KomaBon
     http.setUserAgent("KomaBon-ESP32");
     http.setFollowRedirects(HTTPC_STRICT_FOLLOW_REDIRECTS);
-    http.setTimeout(30000);  // 30 second timeout for large downloads
+    http.setTimeout(30000); // 30 second timeout for large downloads
 
     http.addHeader("Accept", "application/octet-stream");
 
@@ -287,7 +287,7 @@ bool GitHubMgr::downloadAndFlash(const char* url, int partition, const char* lab
     // extra flash reads and no second download.
     mbedtls_sha256_context shaCtx;
     mbedtls_sha256_init(&shaCtx);
-    mbedtls_sha256_starts(&shaCtx, 0);  // 0 = SHA-256, not SHA-224
+    mbedtls_sha256_starts(&shaCtx, 0); // 0 = SHA-256, not SHA-224
 
     // v1.4.1: abort if the stream stalls, instead of spinning forever on
     // available() == 0 when the connection drops mid-download.
@@ -303,7 +303,7 @@ bool GitHubMgr::downloadAndFlash(const char* url, int partition, const char* lab
                 http.end();
                 return false;
             }
-            delay(1);  // Yield to other tasks
+            delay(1); // Yield to other tasks
             continue;
         }
         lastDataMs = millis();
@@ -473,9 +473,9 @@ bool GitHubMgr::performFullUpdate(const char* currentVersion) {
     if (info.hasFilesystem) {
         currentStep++;
         Serial.println("Updating filesystem...");
-        filesystemUpdated = performFilesystemUpdate(info.filesystemUrl.c_str(), false, currentStep, totalSteps,
-                                                    info.filesystemSha256.c_str(),
-                                                    info.filesystemEd25519Sig.c_str());
+        filesystemUpdated =
+            performFilesystemUpdate(info.filesystemUrl.c_str(), false, currentStep, totalSteps,
+                                    info.filesystemSha256.c_str(), info.filesystemEd25519Sig.c_str());
         if (!filesystemUpdated) {
             Serial.println("Filesystem update failed!");
             // Still restart if firmware was updated

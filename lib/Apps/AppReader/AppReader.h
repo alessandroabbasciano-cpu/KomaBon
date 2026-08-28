@@ -8,10 +8,7 @@
 #include <vector>
 #include <map>
 
-enum ReaderState {
-    VIEW_LIBRARY,
-    VIEW_READING
-};
+enum ReaderState { VIEW_LIBRARY, VIEW_READING };
 
 struct BookEntry {
     String path;         // Full path to file
@@ -25,23 +22,27 @@ struct BookEntry {
 };
 
 class AppReader : public App {
-public:
+  public:
     AppReader();
     virtual ~AppReader();
-    
+
     // App Interface
     void start() override;
     void stop() override;
     void update() override; // Main loop: Input handling
     void draw() override;   // Display handling
-    
+
     // Icon
-    const uint8_t* getIconImage() override; 
-    const char* getName() override { return "eReader"; }
+    const uint8_t* getIconImage() override;
+    const char* getName() override {
+        return "eReader";
+    }
 
     // The reader page occupies the whole screen: the system battery indicator
     // would overlay the text. In the library view, there is no conflict.
-    bool allowsSystemStatusIndicator() override { return _state != VIEW_READING; }
+    bool allowsSystemStatusIndicator() override {
+        return _state != VIEW_READING;
+    }
 
     bool hasBootResume();
     void resumeSavedBookOnStart();
@@ -56,9 +57,9 @@ public:
     // call from the main loop; re-paginates the current page.
     void applyFontFamily(int family) override;
 
-private:
+  private:
     ReaderState _state;
-    
+
     // Library
     std::vector<BookEntry> _books;
     int _selectedBookIndex;
@@ -74,15 +75,15 @@ private:
     void drawLibrary();
     void updateLibraryScroll();
     void drawBookTile(KomaBonDisplay& display, int x, int y, int w, int h, bool selected);
-    
+
     // Settings
     int _refreshEveryNPages;
     int _pageTurnsSinceRefresh;
-    int _fontSizePt;          // Reading body font size in points (9/12/18)
-    int _fontFamily;          // Reading font family (see ReaderFontFamily)
-    bool _readingFirstDraw;   // Forces a full refresh on the next reading draw
+    int _fontSizePt;        // Reading body font size in points (9/12/18)
+    int _fontFamily;        // Reading font family (see ReaderFontFamily)
+    bool _readingFirstDraw; // Forces a full refresh on the next reading draw
     void loadSettings();
-    
+
     // Reading
     EpubLoader* _epubLoader;
     TextRenderer* _textRenderer;
@@ -95,7 +96,7 @@ private:
     // a whole book up front would stall opening a large one, so it's counted a
     // little at a time from update() instead, using a renderer of its own so it
     // never disturbs the page actually on screen. See startTotalPagesCounting().
-    int _totalPages;      // 0 until known for the currently open book
+    int _totalPages; // 0 until known for the currently open book
     bool _countingActive;
     TextRenderer* _countRenderer;
     int _countChapter;
@@ -112,12 +113,12 @@ private:
     std::vector<PagePointer> _pageHistory; // Stores start of each page for current chapter
     RenderResult _currentPageRender;
     bool _currentPageRenderValid;
-    
+
     bool openBook(const String& path, bool restoreProgress = true);
     bool openSavedProgress();
     // v1.8.0: keyed by original filename via ProgressStore, not by path.
     bool loadBookProgress(const String& originalName, int& chapter, PagePointer& pointer, int& globalPage);
-    
+
     // Marks the current position as dirty (to be saved). The actual writing
     // to flash happens in flushProgress(), which is called by update() when
     // the reader is idle and whenever the book is closed (including standby).

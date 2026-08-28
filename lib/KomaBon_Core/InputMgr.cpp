@@ -5,8 +5,9 @@
 #include "ButtonPressLogic.h"
 #include "StandbyGuard.h"
 
-InputMgr::InputMgr() : btn(PIN_BUTTON, true, true), btnBack(PIN_BUTTON_BACK, true, true),
-                       btnSleep(PIN_BUTTON_SLEEP, true, true) { // Active Low, Pullup
+InputMgr::InputMgr()
+    : btn(PIN_BUTTON, true, true), btnBack(PIN_BUTTON_BACK, true, true),
+      btnSleep(PIN_BUTTON_SLEEP, true, true) { // Active Low, Pullup
     callback = nullptr;
 }
 
@@ -21,7 +22,7 @@ void InputMgr::init() {
     // settings take effect here. KEY1 and KEY2 are polled with digitalRead()
     // and get their timing from ButtonPressLogic.h instead.[cite: 61]
     btn.setDebounceMs(BUTTON_DEBOUNCE_MIN_MS);
-    btn.setClickMs(100);        // Very short click window - no waiting for double-click
+    btn.setClickMs(100); // Very short click window - no waiting for double-click
     btn.setPressMs(BUTTON_LONG_PRESS_MS);
 
     // Attach static handlers that trampoline to member functions
@@ -50,15 +51,7 @@ void InputMgr::init() {
     pinMode(PIN_BUTTON_SLEEP, INPUT_PULLUP);
 
     if (!_taskHandle) {
-        BaseType_t result = xTaskCreatePinnedToCore(
-            inputTask,
-            "InputPoll",
-            3072,
-            this,
-            2,
-            &_taskHandle,
-            1
-        );
+        BaseType_t result = xTaskCreatePinnedToCore(inputTask, "InputPoll", 3072, this, 2, &_taskHandle, 1);
         _taskRunning = (result == pdPASS);
         if (!_taskRunning) {
             Serial.println("Input task failed to start; falling back to loop polling");
@@ -73,7 +66,7 @@ void InputMgr::update() {
     // of refresh) before doing so.[cite: 61]
     if (_standbyRequested) {
         _standbyRequested = false;
-        enterStandby();  // does not return: deep sleep
+        enterStandby(); // does not return: deep sleep
     }
 
     if (!_taskRunning) {
@@ -96,7 +89,7 @@ void InputMgr::update() {
             continue;
         }
         Serial.printf("InputMgr::update() - dispatching action %d to callback\n", action);
-        if(callback) callback(action);
+        if (callback) callback(action);
     }
 }
 
@@ -106,44 +99,41 @@ void InputMgr::inputTask(void* parameter) {
         self->btn.tick();
         // btnBack.tick() removed - using manual polling instead
 
-        // Raw state of the three buttons, read once per cycle and shared by 
-        // diagnostics and detection blocks below. KEY3 enters here because 
-        // the standby guard needs to know if it is pressed: it is read raw 
+        // Raw state of the three buttons, read once per cycle and shared by
+        // diagnostics and detection blocks below. KEY3 enters here because
+        // the standby guard needs to know if it is pressed: it is read raw
         // and not through OneButton, which only reports pre-classified events.[cite: 61]
-        bool key1Pressed = (digitalRead(PIN_BUTTON_BACK)  == LOW);  // Active low
+        bool key1Pressed = (digitalRead(PIN_BUTTON_BACK) == LOW); // Active low
         bool key2Pressed = (digitalRead(PIN_BUTTON_SLEEP) == LOW);
-        bool key3Pressed = (digitalRead(PIN_BUTTON)       == LOW);
+        bool key3Pressed = (digitalRead(PIN_BUTTON) == LOW);
         unsigned long now = millis();
 
         // v1.9.1 diagnostics (PINDIAG): raw snapshot of the three pins on each
         // transition. 1 = released (pull-up), 0 = pressed (active low).
-        // Maintained after correction: shows if pressing KEY3 drags GPIO3 with 
+        // Maintained after correction: shows if pressing KEY3 drags GPIO3 with
         // it, which is the hypothesis defended by the standby guard.[cite: 61]
         {
-            uint8_t snapshot = (uint8_t)((key1Pressed ? 0 : 0x01) |
-                                         (key2Pressed ? 0 : 0x02) |
-                                         (key3Pressed ? 0 : 0x04));
+            uint8_t snapshot =
+                (uint8_t)((key1Pressed ? 0 : 0x01) | (key2Pressed ? 0 : 0x02) | (key3Pressed ? 0 : 0x04));
             if (snapshot != self->_lastPinSnapshot) {
                 self->_lastPinSnapshot = snapshot;
-                Serial.printf("PINDIAG: KEY1/GPIO%d=%d  KEY2/GPIO%d=%d  KEY3/GPIO%d=%d\n",
-                              PIN_BUTTON_BACK,  (snapshot & 0x01) ? 1 : 0,
-                              PIN_BUTTON_SLEEP, (snapshot & 0x02) ? 1 : 0,
-                              PIN_BUTTON,       (snapshot & 0x04) ? 1 : 0);
+                Serial.printf("PINDIAG: KEY1/GPIO%d=%d  KEY2/GPIO%d=%d  KEY3/GPIO%d=%d\n", PIN_BUTTON_BACK,
+                              (snapshot & 0x01) ? 1 : 0, PIN_BUTTON_SLEEP, (snapshot & 0x02) ? 1 : 0,
+                              PIN_BUTTON, (snapshot & 0x04) ? 1 : 0);
             }
         }
 
-        // Any button down is user activity. The inactivity timer reset used 
-        // to live only in pre-classified events, meaning a held KEY3 
-        // (or presses OneButton hadn't closed yet) didn't count as activity 
-        // and the timeout could fire during use — indistinguishable to the 
+        // Any button down is user activity. The inactivity timer reset used
+        // to live only in pre-classified events, meaning a held KEY3
+        // (or presses OneButton hadn't closed yet) didn't count as activity
+        // and the timeout could fire during use — indistinguishable to the
         // reader from "KEY3 sent the reader to sleep".
         //
-        // Limited to once per IDLE_RESET_THROTTLE_MS: resetIdleTimer() acquires 
-        // the BatteryMgr mutex, which ADC readings hold for tens of ms, and 
+        // Limited to once per IDLE_RESET_THROTTLE_MS: resetIdleTimer() acquires
+        // the BatteryMgr mutex, which ADC readings hold for tens of ms, and
         // risking blocking button sampling every 5ms is not worth it.[cite: 61]
         if ((key1Pressed || key2Pressed || key3Pressed) &&
-            (self->_lastIdleResetTime == 0 ||
-             (now - self->_lastIdleResetTime) >= IDLE_RESET_THROTTLE_MS)) {
+            (self->_lastIdleResetTime == 0 || (now - self->_lastIdleResetTime) >= IDLE_RESET_THROTTLE_MS)) {
             self->_lastIdleResetTime = now;
             BatteryMgr::getInstance().resetIdleTimer();
         }
@@ -182,15 +172,15 @@ void InputMgr::inputTask(void* parameter) {
                     BatteryMgr::getInstance().resetIdleTimer();
                     self->enqueueAction(INPUT_PREV);
                 }
-                
+
                 self->_btnBackPressTime = 0;
                 self->_btnBackLongPressSent = false;
             }
         }
-        
+
         // Manual KEY2 detection (PIN_BUTTON_SLEEP): short click -> full
-        // refresh, long press -> standby. Standby is consumed by InputMgr in 
-        // the main loop, rather than dispatched via callback, to work across 
+        // refresh, long press -> standby. Standby is consumed by InputMgr in
+        // the main loop, rather than dispatched via callback, to work across
         // all apps and modal screens like the unsaved changes warning.[cite: 61]
         bool sleepPressed = key2Pressed;
 
@@ -203,18 +193,16 @@ void InputMgr::inputTask(void* parameter) {
             } else if (!self->_btnSleepLongPressSent && !self->_btnSleepAborted &&
                        (now - self->_btnSleepPressTime) >= STANDBY_HOLD_MS) {
 #if BOOK32_KEY2_STANDBY_ENABLED
-                // Standby guard: re-reads the three pins and only accepts the 
-                // request if KEY2 is genuinely pressed and no other button is down. 
-                // Without this, a LOW induced on GPIO3 by pressing KEY3 would 
-                // trigger standby (see StandbyGuard.h). The threshold is 
-                // STANDBY_HOLD_MS (well above BUTTON_LONG_PRESS_MS used by KEY1 
-                // and KEY3) on purpose: a common navigation long press cannot pass 
+                // Standby guard: re-reads the three pins and only accepts the
+                // request if KEY2 is genuinely pressed and no other button is down.
+                // Without this, a LOW induced on GPIO3 by pressing KEY3 would
+                // trigger standby (see StandbyGuard.h). The threshold is
+                // STANDBY_HOLD_MS (well above BUTTON_LONG_PRESS_MS used by KEY1
+                // and KEY3) on purpose: a common navigation long press cannot pass
                 // as a standby request.[cite: 61]
                 StandbyDecision decision = classifyStandbyRequest(
-                    digitalRead(PIN_BUTTON_SLEEP) == LOW,
-                    digitalRead(PIN_BUTTON_BACK)  == LOW,
-                    digitalRead(PIN_BUTTON)       == LOW,
-                    now - self->_btnSleepPressTime);
+                    digitalRead(PIN_BUTTON_SLEEP) == LOW, digitalRead(PIN_BUTTON_BACK) == LOW,
+                    digitalRead(PIN_BUTTON) == LOW, now - self->_btnSleepPressTime);
 
                 if (decision == STANDBY_ALLOW) {
                     Serial.println("INPUT: KEY2 Long Press -> STANDBY requested");
@@ -223,19 +211,18 @@ void InputMgr::inputTask(void* parameter) {
                     // Drawing to the e-ink screen is forbidden here (see enterStandby).[cite: 61]
                     self->_standbyRequested = true;
                 } else {
-                    // Definitive refusal for this press: without this brake, the 
-                    // next cycle would test again and a single instant with the 
-                    // other buttons released would let a spurious standby through. 
+                    // Definitive refusal for this press: without this brake, the
+                    // next cycle would test again and a single instant with the
+                    // other buttons released would let a spurious standby through.
                     // The press only counts again after KEY2 is released.[cite: 61]
                     self->_btnSleepAborted = true;
                     Serial.printf("SLEEPDIAG: standby denied  reason=%s  held=%lums\n",
-                                  standbyDecisionName(decision),
-                                  now - self->_btnSleepPressTime);
+                                  standbyDecisionName(decision), now - self->_btnSleepPressTime);
                 }
 #else
                 // Manual standby disabled (BOOK32_KEY2_STANDBY_ENABLED=0,
-                // see Config.h): only BatteryMgr's automatic idle timeout 
-                // puts the device to sleep. Consumed as refused to avoid 
+                // see Config.h): only BatteryMgr's automatic idle timeout
+                // puts the device to sleep. Consumed as refused to avoid
                 // re-testing every 5ms until KEY2 is released.[cite: 61]
                 self->_btnSleepAborted = true;
 #endif
@@ -248,14 +235,14 @@ void InputMgr::inputTask(void* parameter) {
                 // here because contact bounce would otherwise cost a ~2s full
                 // refresh.
                 //
-                // The classifier's long press branch became reachable: standby 
-                // no longer runs here, so releasing the button reaches this line 
-                // before the main loop sleeps. Without it, releasing the button 
+                // The classifier's long press branch became reachable: standby
+                // no longer runs here, so releasing the button reaches this line
+                // before the main loop sleeps. Without it, releasing the button
                 // after a long press would cost a ~2s full refresh.
                 //
-                // A press refused by the guard counts as consumed: if the 
-                // LOW on GPIO3 came from another button, it's not a refresh 
-                // request either, and a ~2s full refresh is too costly to risk 
+                // A press refused by the guard counts as consumed: if the
+                // LOW on GPIO3 came from another button, it's not a refresh
+                // request either, and a ~2s full refresh is too costly to risk
                 // on noise.[cite: 61]
                 if (classifyButtonRelease(pressDuration,
                                           self->_btnSleepLongPressSent || self->_btnSleepAborted) ==
@@ -281,9 +268,8 @@ void InputMgr::enterStandby() {
     // standby was decided. If KEY2/GPIO3 reads 1 (released) here, the LOW that
     // triggered the long press was transient or came from another pin.[cite: 61]
     Serial.printf("SLEEPDIAG: path=KEY2_LONG_PRESS  KEY1/GPIO%d=%d  KEY2/GPIO%d=%d  KEY3/GPIO%d=%d\n",
-                  PIN_BUTTON_BACK,  digitalRead(PIN_BUTTON_BACK),
-                  PIN_BUTTON_SLEEP, digitalRead(PIN_BUTTON_SLEEP),
-                  PIN_BUTTON,       digitalRead(PIN_BUTTON));
+                  PIN_BUTTON_BACK, digitalRead(PIN_BUTTON_BACK), PIN_BUTTON_SLEEP,
+                  digitalRead(PIN_BUTTON_SLEEP), PIN_BUTTON, digitalRead(PIN_BUTTON));
     Serial.flush();
 
     // Give the active app a chance to persist state first. The reader already
@@ -326,32 +312,32 @@ bool InputMgr::dequeueAction(InputAction& action) {
 }
 
 // Trampolines
-void InputMgr::staticClick(void *ptr) {
-    if(ptr) static_cast<InputMgr*>(ptr)->onClick();
+void InputMgr::staticClick(void* ptr) {
+    if (ptr) static_cast<InputMgr*>(ptr)->onClick();
 }
-void InputMgr::staticDoubleClick(void *ptr) {
-    if(ptr) static_cast<InputMgr*>(ptr)->onDoubleClick();
+void InputMgr::staticDoubleClick(void* ptr) {
+    if (ptr) static_cast<InputMgr*>(ptr)->onDoubleClick();
 }
-void InputMgr::staticLongPress(void *ptr) {
-    if(ptr) static_cast<InputMgr*>(ptr)->onLongPress();
+void InputMgr::staticLongPress(void* ptr) {
+    if (ptr) static_cast<InputMgr*>(ptr)->onLongPress();
 }
 
 // Handlers -> Dispatch to App
 void InputMgr::onClick() {
     Serial.println("INPUT: Click -> NEXT");
-    BatteryMgr::getInstance().resetIdleTimer();  // Reset idle timer on user interaction
+    BatteryMgr::getInstance().resetIdleTimer(); // Reset idle timer on user interaction
     enqueueAction(INPUT_NEXT);
 }
 
 void InputMgr::onDoubleClick() {
     // Disabled for faster single-click response
     Serial.println("INPUT: Double-Click -> PREV");
-    BatteryMgr::getInstance().resetIdleTimer();  // Reset idle timer on user interaction
+    BatteryMgr::getInstance().resetIdleTimer(); // Reset idle timer on user interaction
     enqueueAction(INPUT_PREV);
 }
 
 void InputMgr::onLongPress() {
     Serial.println("INPUT: Long Press -> SELECT");
-    BatteryMgr::getInstance().resetIdleTimer();  // Reset idle timer on user interaction
+    BatteryMgr::getInstance().resetIdleTimer(); // Reset idle timer on user interaction
     enqueueAction(INPUT_SELECT);
 }

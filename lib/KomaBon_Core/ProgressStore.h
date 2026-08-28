@@ -27,15 +27,15 @@
 
 struct ImportReport {
     bool ok = false;
-    int merged = 0;    // local entry existed and the imported one was ahead
-    int added = 0;     // book was unknown here
-    int pending = 0;   // added but the .epub is not on the device yet
-    int skipped = 0;   // local entry was equal or ahead
-    String error;      // set when ok == false
+    int merged = 0;  // local entry existed and the imported one was ahead
+    int added = 0;   // book was unknown here
+    int pending = 0; // added but the .epub is not on the device yet
+    int skipped = 0; // local entry was equal or ahead
+    String error;    // set when ok == false
 };
 
 class ProgressStore {
-public:
+  public:
     static ProgressStore& getInstance();
 
     // Loads and migrates on first call; cheap afterwards.
@@ -70,14 +70,14 @@ public:
     // further-ahead-page rule. One atomic write for the whole bundle.
     ImportReport applyImportedJson(JsonObjectConst src);
 
-private:
+  private:
     ProgressStore() {}
     bool load();
     bool save();
 
-    // Serializes all access to the state below. The reader saves position from 
-    // the main loop while the /api/reader/progress, /api/library/*, and 
-    // /api/books/delete endpoints modify the same map from the web server task. 
+    // Serializes all access to the state below. The reader saves position from
+    // the main loop while the /api/reader/progress, /api/library/*, and
+    // /api/books/delete endpoints modify the same map from the web server task.
     // See Lock.h.
     Book32Mutex _mutex;
 

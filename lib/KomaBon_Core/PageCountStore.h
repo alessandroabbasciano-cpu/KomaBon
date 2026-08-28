@@ -29,12 +29,12 @@
 #include <map>
 
 struct PageCountCheckpoint {
-    int chapter = 0;     // Next chapter to start counting from
-    int pagesSoFar = 0;  // Pages counted in chapters before it
+    int chapter = 0;    // Next chapter to start counting from
+    int pagesSoFar = 0; // Pages counted in chapters before it
 };
 
 class PageCountStore {
-public:
+  public:
     static PageCountStore& getInstance();
 
     // Returns 0 when the book has no cached total, or the cache was computed
@@ -49,14 +49,13 @@ public:
 
     // Returns true and fills out when a resumable checkpoint exists at these
     // font settings.
-    bool getCheckpoint(const String& originalName, int fontSize, int fontFamily,
-                       PageCountCheckpoint& out);
+    bool getCheckpoint(const String& originalName, int fontSize, int fontFamily, PageCountCheckpoint& out);
 
     // Records progress made toward a total that hasn't finished counting yet.
     void setCheckpoint(const String& originalName, int fontSize, int fontFamily,
                        const PageCountCheckpoint& checkpoint);
 
-private:
+  private:
     PageCountStore() {}
     void load();
     bool save();

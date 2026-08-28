@@ -26,8 +26,7 @@
 #define BOOK32_MAX_NAME_LEN 63
 #endif
 
-template <typename S>
-bool isSafeBookName(const S& name) {
+template <typename S> bool isSafeBookName(const S& name) {
     const size_t n = name.length();
     if (n == 0 || n > BOOK32_MAX_NAME_LEN) return false;
 

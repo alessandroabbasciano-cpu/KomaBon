@@ -14,8 +14,8 @@
 // (tools/tests/test_button_press.cpp).
 
 enum ButtonRelease {
-    BUTTON_RELEASE_IGNORE,  // Contact bounce, or the long press already fired
-    BUTTON_RELEASE_CLICK    // A real short click
+    BUTTON_RELEASE_IGNORE, // Contact bounce, or the long press already fired
+    BUTTON_RELEASE_CLICK   // A real short click
 };
 
 // Anything shorter than this is contact bounce, not a press.

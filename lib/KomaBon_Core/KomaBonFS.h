@@ -12,7 +12,7 @@
 //    - Stores: Web UI (index.html, etc.), System Config, Metadata
 //    - Upload via: `pio run -t uploadfs`
 //
-// 2. Ebook Partition (label: "ebooks")  
+// 2. Ebook Partition (label: "ebooks")
 //    - VFS Mount: /ebooks
 //    - Size: 10MB
 //    - Stores: EPUB files, Cover thumbnails

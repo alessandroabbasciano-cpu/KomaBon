@@ -59,18 +59,16 @@
 constexpr unsigned long STANDBY_HOLD_MS = 1500;
 
 enum StandbyDecision {
-    STANDBY_DENY_TOO_SHORT,   // has not reached standby threshold yet
-    STANDBY_DENY_RELEASED,    // the LOW disappeared: was transient
-    STANDBY_DENY_OTHER_KEY,   // another button is pressed -> coupling
-    STANDBY_ALLOW             // genuine KEY2 long press
+    STANDBY_DENY_TOO_SHORT, // has not reached standby threshold yet
+    STANDBY_DENY_RELEASED,  // the LOW disappeared: was transient
+    STANDBY_DENY_OTHER_KEY, // another button is pressed -> coupling
+    STANDBY_ALLOW           // genuine KEY2 long press
 };
 
 // key2Held/key1Held/key3Held: pin states re-read at the instant of decision
 // (true = pressed, meaning the pin reads LOW as they are active-low).
 // heldMs: time since the start of continuous LOW on KEY2.
-inline StandbyDecision classifyStandbyRequest(bool key2Held,
-                                              bool key1Held,
-                                              bool key3Held,
+inline StandbyDecision classifyStandbyRequest(bool key2Held, bool key1Held, bool key3Held,
                                               unsigned long heldMs) {
     if (!key2Held) return STANDBY_DENY_RELEASED;
     if (key1Held || key3Held) return STANDBY_DENY_OTHER_KEY;
@@ -80,10 +78,14 @@ inline StandbyDecision classifyStandbyRequest(bool key2Held,
 
 inline const char* standbyDecisionName(StandbyDecision decision) {
     switch (decision) {
-        case STANDBY_DENY_TOO_SHORT: return "too_short";
-        case STANDBY_DENY_RELEASED:  return "released";
-        case STANDBY_DENY_OTHER_KEY: return "other_key_held";
-        case STANDBY_ALLOW:          return "allow";
+        case STANDBY_DENY_TOO_SHORT:
+            return "too_short";
+        case STANDBY_DENY_RELEASED:
+            return "released";
+        case STANDBY_DENY_OTHER_KEY:
+            return "other_key_held";
+        case STANDBY_ALLOW:
+            return "allow";
     }
     return "unknown";
 }

@@ -22,8 +22,7 @@
 
 // Strip a single leading 'v' or 'V' tag prefix (e.g. "v1.4.0" -> "1.4.0").
 // Unlike String::replace("v", ""), inner characters are left untouched.
-template <typename S>
-S semverStripPrefix(const S& v) {
+template <typename S> S semverStripPrefix(const S& v) {
     if (v.length() > 0 && (v[0] == 'v' || v[0] == 'V')) {
         return v.substring(1);
     }
@@ -41,8 +40,7 @@ inline std::string semverStripPrefix(const std::string& v) {
 // Parse Major.Minor.Patch into out[3]. Missing components default to 0, so
 // "1.4" parses as 1.4.0. Any suffix after the patch number (e.g. "-rc1") is
 // ignored. Returns false if no leading digit is present at all.
-template <typename S>
-bool semverParse(const S& raw, long out[3]) {
+template <typename S> bool semverParse(const S& raw, long out[3]) {
     out[0] = out[1] = out[2] = 0;
 
     const S v = semverStripPrefix(raw);
@@ -55,20 +53,21 @@ bool semverParse(const S& raw, long out[3]) {
         long value = 0;
         while (i < n && isdigit((unsigned char)v[i])) {
             value = value * 10 + (v[i] - '0');
-            if (value > 100000L) return false;  // implausible; fail closed
+            if (value > 100000L) return false; // implausible; fail closed
             i++;
         }
         out[field] = value;
-        if (i < n && v[i] == '.') i++;  // consume separator, else stop
-        else break;
+        if (i < n && v[i] == '.')
+            i++; // consume separator, else stop
+        else
+            break;
     }
     return true;
 }
 
 // True only when `candidate` is strictly greater than `current`.
 // Equal versions and downgrades both return false.
-template <typename S>
-bool semverIsNewer(const S& candidate, const S& current) {
+template <typename S> bool semverIsNewer(const S& candidate, const S& current) {
     long a[3], b[3];
     if (!semverParse(candidate, a)) return false;
     if (!semverParse(current, b)) return false;

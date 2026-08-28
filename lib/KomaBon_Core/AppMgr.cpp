@@ -16,7 +16,7 @@ void AppMgr::switchTo(int index) {
         if (currentApp) currentApp->stop();
         currentApp = apps[index];
         currentApp->start(); // Use start() instead of setup()
-        currentApp->draw(); // Initial draw
+        currentApp->draw();  // Initial draw
     }
 }
 

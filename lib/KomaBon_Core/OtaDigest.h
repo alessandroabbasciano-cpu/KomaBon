@@ -67,8 +67,7 @@ inline uint8_t hexNibble(char c) {
 }
 
 // Case-insensitive comparison of `hay[at..]` against the literal `needle`.
-template <typename S>
-bool matchesAt(const S& hay, size_t at, const char* needle) {
+template <typename S> bool matchesAt(const S& hay, size_t at, const char* needle) {
     const size_t n = hay.length();
     for (size_t i = 0; needle[i] != '\0'; i++) {
         if (at + i >= n) return false;
@@ -79,19 +78,18 @@ bool matchesAt(const S& hay, size_t at, const char* needle) {
 
 // Arduino String uses substring(); std::string uses substr(). This shim keeps
 // the parser itself generic over both.
-template <typename S>
-inline S sliceOf(const S& s, size_t from, size_t to) {
+template <typename S> inline S sliceOf(const S& s, size_t from, size_t to) {
     return s.substring(from, to);
 }
 
-}  // namespace book32_digest_detail
+} // namespace book32_digest_detail
 
 #ifdef _GLIBCXX_STRING
 namespace book32_digest_detail {
 inline std::string sliceOf(const std::string& s, size_t from, size_t to) {
     return s.substr(from, to - from);
 }
-}  // namespace book32_digest_detail
+} // namespace book32_digest_detail
 #endif
 
 // Find the hex value published for `assetName` under a `LABEL (asset) = hex`
@@ -101,12 +99,13 @@ inline std::string sliceOf(const std::string& s, size_t from, size_t to) {
 // exactly, or the value is not exactly `expectedHexLen` hex characters (fail
 // closed — a malformed value must never be treated as "no check required").
 template <typename S>
-bool extractHexField(const S& notes, const char* label, const char* assetName,
-                     size_t expectedHexLen, S& out) {
+bool extractHexField(const S& notes, const char* label, const char* assetName, size_t expectedHexLen,
+                     S& out) {
     using namespace book32_digest_detail;
 
     size_t labelLen = 0;
-    while (label[labelLen] != '\0') labelLen++;
+    while (label[labelLen] != '\0')
+        labelLen++;
 
     const size_t n = notes.length();
     size_t i = 0;
@@ -121,13 +120,15 @@ bool extractHexField(const S& notes, const char* label, const char* assetName,
 
         if (matchesAt(notes, lineStart, label)) {
             size_t p = lineStart + labelLen;
-            while (p < n && (notes[p] == ' ' || notes[p] == '\t')) p++;
+            while (p < n && (notes[p] == ' ' || notes[p] == '\t'))
+                p++;
 
             if (p < n && notes[p] == '(') {
                 p++;
                 // The asset name must match in full, up to the closing paren.
                 size_t nameStart = p;
-                while (p < n && notes[p] != ')' && notes[p] != '\n') p++;
+                while (p < n && notes[p] != ')' && notes[p] != '\n')
+                    p++;
 
                 if (p < n && notes[p] == ')') {
                     const size_t nameLen = p - nameStart;
@@ -139,17 +140,20 @@ bool extractHexField(const S& notes, const char* label, const char* assetName,
                             break;
                         }
                     }
-                    if (nameOk && k != nameLen) nameOk = false;  // extra chars
+                    if (nameOk && k != nameLen) nameOk = false; // extra chars
 
                     if (nameOk) {
-                        p++;  // past ')'
-                        while (p < n && (notes[p] == ' ' || notes[p] == '\t')) p++;
+                        p++; // past ')'
+                        while (p < n && (notes[p] == ' ' || notes[p] == '\t'))
+                            p++;
                         if (p < n && notes[p] == '=') {
                             p++;
-                            while (p < n && (notes[p] == ' ' || notes[p] == '\t')) p++;
+                            while (p < n && (notes[p] == ' ' || notes[p] == '\t'))
+                                p++;
 
                             size_t hexStart = p;
-                            while (p < n && isHexDigit(notes[p])) p++;
+                            while (p < n && isHexDigit(notes[p]))
+                                p++;
 
                             if (p - hexStart == expectedHexLen) {
                                 out = sliceOf(notes, hexStart, p);
@@ -165,7 +169,8 @@ bool extractHexField(const S& notes, const char* label, const char* assetName,
         }
 
         // Advance to the next line.
-        while (i < n && notes[i] != '\n') i++;
+        while (i < n && notes[i] != '\n')
+            i++;
         if (i < n) i++;
     }
 
@@ -174,24 +179,21 @@ bool extractHexField(const S& notes, const char* label, const char* assetName,
 
 // Find the SHA-256 digest published for `assetName` in `notes`. See
 // extractHexField() above for the matching rules.
-template <typename S>
-bool extractSha256(const S& notes, const char* assetName, S& out) {
+template <typename S> bool extractSha256(const S& notes, const char* assetName, S& out) {
     return extractHexField(notes, "sha256", assetName, BOOK32_SHA256_HEX_LEN, out);
 }
 
 // Find the Ed25519 signature (over the asset's raw SHA-256 digest) published
 // for `assetName` in `notes`. See extractHexField() above for the matching
 // rules.
-template <typename S>
-bool extractEd25519Signature(const S& notes, const char* assetName, S& out) {
+template <typename S> bool extractEd25519Signature(const S& notes, const char* assetName, S& out) {
     return extractHexField(notes, "ed25519", assetName, BOOK32_ED25519_SIG_HEX_LEN, out);
 }
 
 // Decode a `hexLen`-character hex string into `out[0..hexLen/2)`. Returns
 // false — leaving `out` untouched — if the length is not exactly `hexLen` or
 // any character is not a hex digit (fail closed).
-template <typename S>
-bool hexDecode(const S& hex, size_t hexLen, uint8_t* out) {
+template <typename S> bool hexDecode(const S& hex, size_t hexLen, uint8_t* out) {
     using namespace book32_digest_detail;
     if (hex.length() != hexLen) return false;
     for (size_t i = 0; i < hexLen; i++) {
@@ -204,8 +206,7 @@ bool hexDecode(const S& hex, size_t hexLen, uint8_t* out) {
 }
 
 // Case-insensitive equality of two hex digests.
-template <typename S>
-bool sha256Equal(const S& a, const S& b) {
+template <typename S> bool sha256Equal(const S& a, const S& b) {
     using namespace book32_digest_detail;
     if (a.length() != b.length()) return false;
     for (size_t i = 0; i < a.length(); i++) {

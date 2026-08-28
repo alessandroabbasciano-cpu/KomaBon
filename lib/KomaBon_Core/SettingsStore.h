@@ -20,22 +20,22 @@
 // =============================================================================
 
 struct ReaderSettings {
-    int refreshFrequency = 10;  // Full e-ink refresh every N page turns
-    int fontSize = 9;           // Reading body size in points: 9, 12 or 18
-    int fontFamily = 0;         // See ReaderFontFamily: 0..5
+    int refreshFrequency = 10; // Full e-ink refresh every N page turns
+    int fontSize = 9;          // Reading body size in points: 9, 12 or 18
+    int fontFamily = 0;        // See ReaderFontFamily: 0..5
 };
 
 struct DisplaySettings {
-    int rotation = 3;  // 3 = button on the left (default), 1 = rotated 180
+    int rotation = 3; // 3 = button on the left (default), 1 = rotated 180
 };
 
 struct SleepSettings {
-    int timeout = 0;  // Idle sleep timeout in minutes; 0 = disabled
+    int timeout = 0; // Idle sleep timeout in minutes; 0 = disabled
     String message = "Press button to wake";
 };
 
 class SettingsStore {
-public:
+  public:
     static SettingsStore& getInstance();
 
     // Load never fails: a missing file or malformed JSON yields defaults.
@@ -67,12 +67,12 @@ public:
     //     s.fontSize = ...;
     //     store.saveReader(s);
     class Transaction {
-    public:
+      public:
         Transaction();
         ~Transaction();
     };
 
-private:
+  private:
     SettingsStore() {}
 
     // Serializes access to configuration files between the main loop

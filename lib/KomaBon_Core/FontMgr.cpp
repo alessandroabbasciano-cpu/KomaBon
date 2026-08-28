@@ -45,7 +45,8 @@ void FontMgr::cacheCharWidths(const GFXfont* font) {
     }
 }
 
-void FontMgr::drawText(KomaBonDisplay& display, const char* text, int x, int y, int fontSize, uint16_t color) {
+void FontMgr::drawText(KomaBonDisplay& display, const char* text, int x, int y, int fontSize,
+                       uint16_t color) {
     // Strings arrive as UTF-8 (filenames, EPUB metadata, WiFi SSIDs, ...) but
     // the GFX layer draws one byte per glyph, so convert to Latin-1 here.
     char latin1[512];
@@ -57,13 +58,15 @@ void FontMgr::drawText(KomaBonDisplay& display, const char* text, int x, int y, 
     display.print(latin1);
 }
 
-void FontMgr::drawTextCentered(KomaBonDisplay& display, const char* text, int y, int fontSize, uint16_t color) {
+void FontMgr::drawTextCentered(KomaBonDisplay& display, const char* text, int y, int fontSize,
+                               uint16_t color) {
     int width = getTextWidth(text, fontSize);
     int x = (display.width() - width) / 2;
     drawText(display, text, x, y, fontSize, color);
 }
 
-void FontMgr::drawTextRight(KomaBonDisplay& display, const char* text, int x, int y, int fontSize, uint16_t color) {
+void FontMgr::drawTextRight(KomaBonDisplay& display, const char* text, int x, int y, int fontSize,
+                            uint16_t color) {
     int width = getTextWidth(text, fontSize);
     drawText(display, text, x - width, y, fontSize, color);
 }
@@ -100,9 +103,10 @@ void FontMgr::utf8ToLatin1(const char* src, char* dst, size_t dstSize) {
         } else if ((b & 0xF0) == 0xE0 && (s[0] & 0xC0) == 0x80 && (s[1] & 0xC0) == 0x80) {
             cp = ((uint32_t)(b & 0x0F) << 12) | ((uint32_t)(s[0] & 0x3F) << 6) | (s[1] & 0x3F);
             s += 2;
-        } else if ((b & 0xF8) == 0xF0 && (s[0] & 0xC0) == 0x80 && (s[1] & 0xC0) == 0x80 && (s[2] & 0xC0) == 0x80) {
-            cp = ((uint32_t)(b & 0x07) << 18) | ((uint32_t)(s[0] & 0x3F) << 12)
-               | ((uint32_t)(s[1] & 0x3F) << 6) | (s[2] & 0x3F);
+        } else if ((b & 0xF8) == 0xF0 && (s[0] & 0xC0) == 0x80 && (s[1] & 0xC0) == 0x80 &&
+                   (s[2] & 0xC0) == 0x80) {
+            cp = ((uint32_t)(b & 0x07) << 18) | ((uint32_t)(s[0] & 0x3F) << 12) |
+                 ((uint32_t)(s[1] & 0x3F) << 6) | (s[2] & 0x3F);
             s += 3;
         } else {
             // Invalid lead byte or orphan continuation byte. Assume the text
@@ -112,23 +116,36 @@ void FontMgr::utf8ToLatin1(const char* src, char* dst, size_t dstSize) {
             continue;
         }
 
-        if (cp == 0x00A0) {           // NBSP -> normal space (allows wrapping)
+        if (cp == 0x00A0) { // NBSP -> normal space (allows wrapping)
             dst[o++] = ' ';
-        } else if (cp == 0x00AD) {    // soft hyphen -> drop
+        } else if (cp == 0x00AD) { // soft hyphen -> drop
             continue;
         } else if (cp <= 0xFF) {
             dst[o++] = (char)cp;
         } else {
             switch (cp) {
-                case 0x2018: case 0x2019: case 0x201A: dst[o++] = '\''; break; // curly single quotes
-                case 0x201C: case 0x201D: case 0x201E: dst[o++] = '"';  break; // curly double quotes
-                case 0x2013: case 0x2014: dst[o++] = '-'; break;               // en/em dash
-                case 0x2026:                                                    // ellipsis
+                case 0x2018:
+                case 0x2019:
+                case 0x201A:
+                    dst[o++] = '\'';
+                    break; // curly single quotes
+                case 0x201C:
+                case 0x201D:
+                case 0x201E:
+                    dst[o++] = '"';
+                    break; // curly double quotes
+                case 0x2013:
+                case 0x2014:
+                    dst[o++] = '-';
+                    break;   // en/em dash
+                case 0x2026: // ellipsis
                     dst[o++] = '.';
                     if (o + 1 < dstSize) dst[o++] = '.';
                     if (o + 1 < dstSize) dst[o++] = '.';
                     break;
-                default: dst[o++] = '?'; break;
+                default:
+                    dst[o++] = '?';
+                    break;
             }
         }
     }

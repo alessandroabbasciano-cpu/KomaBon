@@ -48,14 +48,14 @@ static bool isReaderActive() {
 
 void AppMainMenu::updateCheckTask(void* parameter) {
     AppMainMenu* self = (AppMainMenu*)parameter;
-    
+
     // Wait for connection (max 10s)
     int attempts = 0;
     while (WiFi.status() != WL_CONNECTED && attempts < 20) {
         vTaskDelay(pdMS_TO_TICKS(500));
         attempts++;
     }
-    
+
     if (WiFi.status() == WL_CONNECTED) {
         UpdateInfo info = GitHubMgr::getInstance().checkUpdate(SYSTEM_VERSION);
         if (info.available) {
@@ -67,7 +67,7 @@ void AppMainMenu::updateCheckTask(void* parameter) {
             self->_needsRedraw = true; // Trigger redraw to show icon
         }
     }
-    
+
     self->_updateTaskHandle = nullptr;
     vTaskDelete(NULL);
 }
@@ -92,10 +92,10 @@ void AppMainMenu::wifiWakeTask(void* parameter) {
             WebMgr::getInstance().stop();
             WiFi.disconnect(false);
             WiFi.mode(WIFI_OFF);
-        self->_wifiStarting = false;
-        self->_footerOnlyRedraw = true;
-        self->_needsRedraw = true;
-        self->_wifiTaskHandle = nullptr;
+            self->_wifiStarting = false;
+            self->_footerOnlyRedraw = true;
+            self->_needsRedraw = true;
+            self->_wifiTaskHandle = nullptr;
             Serial.println("Main menu WiFi wake cancelled; eReader is active");
             vTaskDelete(NULL);
             return;
@@ -110,7 +110,7 @@ void AppMainMenu::wifiWakeTask(void* parameter) {
         WebMgr::getInstance().init();
     } else {
         Serial.println("Main menu WiFi wake did not connect; bringing up hotspot");
-        self->_wifiTaskHandle = nullptr;  // Clear before starting the hotspot
+        self->_wifiTaskHandle = nullptr; // Clear before starting the hotspot
         if (!isReaderActive()) self->startHotspot();
         self->_wifiStarting = false;
         self->_footerOnlyRedraw = true;
@@ -137,8 +137,7 @@ String AppMainMenu::getWifiFooterText() const {
         // Show the passphrase only while the hotspot is up. On a normal
         // station connection the credential stays off-screen, so simply
         // picking the device up doesn't reveal the API password.
-        return String("Wi-Fi: ") + AP_SSID + " / " + WebMgr::devicePassword() +
-               "  ->  192.168.4.1";
+        return String("Wi-Fi: ") + AP_SSID + " / " + WebMgr::devicePassword() + "  ->  192.168.4.1";
     }
     return _wifiStarting ? "WiFi starting" : "WiFi offline";
 }
@@ -148,13 +147,13 @@ void AppMainMenu::startHotspot() {
     if (isReaderActive()) return;
 
     Serial.println("Main menu: starting KomaBon management hotspot (offline)");
-    WiFi.mode(WIFI_AP_STA);  // AP serves the web UI; STA stays available for joining a network
+    WiFi.mode(WIFI_AP_STA); // AP serves the web UI; STA stays available for joining a network
     // v1.5.0 (security): the hotspot was previously open, giving anyone in
     // radio range full access to the API. WPA2 needs >= 8 characters; the
     // derived credential is always 10. The passphrase is shown in the footer
     // while the hotspot is up so it can be read off the e-ink screen.
     WiFi.softAP(AP_SSID, WebMgr::devicePassword());
-    delay(100);  // Let the AP interface come up before binding the server
+    delay(100); // Let the AP interface come up before binding the server
     WebMgr::getInstance().init();
     _hotspotActive = true;
 
@@ -198,7 +197,7 @@ void AppMainMenu::ensureWifiAwake() {
 void AppMainMenu::start() {
     selectedIndex = 1; // Start with first app (skip main menu itself)
     _needsRedraw = true;
-    _firstDraw = true;  // Force full refresh on first draw
+    _firstDraw = true; // Force full refresh on first draw
     _selectionOnlyRedraw = false;
     _batteryOnlyRedraw = false;
     _previousSelectedIndex = selectedIndex;
@@ -209,7 +208,7 @@ void AppMainMenu::start() {
     _lastBatteryStatus = BatteryMgr::getInstance().refreshNow();
     InputMgr::getInstance().setCallback(std::bind(&AppMainMenu::handleInput, this, std::placeholders::_1));
     ensureWifiAwake();
-    
+
     // Spawn update check task if not already found
     if (!_updateTaskHandle && !_updateAvailable) {
         xTaskCreatePinnedToCore(updateCheckTask, "UpdateCheck", 8192, this, 1, &_updateTaskHandle, 0);
@@ -224,7 +223,7 @@ void AppMainMenu::stop() {
 }
 
 void AppMainMenu::forceRedraw() {
-    _firstDraw = true;  // Full-frame repaint at the new orientation
+    _firstDraw = true; // Full-frame repaint at the new orientation
     _selectionOnlyRedraw = false;
     _batteryOnlyRedraw = false;
     _footerOnlyRedraw = false;
@@ -234,11 +233,12 @@ void AppMainMenu::forceRedraw() {
 void AppMainMenu::handleInput(InputAction action) {
     AppMgr& appMgr = AppMgr::getInstance();
     std::vector<App*>& apps = appMgr.getApps();
-    
+
     Serial.printf("AppMainMenu::handleInput - action: %d\n", action);
-    
+
     // Max index is apps.size() - 1 + 1 (if update available)
-    int maxIndex = apps.size() - 1 + (_updateAvailable ? 1 : 0); // 0-based index? No selectedIndex is 1-based (starts at 1)
+    int maxIndex = apps.size() - 1 +
+                   (_updateAvailable ? 1 : 0); // 0-based index? No selectedIndex is 1-based (starts at 1)
     // Actually selectedIndex starts at 1. App 1 is index 1.
     // apps[0] is MainMenu. apps[1]...apps[N-1] are apps.
     // Update button would be index N (apps.size())
@@ -251,17 +251,14 @@ void AppMainMenu::handleInput(InputAction action) {
         if (selectedIndex == 0) selectedIndex = 1; // Should not happen but safety
         _selectionOnlyRedraw = !_firstDraw;
         _needsRedraw = true;
-    }
-    else if (action == INPUT_SELECT) {
+    } else if (action == INPUT_SELECT) {
         if (_updateAvailable && selectedIndex == (int)apps.size()) {
             // Update selected
-             GitHubMgr::getInstance().triggerUpdate(SYSTEM_VERSION);
-        }
-        else if (selectedIndex > 0 && selectedIndex < (int)apps.size()) {
+            GitHubMgr::getInstance().triggerUpdate(SYSTEM_VERSION);
+        } else if (selectedIndex > 0 && selectedIndex < (int)apps.size()) {
             appMgr.switchTo(selectedIndex);
         }
-    }
-    else if (action == INPUT_GO_TO_MAIN_MENU) {
+    } else if (action == INPUT_GO_TO_MAIN_MENU) {
         // Already at main menu, no action needed
         Serial.println("AppMainMenu: INPUT_GO_TO_MAIN_MENU - already at main menu");
     }
@@ -322,8 +319,8 @@ void AppMainMenu::draw() {
     AppMgr& appMgr = AppMgr::getInstance();
     std::vector<App*>& apps = appMgr.getApps();
 
-    int16_t screenW = display.width();   // 480
-    int16_t screenH = display.height();  // 800
+    int16_t screenW = display.width();  // 480
+    int16_t screenH = display.height(); // 800
 
     // Coherent copy of the state written by the update check task.
     bool updateAvailable;
@@ -345,8 +342,8 @@ void AppMainMenu::draw() {
         display.setFullWindow();
         _firstDraw = false;
     } else if (_selectionOnlyRedraw) {
-        MenuDirtyRect dirty = unionRect(menuItemRect(_previousSelectedIndex, screenW),
-                                       menuItemRect(selectedIndex, screenW));
+        MenuDirtyRect dirty =
+            unionRect(menuItemRect(_previousSelectedIndex, screenW), menuItemRect(selectedIndex, screenW));
         dirty.x = max(0, dirty.x);
         dirty.y = max(0, dirty.y);
         if (dirty.x + dirty.w > screenW) dirty.w = screenW - dirty.x;
@@ -385,8 +382,8 @@ void AppMainMenu::draw() {
         display.fillRect(batX + 40, batY + 5, 3, 10, GxEPD_BLACK);
 
         int fillWidth = (bat.percentage * 36) / 100;
-        if(fillWidth > 36) fillWidth = 36;
-        if(fillWidth < 0) fillWidth = 0;
+        if (fillWidth > 36) fillWidth = 36;
+        if (fillWidth < 0) fillWidth = 0;
         if (bat.percentage > 0) {
             display.fillRect(batX + 2, batY + 2, fillWidth, 16, GxEPD_BLACK);
         }
@@ -428,33 +425,35 @@ void AppMainMenu::draw() {
             int nameX = x + (ICON_SIZE - nameWidth) / 2;
             fontMgr.drawText(display, name, nameX, y + ICON_SIZE + 25, FONT_SIZE_MENU, GxEPD_BLACK);
         }
-        
+
         // Render Update Icon if available
         if (updateAvailable) {
             int i = apps.size(); // Index for update app (virtual index)
             int idx = i - 1;
             int col = idx % COLS;
             int row = idx / COLS;
-            
+
             int x = col * colWidth + (colWidth - ICON_SIZE) / 2;
             int y = START_Y + row * ROW_HEIGHT;
-            
-             if ((int)i == selectedIndex) {
-                 // Selection Box
+
+            if ((int)i == selectedIndex) {
+                // Selection Box
                 display.drawRect(x - 8, y - 8, ICON_SIZE + 16, ICON_SIZE + 16, GxEPD_BLACK);
                 display.drawRect(x - 7, y - 7, ICON_SIZE + 14, ICON_SIZE + 14, GxEPD_BLACK);
             }
-            
+
             display.drawBitmap(x, y, icon_update_160x160, ICON_SIZE, ICON_SIZE, GxEPD_BLACK);
-            
+
             String updateText = "Update " + updateVersion;
             int nameWidth = fontMgr.getTextWidth(updateText.c_str(), FONT_SIZE_MENU);
             int nameX = x + (ICON_SIZE - nameWidth) / 2;
-            fontMgr.drawText(display, updateText.c_str(), nameX, y + ICON_SIZE + 25, FONT_SIZE_MENU, GxEPD_BLACK);
+            fontMgr.drawText(display, updateText.c_str(), nameX, y + ICON_SIZE + 25, FONT_SIZE_MENU,
+                             GxEPD_BLACK);
         }
 
         // === Footer ===
-        fontMgr.drawTextCentered(display, "Press: Next  |  Hold: Select", screenH - 45, FONT_SIZE_SMALL, GxEPD_BLACK);
+        fontMgr.drawTextCentered(display, "Press: Next  |  Hold: Select", screenH - 45, FONT_SIZE_SMALL,
+                                 GxEPD_BLACK);
         String ipStr = getWifiFooterText();
         fontMgr.drawTextCentered(display, ipStr.c_str(), screenH - 20, FONT_SIZE_SMALL, GxEPD_BLACK);
         _lastWifiFooterText = ipStr;

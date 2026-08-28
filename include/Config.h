@@ -21,18 +21,18 @@
 // is the kit wiki's nominal assignment (KEY1=GPIO2, KEY2=GPIO3, KEY3=GPIO5),
 // confirmed correct by the user's own first log capture: a clean KEY3/GPIO5
 // press producing INPUT_NEXT, captured before any pin change ever shipped.
-#define PIN_BUTTON   5  // "KEY3" button
+#define PIN_BUTTON 5       // "KEY3" button
 #define PIN_BUTTON_BACK 2  // "KEY1" button - dedicated Back button
 #define PIN_BUTTON_SLEEP 3 // "KEY2" button - full refresh (click), standby (long press; off by default)
 
 // Display Pins (TRMNL 7.5" OG DIY Kit)
-#define EPD_SCK     7
-#define EPD_MOSI    9
-#define EPD_MISO    -1 
-#define EPD_CS      44
-#define EPD_DC      10
-#define EPD_RST     38
-#define EPD_BUSY    4
+#define EPD_SCK 7
+#define EPD_MOSI 9
+#define EPD_MISO -1
+#define EPD_CS 44
+#define EPD_DC 10
+#define EPD_RST 38
+#define EPD_BUSY 4
 
 // Display Settings (Portrait 7.5")
 #define SCREEN_WIDTH 480

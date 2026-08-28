@@ -2,9 +2,9 @@
 #include "KomaBonFS.h"
 #include "BookMeta.h"
 
-// All public methods open with a Book32Guard. load() and save() are left 
-// without a guard on purpose: they are private and only reached from a public 
-// method that already holds the mutex (which is recursive, so taking it again 
+// All public methods open with a Book32Guard. load() and save() are left
+// without a guard on purpose: they are private and only reached from a public
+// method that already holds the mutex (which is recursive, so taking it again
 // does not cause a deadlock).
 
 static const char* PROGRESS_PATH = "/reader_progress.json";
@@ -31,7 +31,7 @@ ProgressStore& ProgressStore::getInstance() {
 void ProgressStore::begin() {
     Book32Guard guard(_mutex);
     if (_loaded) return;
-    _loaded = true;  // set first: a failed load leaves an empty, usable store
+    _loaded = true; // set first: a failed load leaves an empty, usable store
     load();
 }
 
@@ -50,8 +50,7 @@ bool ProgressStore::load() {
     DeserializationError error = deserializeJson(doc, file);
     file.close();
     if (error) {
-        Serial.printf("ProgressStore: %s unreadable (%s) — starting empty\n",
-                      PROGRESS_PATH, error.c_str());
+        Serial.printf("ProgressStore: %s unreadable (%s) — starting empty\n", PROGRESS_PATH, error.c_str());
         return false;
     }
 
@@ -94,8 +93,8 @@ bool ProgressStore::load() {
     }
 
     if (schema < PROGRESS_SCHEMA_CURRENT) {
-        Serial.printf("ProgressStore: migrating schema %d -> %d (%u books)\n",
-                      schema, PROGRESS_SCHEMA_CURRENT, (unsigned)_books.size());
+        Serial.printf("ProgressStore: migrating schema %d -> %d (%u books)\n", schema,
+                      PROGRESS_SCHEMA_CURRENT, (unsigned)_books.size());
         save();
     }
     return true;
@@ -168,7 +167,7 @@ void ProgressStore::set(const String& originalName, const BookProgress& progress
     if (originalName.length() == 0) return;
     BookProgress p = progress;
     p.seq = ++_seq;
-    p.pending = false;  // we only get here by actually reading the book
+    p.pending = false; // we only get here by actually reading the book
     _books[originalName] = p;
     save();
 }
@@ -222,7 +221,10 @@ void ProgressStore::reconcile(const std::vector<String>& presentOriginalNames) {
     for (auto it = _books.begin(); it != _books.end();) {
         bool exists = false;
         for (const String& name : presentOriginalNames) {
-            if (name == it->first) { exists = true; break; }
+            if (name == it->first) {
+                exists = true;
+                break;
+            }
         }
 
         if (shouldPrune(it->second, exists)) {
@@ -237,7 +239,10 @@ void ProgressStore::reconcile(const std::vector<String>& presentOriginalNames) {
     if (_lastBook.length() > 0) {
         bool exists = false;
         for (const String& name : presentOriginalNames) {
-            if (name == _lastBook) { exists = true; break; }
+            if (name == _lastBook) {
+                exists = true;
+                break;
+            }
         }
         if (!exists && _books.find(_lastBook) == _books.end()) {
             _lastBook = "";
@@ -323,7 +328,10 @@ ImportReport ProgressStore::applyImportedJson(JsonObjectConst src) {
         if (key.length() == 0) continue;
 
         JsonObjectConst entry = pair.value().as<JsonObjectConst>();
-        if (entry.isNull()) { report.skipped++; continue; }
+        if (entry.isNull()) {
+            report.skipped++;
+            continue;
+        }
 
         BookProgress imported;
         imported.chapter = entry["chapter"] | 0;

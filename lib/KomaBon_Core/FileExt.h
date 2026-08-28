@@ -14,8 +14,7 @@
 #include <cstring>
 #include <cctype>
 
-template <typename S>
-bool hasExtensionCI(const S& name, const char* ext) {
+template <typename S> bool hasExtensionCI(const S& name, const char* ext) {
     const size_t nl = name.length();
     const size_t el = strlen(ext);
     if (nl < el) return false;

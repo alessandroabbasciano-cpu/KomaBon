@@ -5,9 +5,12 @@ TextRenderer::TextRenderer(int width, int height, int fontSize) {
     _width = width;
     _height = height;
     // Normalize to a supported body size (9/12/18); default to small.
-    if (fontSize >= 18) _fontSize = 18;
-    else if (fontSize >= 12) _fontSize = 12;
-    else _fontSize = 9;
+    if (fontSize >= 18)
+        _fontSize = 18;
+    else if (fontSize >= 12)
+        _fontSize = 12;
+    else
+        _fontSize = 9;
     _cachedPage = -1;
     _lastGFXFont = nullptr;
     memset(_gfxCharWidths, 0, sizeof(_gfxCharWidths));
@@ -52,35 +55,48 @@ const GFXfont* TextRenderer::getGFXFont(TextStyle style, int& lineHeight) {
     // size (and are always >= body) so the hierarchy holds at every size.
     const GFXfont* normal;
     const GFXfont* bold;
-    const GFXfont* h4; const GFXfont* h3; const GFXfont* h2; const GFXfont* h1;
+    const GFXfont* h4;
+    const GFXfont* h3;
+    const GFXfont* h2;
+    const GFXfont* h1;
 
     // Each family provides Regular at 9/12/18pt and Bold at 9/12/18/24pt,
     // mirroring the FreeSans set below so header steps behave identically
     // regardless of which family is selected.
-#define B32_FONT_SET(NORMAL9, NORMAL12, NORMAL18, BOLD9, BOLD12, BOLD18, BOLD24) \
-    switch (_fontSize) { \
-        case 18:  /* Large */ \
-            normal = &NORMAL18; bold = &BOLD18; \
-            h4 = &BOLD18;       h3 = &BOLD18; \
-            h2 = &BOLD24;       h1 = &BOLD24; \
-            break; \
-        case 12:  /* Medium */ \
-            normal = &NORMAL12; bold = &BOLD12; \
-            h4 = &BOLD12;       h3 = &BOLD18; \
-            h2 = &BOLD18;       h1 = &BOLD24; \
-            break; \
-        case 9:   /* Small (default) */ \
-        default: \
-            normal = &NORMAL9;  bold = &BOLD9; \
-            h4 = &BOLD9;        h3 = &BOLD12; \
-            h2 = &BOLD18;       h1 = &BOLD24; \
-            break; \
+#define B32_FONT_SET(NORMAL9, NORMAL12, NORMAL18, BOLD9, BOLD12, BOLD18, BOLD24)                             \
+    switch (_fontSize) {                                                                                     \
+        case 18: /* Large */                                                                                 \
+            normal = &NORMAL18;                                                                              \
+            bold = &BOLD18;                                                                                  \
+            h4 = &BOLD18;                                                                                    \
+            h3 = &BOLD18;                                                                                    \
+            h2 = &BOLD24;                                                                                    \
+            h1 = &BOLD24;                                                                                    \
+            break;                                                                                           \
+        case 12: /* Medium */                                                                                \
+            normal = &NORMAL12;                                                                              \
+            bold = &BOLD12;                                                                                  \
+            h4 = &BOLD12;                                                                                    \
+            h3 = &BOLD18;                                                                                    \
+            h2 = &BOLD18;                                                                                    \
+            h1 = &BOLD24;                                                                                    \
+            break;                                                                                           \
+        case 9: /* Small (default) */                                                                        \
+        default:                                                                                             \
+            normal = &NORMAL9;                                                                               \
+            bold = &BOLD9;                                                                                   \
+            h4 = &BOLD9;                                                                                     \
+            h3 = &BOLD12;                                                                                    \
+            h2 = &BOLD18;                                                                                    \
+            h1 = &BOLD24;                                                                                    \
+            break;                                                                                           \
     }
 
     switch (_fontFamily) {
         case READER_FONT_MERRIWEATHER:
             B32_FONT_SET(Merriweather_Regular9pt8b, Merriweather_Regular12pt8b, Merriweather_Regular18pt8b,
-                         Merriweather_Bold9pt8b, Merriweather_Bold12pt8b, Merriweather_Bold18pt8b, Merriweather_Bold24pt8b)
+                         Merriweather_Bold9pt8b, Merriweather_Bold12pt8b, Merriweather_Bold18pt8b,
+                         Merriweather_Bold24pt8b)
             break;
         case READER_FONT_LITERATA:
             B32_FONT_SET(Literata_Regular9pt8b, Literata_Regular12pt8b, Literata_Regular18pt8b,
@@ -88,7 +104,8 @@ const GFXfont* TextRenderer::getGFXFont(TextStyle style, int& lineHeight) {
             break;
         case READER_FONT_SOURCE_SERIF:
             B32_FONT_SET(SourceSerif4_Regular9pt8b, SourceSerif4_Regular12pt8b, SourceSerif4_Regular18pt8b,
-                         SourceSerif4_Bold9pt8b, SourceSerif4_Bold12pt8b, SourceSerif4_Bold18pt8b, SourceSerif4_Bold24pt8b)
+                         SourceSerif4_Bold9pt8b, SourceSerif4_Bold12pt8b, SourceSerif4_Bold18pt8b,
+                         SourceSerif4_Bold24pt8b)
             break;
         case READER_FONT_GELASIO:
             B32_FONT_SET(Gelasio_Regular9pt8b, Gelasio_Regular12pt8b, Gelasio_Regular18pt8b,
@@ -100,20 +117,32 @@ const GFXfont* TextRenderer::getGFXFont(TextStyle style, int& lineHeight) {
             break;
         case READER_FONT_SANS:
         default:
-            B32_FONT_SET(FreeSans9pt8b, FreeSans12pt8b, FreeSans18pt8b,
-                         FreeSansBold9pt8b, FreeSansBold12pt8b, FreeSansBold18pt8b, FreeSansBold24pt8b)
+            B32_FONT_SET(FreeSans9pt8b, FreeSans12pt8b, FreeSans18pt8b, FreeSansBold9pt8b, FreeSansBold12pt8b,
+                         FreeSansBold18pt8b, FreeSansBold24pt8b)
             break;
     }
 #undef B32_FONT_SET
 
     const GFXfont* font;
     switch (style) {
-        case STYLE_HEADER1: font = h1;   break;
-        case STYLE_HEADER2: font = h2;   break;
-        case STYLE_HEADER3: font = h3;   break;
-        case STYLE_HEADER4: font = h4;   break;
-        case STYLE_BOLD:    font = bold; break;
-        default:            font = normal; break;
+        case STYLE_HEADER1:
+            font = h1;
+            break;
+        case STYLE_HEADER2:
+            font = h2;
+            break;
+        case STYLE_HEADER3:
+            font = h3;
+            break;
+        case STYLE_HEADER4:
+            font = h4;
+            break;
+        case STYLE_BOLD:
+            font = bold;
+            break;
+        default:
+            font = normal;
+            break;
     }
 
     // Line height = the font's own advance plus a little leading. Deriving it
@@ -123,8 +152,10 @@ const GFXfont* TextRenderer::getGFXFont(TextStyle style, int& lineHeight) {
     return font;
 }
 
-RenderResult TextRenderer::renderRichPageDynamic(KomaBonDisplay& display, const std::vector<ContentNode>& content, 
-                                                 int startNode, int startOffset, int pageNum, int pageNumForDisplay, bool draw) {
+RenderResult TextRenderer::renderRichPageDynamic(KomaBonDisplay& display,
+                                                 const std::vector<ContentNode>& content, int startNode,
+                                                 int startOffset, int pageNum, int pageNumForDisplay,
+                                                 bool draw) {
     if (draw) {
         display.setTextColor(GxEPD_BLACK);
     }
@@ -132,7 +163,7 @@ RenderResult TextRenderer::renderRichPageDynamic(KomaBonDisplay& display, const 
     if (draw && _cachedPage == pageNum && !_lineCache.empty() && _hasCachedResult) {
         for (const auto& line : _lineCache) {
             int unused;
-            display.setFont(getGFXFont((TextStyle)line.fontSize, unused)); 
+            display.setFont(getGFXFont((TextStyle)line.fontSize, unused));
             display.setCursor(line.x, line.y);
             display.print(line.text);
         }
@@ -143,12 +174,12 @@ RenderResult TextRenderer::renderRichPageDynamic(KomaBonDisplay& display, const 
     _lineCache.clear();
     _cachedPage = pageNum;
 
-    int y = 40; 
+    int y = 40;
     int maxY = _height - 40;
     RenderResult result = {0, 0, false, startNode, startOffset};
     int currentNode = startNode;
     int currentOffset = startOffset;
-    
+
     char lineBuf[256];
     int line_width = 0;
     int x_margin = 35;
@@ -160,7 +191,7 @@ RenderResult TextRenderer::renderRichPageDynamic(KomaBonDisplay& display, const 
             int nodeLineHeight = 0;
             const GFXfont* font = getGFXFont(node.textNode.style, nodeLineHeight);
             display.setFont(font);
-            
+
             if (font != _lastGFXFont) {
                 // int (not uint8_t) loop variable: an upper bound of 256
                 // would make a uint8_t wrap at 255 and never terminate.
@@ -175,12 +206,15 @@ RenderResult TextRenderer::renderRichPageDynamic(KomaBonDisplay& display, const 
             }
 
             if (node.textNode.isBlockStart && currentOffset == 0) {
-                if (line_width > 0) { y += nodeLineHeight; line_width = 0; }
+                if (line_width > 0) {
+                    y += nodeLineHeight;
+                    line_width = 0;
+                }
                 currentX = x_margin + node.textNode.indent;
-                
+
                 // Add extra spacing before headers
                 if (node.textNode.style == STYLE_HEADER1) {
-                    y += 30; // Big gap before chapter title
+                    y += 30;      // Big gap before chapter title
                     currentX = 0; // Will be centered below
                 } else if (node.textNode.style == STYLE_HEADER2) {
                     y += 20;
@@ -198,7 +232,7 @@ RenderResult TextRenderer::renderRichPageDynamic(KomaBonDisplay& display, const 
                 int line_chars = 0;
                 lineBuf[0] = '\0';
                 int segment_width = 0;
-                
+
                 if (node.textNode.isListItem && pos == currentOffset) {
                     strcpy(lineBuf, "- ");
                     segment_width = _gfxCharWidths['-'] + _gfxCharWidths[' '];
@@ -206,12 +240,17 @@ RenderResult TextRenderer::renderRichPageDynamic(KomaBonDisplay& display, const 
 
                 while (pos + line_chars < textLen) {
                     int wordStart = pos + line_chars;
-                    while (wordStart < textLen && isspace((unsigned char)text[wordStart])) wordStart++;
-                    if (wordStart >= textLen) { line_chars = textLen - pos; break; }
+                    while (wordStart < textLen && isspace((unsigned char)text[wordStart]))
+                        wordStart++;
+                    if (wordStart >= textLen) {
+                        line_chars = textLen - pos;
+                        break;
+                    }
 
                     int wordEnd = wordStart;
-                    while (wordEnd < textLen && !isspace((unsigned char)text[wordEnd])) wordEnd++;
-                    
+                    while (wordEnd < textLen && !isspace((unsigned char)text[wordEnd]))
+                        wordEnd++;
+
                     int wordWidth = 0;
                     for (int k = wordStart; k < wordEnd; k++) {
                         unsigned char c = (unsigned char)text[k];
@@ -221,16 +260,22 @@ RenderResult TextRenderer::renderRichPageDynamic(KomaBonDisplay& display, const 
                     int spaceWidth = (line_width + segment_width > 0) ? _gfxCharWidths[' '] : 0;
                     int usableWidth = _width - x_margin;
 
-                    if (currentX + line_width + segment_width + spaceWidth + wordWidth > usableWidth && (line_width + segment_width) > 0) {
+                    if (currentX + line_width + segment_width + spaceWidth + wordWidth > usableWidth &&
+                        (line_width + segment_width) > 0) {
                         // Word doesn't fit on this line
                         if (y + nodeLineHeight > maxY) {
                             if (strlen(lineBuf) > 0) {
                                 int drawX = currentX + line_width;
-                                if (node.textNode.style == STYLE_HEADER1 || node.textNode.style == STYLE_HEADER2) {
+                                if (node.textNode.style == STYLE_HEADER1 ||
+                                    node.textNode.style == STYLE_HEADER2) {
                                     drawX = (_width - segment_width) / 2;
                                 }
-                                _lineCache.push_back({drawX, y, (int)node.textNode.style, false, String(lineBuf)});
-                                if (draw) { display.setCursor(drawX, y); display.print(lineBuf); }
+                                _lineCache.push_back(
+                                    {drawX, y, (int)node.textNode.style, false, String(lineBuf)});
+                                if (draw) {
+                                    display.setCursor(drawX, y);
+                                    display.print(lineBuf);
+                                }
                             }
 
                             int nextOffset = pos + line_chars;
@@ -242,21 +287,25 @@ RenderResult TextRenderer::renderRichPageDynamic(KomaBonDisplay& display, const 
                             _hasCachedResult = true;
                             return result;
                         }
-                        
+
                         // Commit current segment before starting new line
                         if (segment_width > 0) {
-                            _lineCache.push_back({currentX + line_width, y, (int)node.textNode.style, false, String(lineBuf)});
-                            if (draw) { display.setCursor(currentX + line_width, y); display.print(lineBuf); }
+                            _lineCache.push_back(
+                                {currentX + line_width, y, (int)node.textNode.style, false, String(lineBuf)});
+                            if (draw) {
+                                display.setCursor(currentX + line_width, y);
+                                display.print(lineBuf);
+                            }
                         }
-                        
+
                         y += nodeLineHeight;
                         line_width = 0;
                         currentX = x_margin;
                         segment_width = 0;
                         lineBuf[0] = '\0';
-                        
+
                         // Retest the word on the new line
-                        spaceWidth = 0; 
+                        spaceWidth = 0;
                     }
 
                     // Space left in lineBuf, recomputed before every write: the
@@ -269,7 +318,7 @@ RenderResult TextRenderer::renderRichPageDynamic(KomaBonDisplay& display, const 
                     int bufLeft = (int)sizeof(lineBuf) - 1 - (int)strlen(lineBuf);
 
                     if (segment_width > 0 || line_width > 0) {
-                        if (bufLeft <= 0) break;  // no room even for a separator
+                        if (bufLeft <= 0) break; // no room even for a separator
                         strcat(lineBuf, " ");
                         segment_width += spaceWidth;
                         bufLeft--;
@@ -280,14 +329,14 @@ RenderResult TextRenderer::renderRichPageDynamic(KomaBonDisplay& display, const 
                     // host test tools/tests/test_word_fit.cpp).
                     int wordLen = wordEnd - wordStart;
                     int pixelBudget = usableWidth - (currentX + line_width + segment_width);
-                    WordFit fit = fitWordIntoLine(text + wordStart, wordLen, wordWidth,
-                                                  bufLeft, pixelBudget, _gfxCharWidths);
-                    if (fit.take <= 0) break;  // buffer full: commit this line
+                    WordFit fit = fitWordIntoLine(text + wordStart, wordLen, wordWidth, bufLeft, pixelBudget,
+                                                  _gfxCharWidths);
+                    if (fit.take <= 0) break; // buffer full: commit this line
 
                     strncat(lineBuf, text + wordStart, fit.take);
                     segment_width += fit.width;
                     line_chars = wordStart + fit.take - pos;
-                    if (fit.take < wordLen) break;  // remainder goes on the next line
+                    if (fit.take < wordLen) break; // remainder goes on the next line
                 }
 
                 if (strlen(lineBuf) > 0) {
@@ -297,10 +346,13 @@ RenderResult TextRenderer::renderRichPageDynamic(KomaBonDisplay& display, const 
                         drawX = (_width - segment_width) / 2;
                     }
                     _lineCache.push_back({drawX, y, (int)node.textNode.style, false, String(lineBuf)});
-                    if (draw) { display.setCursor(drawX, y); display.print(lineBuf); }
+                    if (draw) {
+                        display.setCursor(drawX, y);
+                        display.print(lineBuf);
+                    }
                     line_width += segment_width;
                 }
-                
+
                 pos += line_chars;
                 if (pos < textLen) {
                     // We filled the line but the node has more text
@@ -310,7 +362,7 @@ RenderResult TextRenderer::renderRichPageDynamic(KomaBonDisplay& display, const 
                 }
                 yield();
             }
-            
+
             // CRITICAL: Check if we exited the text loop because page is full but text remains
             if (pos < textLen && y >= maxY) {
                 // Page full but this node has more text - return position in this node
@@ -323,8 +375,9 @@ RenderResult TextRenderer::renderRichPageDynamic(KomaBonDisplay& display, const 
                 _hasCachedResult = true;
                 return result;
             }
-            
-            if (node.textNode.isBlockStart && currentNode < (int)content.size() - 1 && content[currentNode+1].textNode.isBlockStart) {
+
+            if (node.textNode.isBlockStart && currentNode < (int)content.size() - 1 &&
+                content[currentNode + 1].textNode.isBlockStart) {
                 y += 8; // Paragraph gap
             }
             // Add extra spacing after headers
@@ -353,11 +406,11 @@ RenderResult TextRenderer::renderRichPageDynamic(KomaBonDisplay& display, const 
         result.nextCharOffset = currentOffset;
         // nodesConsumed already reflects completed nodes
     }
-    // If currentNode >= content.size(), all content was displayed -> pageFull stays false (true end of chapter)
+    // If currentNode >= content.size(), all content was displayed -> pageFull stays false (true end of
+    // chapter)
 
     // Page number drawing moved to AppReader for consistency
     _cachedResult = result;
     _hasCachedResult = true;
     return result;
 }
-

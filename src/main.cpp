@@ -84,7 +84,7 @@ void setup() {
     Serial.println("\n\n");
     Serial.println("╔═══════════════════════════════════════╗");
     Serial.println("║        KomaBon OS Starting...         ║");
-    Serial.printf( "║  Build: %s %s  ║\n", __DATE__, __TIME__);
+    Serial.printf("║  Build: %s %s  ║\n", __DATE__, __TIME__);
     Serial.println("╚═══════════════════════════════════════╝");
 
     // Get singleton instances (must be done after Arduino init, not at global scope)
@@ -95,7 +95,7 @@ void setup() {
     // 2. Mount Filesystems EARLY (before WiFi, prevents race conditions)
     displayMgr.showBootScreen(28, "Mounting storage");
     webMgr.mountFilesystems();
-    
+
     // 2.5. Initialize Font Manager (after filesystems, before UI)
     FontMgr::getInstance().init();
 
@@ -121,15 +121,8 @@ void setup() {
 
     displayMgr.showBootScreen(90, "Starting network");
     gNetworkStartupInProgress = true;
-    BaseType_t networkTaskStarted = xTaskCreatePinnedToCore(
-        networkStartupTask,
-        "NetworkStart",
-        12288,
-        nullptr,
-        1,
-        nullptr,
-        0
-    );
+    BaseType_t networkTaskStarted =
+        xTaskCreatePinnedToCore(networkStartupTask, "NetworkStart", 12288, nullptr, 1, nullptr, 0);
     if (networkTaskStarted != pdPASS) {
         gNetworkStartupInProgress = false;
         Serial.println("Failed to start network task; continuing offline");
@@ -150,9 +143,9 @@ void setup() {
 void loop() {
     InputMgr::getInstance().update();
     AppMgr::getInstance().update();
-    AppMgr::getInstance().draw();  // Trigger app rendering
+    AppMgr::getInstance().draw(); // Trigger app rendering
     WebMgr::getInstance().update();
-    BatteryMgr::getInstance().update();  // Check charging state and critical battery
+    BatteryMgr::getInstance().update(); // Check charging state and critical battery
 
     // Charging indicator (partial refresh, top-right). Apps that own the whole
     // screen opt out — in the reader this used to land on top of the page text.

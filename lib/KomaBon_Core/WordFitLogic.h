@@ -14,8 +14,8 @@
 #include <cstddef>
 
 struct WordFit {
-    int take;   // characters to copy (0 = nothing fits, close the line)
-    int width;  // width in pixels of those characters
+    int take;  // characters to copy (0 = nothing fits, close the line)
+    int width; // width in pixels of those characters
 };
 
 // `widths` is the byte-indexed (0-255) width table of the active font.
@@ -28,8 +28,7 @@ struct WordFit {
 //   - take >= 1 whenever bufLeft >= 1 and wordLen >= 1, even with negative
 //     budget or zero-width glyphs (characters outside the font's range),
 //     preventing the call loop from stalling.
-inline WordFit fitWordIntoLine(const char* word, int wordLen, int wordWidth,
-                               int bufLeft, int pixelBudget,
+inline WordFit fitWordIntoLine(const char* word, int wordLen, int wordWidth, int bufLeft, int pixelBudget,
                                const unsigned char* widths) {
     if (!word || wordLen <= 0 || bufLeft <= 0) return {0, 0};
 

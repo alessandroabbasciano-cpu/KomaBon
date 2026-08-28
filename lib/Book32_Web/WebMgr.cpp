@@ -55,26 +55,26 @@ WebMgr& WebMgr::getInstance() {
     return instance;
 }
 
-static void listFiles(fs::FS &fs, const char * dirname, uint8_t levels) {
+static void listFiles(fs::FS& fs, const char* dirname, uint8_t levels) {
 #if BOOK32_VERBOSE_BOOT_LOG
     Serial.printf("Listing directory: %s\n", dirname);
     File root = fs.open(dirname);
-    if(!root){
+    if (!root) {
         Serial.println("- failed to open directory");
         return;
     }
-    if(!root.isDirectory()){
+    if (!root.isDirectory()) {
         Serial.println("- not a directory");
         root.close();
         return;
     }
 
     File file = root.openNextFile();
-    while(file){
-        if(file.isDirectory()){
+    while (file) {
+        if (file.isDirectory()) {
             Serial.printf("  DIR : %s\n", file.name());
-            if(levels){
-                listFiles(fs, file.path(), levels -1);
+            if (levels) {
+                listFiles(fs, file.path(), levels - 1);
             }
         } else {
             Serial.printf("  FILE: %s  SIZE: %d\n", file.name(), file.size());
@@ -113,44 +113,43 @@ static bool partitionLooksBlank(const esp_partition_t* partition) {
 void WebMgr::mountFilesystems() {
 #if BOOK32_VERBOSE_BOOT_LOG
     Serial.println("\n========== PARTITION TABLE DUMP ==========");
-    
+
     // Iterate through ALL partitions on the chip
     esp_partition_iterator_t it = esp_partition_find(ESP_PARTITION_TYPE_ANY, ESP_PARTITION_SUBTYPE_ANY, NULL);
     while (it != NULL) {
         const esp_partition_t* part = esp_partition_get(it);
-        Serial.printf("  [%s] type=%d subtype=0x%02X addr=0x%06X size=0x%06X (%dKB)\n",
-            part->label,
-            part->type,
-            part->subtype,
-            part->address,
-            part->size,
-            part->size / 1024);
+        Serial.printf("  [%s] type=%d subtype=0x%02X addr=0x%06X size=0x%06X (%dKB)\n", part->label,
+                      part->type, part->subtype, part->address, part->size, part->size / 1024);
         it = esp_partition_next(it);
     }
     esp_partition_iterator_release(it);
-    
+
     Serial.println("===========================================\n");
 #endif
     Serial.println("=== Mounting Filesystems ===");
-    
+
     // Look for "spiffs" partition specifically
-    const esp_partition_t* spiffsPart = esp_partition_find_first(ESP_PARTITION_TYPE_DATA, ESP_PARTITION_SUBTYPE_DATA_SPIFFS, "spiffs");
+    const esp_partition_t* spiffsPart =
+        esp_partition_find_first(ESP_PARTITION_TYPE_DATA, ESP_PARTITION_SUBTYPE_DATA_SPIFFS, "spiffs");
     if (spiffsPart) {
 #if BOOK32_VERBOSE_BOOT_LOG
-        Serial.printf("Found 'spiffs' partition at 0x%06X, size %dKB\n", spiffsPart->address, spiffsPart->size/1024);
+        Serial.printf("Found 'spiffs' partition at 0x%06X, size %dKB\n", spiffsPart->address,
+                      spiffsPart->size / 1024);
 #endif
     } else {
         Serial.println("ERROR: No partition with label 'spiffs' and subtype SPIFFS found!");
-        
+
 #if BOOK32_VERBOSE_BOOT_LOG
         // Try to find ANY spiffs-subtype partition
-        const esp_partition_t* anySpiffs = esp_partition_find_first(ESP_PARTITION_TYPE_DATA, ESP_PARTITION_SUBTYPE_DATA_SPIFFS, NULL);
+        const esp_partition_t* anySpiffs =
+            esp_partition_find_first(ESP_PARTITION_TYPE_DATA, ESP_PARTITION_SUBTYPE_DATA_SPIFFS, NULL);
         if (anySpiffs) {
-            Serial.printf("Found unlabeled SPIFFS partition '%s' at 0x%06X\n", anySpiffs->label, anySpiffs->address);
+            Serial.printf("Found unlabeled SPIFFS partition '%s' at 0x%06X\n", anySpiffs->label,
+                          anySpiffs->address);
         }
 #endif
     }
-    
+
     // Mount SystemFS
     bool sysOK = SystemFS.begin(true, "/littlefs", 10, "spiffs");
     if (sysOK) {
@@ -161,10 +160,12 @@ void WebMgr::mountFilesystems() {
     }
 
     // Look for "ebooks" partition (now uses custom subtype 0x82 to avoid uploadfs conflict)
-    const esp_partition_t* ebooksPart = esp_partition_find_first(ESP_PARTITION_TYPE_DATA, ESP_PARTITION_SUBTYPE_ANY, "ebooks");
+    const esp_partition_t* ebooksPart =
+        esp_partition_find_first(ESP_PARTITION_TYPE_DATA, ESP_PARTITION_SUBTYPE_ANY, "ebooks");
     if (ebooksPart) {
 #if BOOK32_VERBOSE_BOOT_LOG
-        Serial.printf("Found 'ebooks' partition at 0x%06X, size %dKB\n", ebooksPart->address, ebooksPart->size/1024);
+        Serial.printf("Found 'ebooks' partition at 0x%06X, size %dKB\n", ebooksPart->address,
+                      ebooksPart->size / 1024);
 #endif
     } else {
         Serial.println("WARNING: No partition with label 'ebooks' found!");
@@ -206,7 +207,7 @@ void WebMgr::mountFilesystems() {
     } else {
         Serial.println("ERROR: EbookFS mount failed! Ebooks partition is not available.");
     }
-    
+
     Serial.println("============================\n");
 }
 
@@ -290,11 +291,11 @@ void WebMgr::update() {
     if (_otaPending) {
         _otaPending = false;
         Serial.println("Scheduling OTA update in separate task...");
-        
+
         // Stop the web server to free up async_tcp and memory
         stop();
-        delay(100);  // Give time for connections to close
-        
+        delay(100); // Give time for connections to close
+
         // Create OTA task with 16KB stack (OTA needs significant stack space)
         xTaskCreatePinnedToCore(
             [](void* param) {
@@ -305,11 +306,11 @@ void WebMgr::update() {
                 ESP.restart();
             },
             "OTA_Task",
-            16384,  // 16KB stack
+            16384, // 16KB stack
             nullptr,
-            1,      // Priority
+            1, // Priority
             nullptr,
-            1       // Core 1
+            1 // Core 1
         );
     }
 }
@@ -337,7 +338,8 @@ static void loadBookOrder(std::vector<String>& order) {
 static void saveBookOrder(const std::vector<String>& order) {
     DynamicJsonDocument doc(4096);
     JsonArray arr = doc.createNestedArray("order");
-    for (const String& s : order) arr.add(s);
+    for (const String& s : order)
+        arr.add(s);
     File f = SystemFS.open(BOOK_ORDER_PATH, FILE_WRITE);
     if (f) {
         serializeJson(doc, f);
@@ -350,8 +352,11 @@ static void removeFromBookOrder(const String& filename) {
     loadBookOrder(order);
     bool changed = false;
     for (auto it = order.begin(); it != order.end();) {
-        if (*it == filename) { it = order.erase(it); changed = true; }
-        else ++it;
+        if (*it == filename) {
+            it = order.erase(it);
+            changed = true;
+        } else
+            ++it;
     }
     if (changed) saveBookOrder(order);
 }
@@ -360,8 +365,7 @@ static void removeFromBookOrder(const String& filename) {
 // Logic shared with AppReader::scanBooks() via BookOrderLogic.h
 // (host test: tools/tests/test_book_order.cpp).
 static void applyBookOrder(const std::vector<String>& order, std::vector<String>& fsNames) {
-    applyBookOrderT(order, fsNames,
-        [](const String& item, const String& key) { return item == key; });
+    applyBookOrderT(order, fsNames, [](const String& item, const String& key) { return item == key; });
 }
 
 static String jsonEscape(const String& s);
@@ -373,11 +377,14 @@ static String jsonEscape(const String& s);
 //
 // A recursão fecha o handle do directório antes de descer: o LittleFS do ESP32
 // tem poucos handles simultâneos e uma árvore funda esgotava-os.
-static void streamFsTree(AsyncResponseStream* out, fs::FS& fs, const String& dir,
-                         uint8_t depth, bool& first, size_t& totalSize, size_t& count) {
+static void streamFsTree(AsyncResponseStream* out, fs::FS& fs, const String& dir, uint8_t depth, bool& first,
+                         size_t& totalSize, size_t& count) {
     File root = fs.open(dir);
     if (!root) return;
-    if (!root.isDirectory()) { root.close(); return; }
+    if (!root.isDirectory()) {
+        root.close();
+        return;
+    }
 
     std::vector<String> subdirs;
     File f = root.openNextFile();
@@ -410,13 +417,27 @@ static String jsonEscape(const String& s) {
     for (size_t i = 0; i < s.length(); i++) {
         char c = s[i];
         switch (c) {
-            case '"':  out += "\\\""; break;
-            case '\\': out += "\\\\"; break;
-            case '\b': out += "\\b";  break;
-            case '\f': out += "\\f";  break;
-            case '\n': out += "\\n";  break;
-            case '\r': out += "\\r";  break;
-            case '\t': out += "\\t";  break;
+            case '"':
+                out += "\\\"";
+                break;
+            case '\\':
+                out += "\\\\";
+                break;
+            case '\b':
+                out += "\\b";
+                break;
+            case '\f':
+                out += "\\f";
+                break;
+            case '\n':
+                out += "\\n";
+                break;
+            case '\r':
+                out += "\\r";
+                break;
+            case '\t':
+                out += "\\t";
+                break;
             default:
                 if ((uint8_t)c < 0x20) {
                     char buf[8];
@@ -522,8 +543,7 @@ static ImportOutcome applyImportBundle(const char* path) {
         return outcome;
     }
 
-    outcome.report = ProgressStore::getInstance().applyImportedJson(
-        doc["progress"].as<JsonObjectConst>());
+    outcome.report = ProgressStore::getInstance().applyImportedJson(doc["progress"].as<JsonObjectConst>());
     if (!outcome.report.ok) {
         outcome.error = outcome.report.error;
         return outcome;
@@ -568,8 +588,8 @@ static ImportOutcome applyImportBundle(const char* path) {
 
 void WebMgr::setupEndpoints() {
     // API: Status
-    server->on("/api/status", HTTP_GET, [this](AsyncWebServerRequest *request) {
-        AsyncResponseStream *response = request->beginResponseStream("application/json");
+    server->on("/api/status", HTTP_GET, [this](AsyncWebServerRequest* request) {
+        AsyncResponseStream* response = request->beginResponseStream("application/json");
         DynamicJsonDocument doc(512);
 
         unsigned long totalSeconds = millis() / 1000;
@@ -601,13 +621,18 @@ void WebMgr::setupEndpoints() {
     // .epub e .ttf na raiz. `used` menos `accounted` é o custo de metadados e
     // arredondamento do LittleFS; uma diferença grande entre `accounted` e o
     // que se vê na lista de livros é espaço preso em ficheiros órfãos.
-    server->on("/api/fs", HTTP_GET, [](AsyncWebServerRequest *request) {
-        AsyncResponseStream *response = request->beginResponseStream("application/json");
+    server->on("/api/fs", HTTP_GET, [](AsyncWebServerRequest* request) {
+        AsyncResponseStream* response = request->beginResponseStream("application/json");
 
-        struct Target { const char* key; fs::FS* fs; size_t used; size_t total; };
+        struct Target {
+            const char* key;
+            fs::FS* fs;
+            size_t used;
+            size_t total;
+        };
         Target targets[] = {
-            { "ebooks", &EbookFS,  EbookFS.usedBytes(),  EbookFS.totalBytes()  },
-            { "system", &SystemFS, SystemFS.usedBytes(), SystemFS.totalBytes() },
+            {"ebooks", &EbookFS, EbookFS.usedBytes(), EbookFS.totalBytes()},
+            {"system", &SystemFS, SystemFS.usedBytes(), SystemFS.totalBytes()},
         };
 
         response->print("{");
@@ -615,14 +640,13 @@ void WebMgr::setupEndpoints() {
         for (Target& t : targets) {
             if (!firstTarget) response->print(",");
             firstTarget = false;
-            response->printf("\"%s\":{\"total\":%u,\"used\":%u,\"files\":[",
-                             t.key, (unsigned)t.total, (unsigned)t.used);
+            response->printf("\"%s\":{\"total\":%u,\"used\":%u,\"files\":[", t.key, (unsigned)t.total,
+                             (unsigned)t.used);
             bool first = true;
             size_t accounted = 0;
             size_t count = 0;
             streamFsTree(response, *t.fs, "/", 4, first, accounted, count);
-            response->printf("],\"accounted\":%u,\"fileCount\":%u}",
-                             (unsigned)accounted, (unsigned)count);
+            response->printf("],\"accounted\":%u,\"fileCount\":%u}", (unsigned)accounted, (unsigned)count);
         }
         response->print("}");
 
@@ -632,7 +656,7 @@ void WebMgr::setupEndpoints() {
     // Página de envio dedicada: caminho curto e memorizável para o atalho no
     // ecrã principal do telemóvel. Desde a v1.9.0 nem a página nem o POST
     // para /api/books/upload pedem credenciais.
-    server->on("/send", HTTP_GET, [](AsyncWebServerRequest *request) {
+    server->on("/send", HTTP_GET, [](AsyncWebServerRequest* request) {
         if (SystemFS.exists("/send.html")) {
             request->send(SystemFS, "/send.html", "text/html");
         } else {
@@ -643,7 +667,7 @@ void WebMgr::setupEndpoints() {
     // API: List Books from EbookFS
     // v1.2.0: streamed serialization (no fixed 2KB buffer — previously books
     // beyond the buffer were silently truncated) + manual ordering applied.
-    server->on("/api/books", HTTP_GET, [](AsyncWebServerRequest *request) {
+    server->on("/api/books", HTTP_GET, [](AsyncWebServerRequest* request) {
         // 1) Enumerate FS: books (.epub) and fonts (.ttf) separately.
         std::vector<String> epubs, fonts;
         File root = EbookFS.open("/");
@@ -651,8 +675,10 @@ void WebMgr::setupEndpoints() {
             File file = root.openNextFile();
             while (file) {
                 String name = file.name();
-                if (hasExtensionCI(name, ".epub")) epubs.push_back(name);
-                else if (hasExtensionCI(name, ".ttf")) fonts.push_back(name);
+                if (hasExtensionCI(name, ".epub"))
+                    epubs.push_back(name);
+                else if (hasExtensionCI(name, ".ttf"))
+                    fonts.push_back(name);
                 file.close();
                 file = root.openNextFile();
             }
@@ -663,10 +689,11 @@ void WebMgr::setupEndpoints() {
         std::vector<String> order;
         loadBookOrder(order);
         applyBookOrder(order, epubs);
-        for (const String& f : fonts) epubs.push_back(f);
+        for (const String& f : fonts)
+            epubs.push_back(f);
 
         // 3) Stream JSON directly — O(1) memory w.r.t. number of books.
-        AsyncResponseStream *response = request->beginResponseStream("application/json");
+        AsyncResponseStream* response = request->beginResponseStream("application/json");
         response->print("{\"books\":[");
         bool first = true;
         for (const String& name : epubs) {
@@ -676,8 +703,7 @@ void WebMgr::setupEndpoints() {
             if (!first) response->print(",");
             first = false;
             response->printf("{\"name\":\"%s\",\"filename\":\"%s\",\"size\":%u}",
-                             jsonEscape(getOriginalFilename(name)).c_str(),
-                             jsonEscape(name).c_str(),
+                             jsonEscape(getOriginalFilename(name)).c_str(), jsonEscape(name).c_str(),
                              (unsigned)sz);
         }
         response->print("]}");
@@ -685,8 +711,8 @@ void WebMgr::setupEndpoints() {
     });
 
     // API (v1.2.0): Save manual book order. Body: {"order":["a.epub","b.epub"]}
-    AsyncCallbackJsonWebHandler* bookOrderHandler = new AsyncCallbackJsonWebHandler("/api/books/order",
-        [](AsyncWebServerRequest *request, JsonVariant &json) {
+    AsyncCallbackJsonWebHandler* bookOrderHandler = new AsyncCallbackJsonWebHandler(
+        "/api/books/order", [](AsyncWebServerRequest* request, JsonVariant& json) {
             JsonArray arr = json["order"].as<JsonArray>();
             if (arr.isNull()) {
                 request->send(400, "text/plain", "Missing 'order' array");
@@ -713,45 +739,45 @@ void WebMgr::setupEndpoints() {
     // ESPAsyncWebServer corre o body handler primeiro, por isso o veredito
     // aqui guardado já está decidido quando a resposta é montada. Uploads são
     // servidos em série (o LittleFS é single-writer), logo `static` é seguro.
-    server->on("/api/books/upload", HTTP_POST,
-        [](AsyncWebServerRequest *request) {
+    server->on(
+        "/api/books/upload", HTTP_POST,
+        [](AsyncWebServerRequest* request) {
             if (g_uploadState.owner != request) {
                 if (g_uploadState.owner != nullptr) {
                     // Outro upload detém o estado: recusar sem lhe tocar.
                     request->send(409, "application/json",
-                        "{\"ok\":false,\"error\":\"outro envio em curso - tenta daqui a pouco\"}");
+                                  "{\"ok\":false,\"error\":\"outro envio em curso - tenta daqui a pouco\"}");
                 } else {
                     // O body handler nunca correu para este pedido (parte
                     // multipart sem filename): não há nada a reportar.
                     request->send(400, "application/json",
-                        "{\"ok\":false,\"error\":\"pedido sem ficheiro\"}");
+                                  "{\"ok\":false,\"error\":\"pedido sem ficheiro\"}");
                 }
                 return;
             }
 
             switch (g_uploadState.status) {
                 case UploadStatus::Ok: {
-                    String body = "{\"ok\":true,\"name\":\"" +
-                                  jsonEscape(g_uploadState.finalName) + "\"}";
+                    String body = "{\"ok\":true,\"name\":\"" + jsonEscape(g_uploadState.finalName) + "\"}";
                     request->send(200, "application/json", body);
                     break;
                 }
                 case UploadStatus::BadExtension:
                     request->send(415, "application/json",
-                        "{\"ok\":false,\"error\":\"tipo de ficheiro nao suportado\"}");
+                                  "{\"ok\":false,\"error\":\"tipo de ficheiro nao suportado\"}");
                     break;
                 case UploadStatus::UnsafeName:
                     request->send(400, "application/json",
-                        "{\"ok\":false,\"error\":\"nome de ficheiro invalido\"}");
+                                  "{\"ok\":false,\"error\":\"nome de ficheiro invalido\"}");
                     break;
                 case UploadStatus::NoSpace:
                     request->send(507, "application/json",
-                        "{\"ok\":false,\"error\":\"sem espaco na particao de ebooks\"}");
+                                  "{\"ok\":false,\"error\":\"sem espaco na particao de ebooks\"}");
                     break;
                 case UploadStatus::WriteFailed:
                 default:
                     request->send(500, "application/json",
-                        "{\"ok\":false,\"error\":\"falha a escrever no armazenamento\"}");
+                                  "{\"ok\":false,\"error\":\"falha a escrever no armazenamento\"}");
                     break;
             }
             // Libertar o estado: o corpo JSON já foi construído acima. Sem
@@ -759,7 +785,8 @@ void WebMgr::setupEndpoints() {
             // ficheiro herdaria o veredito do upload anterior.
             g_uploadState.reset();
         },
-        [](AsyncWebServerRequest *request, String filename, size_t index, uint8_t *data, size_t len, bool final) {
+        [](AsyncWebServerRequest* request, String filename, size_t index, uint8_t* data, size_t len,
+           bool final) {
             if (index == 0) {
                 // Single-flight: se outro pedido detém o estado, sair sem
                 // tocar em nada — nem reset(), que fecharia o File dele.
@@ -828,13 +855,15 @@ void WebMgr::setupEndpoints() {
                 g_uploadState.finalName = safeName;
                 g_uploadState.originalName = filename;
                 int origSlash = g_uploadState.originalName.lastIndexOf('/');
-                if (origSlash >= 0) g_uploadState.originalName = g_uploadState.originalName.substring(origSlash + 1);
+                if (origSlash >= 0)
+                    g_uploadState.originalName = g_uploadState.originalName.substring(origSlash + 1);
                 origSlash = g_uploadState.originalName.lastIndexOf('\\');
-                if (origSlash >= 0) g_uploadState.originalName = g_uploadState.originalName.substring(origSlash + 1);
+                if (origSlash >= 0)
+                    g_uploadState.originalName = g_uploadState.originalName.substring(origSlash + 1);
 
                 g_uploadState.path = "/" + safeName;
-                Serial.printf("Upload Start: %s (original: %s)\n",
-                              g_uploadState.path.c_str(), filename.c_str());
+                Serial.printf("Upload Start: %s (original: %s)\n", g_uploadState.path.c_str(),
+                              filename.c_str());
                 g_uploadState.tempPath = g_uploadState.path + ".part";
                 g_uploadState.file = EbookFS.open(g_uploadState.tempPath, FILE_WRITE);
                 if (!g_uploadState.file) {
@@ -869,11 +898,10 @@ void WebMgr::setupEndpoints() {
                 }
                 saveBookMetadata(g_uploadState.finalName, g_uploadState.originalName);
             }
-        }
-    );
+        });
 
     // API: Delete Book from EbookFS
-    server->on("/api/books/delete", HTTP_DELETE, [](AsyncWebServerRequest *request) {
+    server->on("/api/books/delete", HTTP_DELETE, [](AsyncWebServerRequest* request) {
         if (!request->hasParam("name")) {
             request->send(400, "text/plain", "Missing name param");
             return;
@@ -906,7 +934,7 @@ void WebMgr::setupEndpoints() {
                 // ficheiros ".EPUB".
                 int dot = filename.lastIndexOf('.');
                 String base = (dot > 0) ? filename.substring(0, dot) : filename;
-                const char* derivedExts[] = { ".thumb", ".cover", ".cover2" };
+                const char* derivedExts[] = {".thumb", ".cover", ".cover2"};
                 for (const char* ext : derivedExts) {
                     String derived = "/covers/" + base + ext;
                     if (EbookFS.exists(derived)) EbookFS.remove(derived);
@@ -921,8 +949,8 @@ void WebMgr::setupEndpoints() {
     });
 
     // API: Check for Updates
-    server->on("/api/check_update", HTTP_GET, [](AsyncWebServerRequest *request) {
-        AsyncResponseStream *response = request->beginResponseStream("application/json");
+    server->on("/api/check_update", HTTP_GET, [](AsyncWebServerRequest* request) {
+        AsyncResponseStream* response = request->beginResponseStream("application/json");
         DynamicJsonDocument doc(1024);
 
         Serial.println("Checking for updates...");
@@ -947,15 +975,15 @@ void WebMgr::setupEndpoints() {
 
     // API: Perform Full Update (firmware + filesystem)
     // Sets flag to perform OTA from main loop (avoids blocking async_tcp)
-    server->on("/api/update/all", HTTP_POST, [](AsyncWebServerRequest *request) {
+    server->on("/api/update/all", HTTP_POST, [](AsyncWebServerRequest* request) {
         request->send(200, "text/plain", "Update scheduled - will start in a moment");
         Serial.println("OTA update requested via web UI, scheduling...");
         WebMgr::getInstance()._otaPending = true;
     });
 
     // API: Reader Settings - GET
-    server->on("/api/settings/reader", HTTP_GET, [](AsyncWebServerRequest *request) {
-        AsyncResponseStream *response = request->beginResponseStream("application/json");
+    server->on("/api/settings/reader", HTTP_GET, [](AsyncWebServerRequest* request) {
+        AsyncResponseStream* response = request->beginResponseStream("application/json");
         DynamicJsonDocument doc(256);
 
         ReaderSettings s = SettingsStore::getInstance().loadReader();
@@ -968,8 +996,8 @@ void WebMgr::setupEndpoints() {
     });
 
     // API: Reader Settings - POST
-    AsyncCallbackJsonWebHandler* readerSettingsHandler = new AsyncCallbackJsonWebHandler("/api/settings/reader",
-        [](AsyncWebServerRequest *request, JsonVariant &json) {
+    AsyncCallbackJsonWebHandler* readerSettingsHandler = new AsyncCallbackJsonWebHandler(
+        "/api/settings/reader", [](AsyncWebServerRequest* request, JsonVariant& json) {
             // Merge into the existing config so one setting doesn't wipe the
             // other. Clamping lives in SettingsStore, shared with the
             // on-device settings menu.
@@ -999,15 +1027,15 @@ void WebMgr::setupEndpoints() {
             if (store.saveReader(s)) {
                 request->send(200, "application/json", "{\"status\":\"ok\"}");
             } else {
-                request->send(500, "application/json", "{\"status\":\"error\",\"message\":\"Failed to save\"}");
+                request->send(500, "application/json",
+                              "{\"status\":\"error\",\"message\":\"Failed to save\"}");
             }
-        }
-    );
+        });
     server->addHandler(readerSettingsHandler);
 
     // API: Display Settings (orientation) - GET
-    server->on("/api/settings/display", HTTP_GET, [](AsyncWebServerRequest *request) {
-        AsyncResponseStream *response = request->beginResponseStream("application/json");
+    server->on("/api/settings/display", HTTP_GET, [](AsyncWebServerRequest* request) {
+        AsyncResponseStream* response = request->beginResponseStream("application/json");
         DynamicJsonDocument doc(128);
 
         doc["rotation"] = SettingsStore::getInstance().loadDisplay().rotation;
@@ -1018,8 +1046,8 @@ void WebMgr::setupEndpoints() {
 
     // API: Display Settings (orientation) - POST. Applies OS-wide; persisted on
     // EbookFS so it survives OTA updates.
-    AsyncCallbackJsonWebHandler* displaySettingsHandler = new AsyncCallbackJsonWebHandler("/api/settings/display",
-        [](AsyncWebServerRequest *request, JsonVariant &json) {
+    AsyncCallbackJsonWebHandler* displaySettingsHandler = new AsyncCallbackJsonWebHandler(
+        "/api/settings/display", [](AsyncWebServerRequest* request, JsonVariant& json) {
             DisplaySettings s;
             s.rotation = SettingsStore::clampRotation(json["rotation"] | 3);
 
@@ -1028,15 +1056,15 @@ void WebMgr::setupEndpoints() {
                 WebMgr::getInstance()._pendingRotation = s.rotation;
                 request->send(200, "application/json", "{\"status\":\"ok\"}");
             } else {
-                request->send(500, "application/json", "{\"status\":\"error\",\"message\":\"Failed to save\"}");
+                request->send(500, "application/json",
+                              "{\"status\":\"error\",\"message\":\"Failed to save\"}");
             }
-        }
-    );
+        });
     server->addHandler(displaySettingsHandler);
 
     // API: Reader Progress - GET
-    server->on("/api/reader/progress", HTTP_GET, [](AsyncWebServerRequest *request) {
-        AsyncResponseStream *response = request->beginResponseStream("application/json");
+    server->on("/api/reader/progress", HTTP_GET, [](AsyncWebServerRequest* request) {
+        AsyncResponseStream* response = request->beginResponseStream("application/json");
         DynamicJsonDocument doc(1024);
 
         ProgressStore& store = ProgressStore::getInstance();
@@ -1044,7 +1072,7 @@ void WebMgr::setupEndpoints() {
 
         doc["exists"] = last.length() > 0;
         doc["lastBook"] = last;
-        doc["displayName"] = last;   // v1.8.0: the key already is the original name
+        doc["displayName"] = last; // v1.8.0: the key already is the original name
         doc["resumeOnBoot"] = store.resumeOnBoot();
 
         BookProgress p;
@@ -1058,7 +1086,7 @@ void WebMgr::setupEndpoints() {
     });
 
     // API: Reader Progress - DELETE
-    server->on("/api/reader/progress", HTTP_DELETE, [](AsyncWebServerRequest *request) {
+    server->on("/api/reader/progress", HTTP_DELETE, [](AsyncWebServerRequest* request) {
         ProgressStore::getInstance().clearAll();
         request->send(200, "application/json", "{\"status\":\"ok\"}");
     });
@@ -1071,7 +1099,7 @@ void WebMgr::setupEndpoints() {
     //
     // Como todos os endpoints desde a v1.9.0, é aberto: quem chegar à porta 80
     // pode exportar o estado da biblioteca.
-    server->on("/api/library/export", HTTP_GET, [](AsyncWebServerRequest *request) {
+    server->on("/api/library/export", HTTP_GET, [](AsyncWebServerRequest* request) {
         std::map<String, String> metadata;
         loadBookMetadata(metadata);
 
@@ -1080,10 +1108,8 @@ void WebMgr::setupEndpoints() {
 
         // Sized from the actual entry counts rather than a fixed buffer — the
         // same lesson as the /api/books truncation fixed in v1.2.0.
-        size_t capacity = 1024
-                        + ProgressStore::getInstance().count() * 224
-                        + metadata.size() * 160
-                        + order.size() * 96;
+        size_t capacity =
+            1024 + ProgressStore::getInstance().count() * 224 + metadata.size() * 160 + order.size() * 96;
         DynamicJsonDocument doc(capacity);
 
         JsonObject header = doc.createNestedObject("book32");
@@ -1100,9 +1126,10 @@ void WebMgr::setupEndpoints() {
         }
 
         JsonArray arr = doc.createNestedArray("order");
-        for (const String& filename : order) arr.add(getOriginalFilename(filename));
+        for (const String& filename : order)
+            arr.add(getOriginalFilename(filename));
 
-        AsyncResponseStream *response = request->beginResponseStream("application/json");
+        AsyncResponseStream* response = request->beginResponseStream("application/json");
         response->addHeader("Content-Disposition", "attachment; filename=\"book32-state.json\"");
         serializeJson(doc, *response);
         request->send(response);
@@ -1113,8 +1140,9 @@ void WebMgr::setupEndpoints() {
     // Streamed to a temp file instead of AsyncCallbackJsonWebHandler: that
     // handler buffers the whole body in RAM before the callback runs, and a
     // library-sized bundle risks exhausting the heap mid-request.
-    server->on("/api/library/import", HTTP_POST,
-        [](AsyncWebServerRequest *request) {
+    server->on(
+        "/api/library/import", HTTP_POST,
+        [](AsyncWebServerRequest* request) {
             if (g_importState.owner != nullptr && g_importState.owner != request) {
                 request->send(409, "application/json",
                               "{\"status\":\"error\",\"message\":\"import em curso\"}");
@@ -1138,7 +1166,7 @@ void WebMgr::setupEndpoints() {
             EbookFS.remove(IMPORT_TMP_PATH);
 
             if (!outcome.ok) {
-                AsyncResponseStream *r = request->beginResponseStream("application/json");
+                AsyncResponseStream* r = request->beginResponseStream("application/json");
                 DynamicJsonDocument doc(256);
                 doc["status"] = "error";
                 doc["message"] = outcome.error;
@@ -1147,7 +1175,7 @@ void WebMgr::setupEndpoints() {
                 return;
             }
 
-            AsyncResponseStream *response = request->beginResponseStream("application/json");
+            AsyncResponseStream* response = request->beginResponseStream("application/json");
             DynamicJsonDocument doc(256);
             doc["status"] = "ok";
             doc["merged"] = outcome.report.merged;
@@ -1159,7 +1187,8 @@ void WebMgr::setupEndpoints() {
             serializeJson(doc, *response);
             request->send(response);
         },
-        [](AsyncWebServerRequest *request, String filename, size_t index, uint8_t *data, size_t len, bool final) {
+        [](AsyncWebServerRequest* request, String filename, size_t index, uint8_t* data, size_t len,
+           bool final) {
             if (index == 0) {
                 if (g_importState.owner != nullptr && g_importState.owner != request) return;
                 g_importState.reset();
@@ -1196,8 +1225,8 @@ void WebMgr::setupEndpoints() {
         });
 
     // API: Sleep Settings - GET
-    server->on("/api/settings/sleep", HTTP_GET, [](AsyncWebServerRequest *request) {
-        AsyncResponseStream *response = request->beginResponseStream("application/json");
+    server->on("/api/settings/sleep", HTTP_GET, [](AsyncWebServerRequest* request) {
+        AsyncResponseStream* response = request->beginResponseStream("application/json");
         DynamicJsonDocument doc(512);
 
         SleepSettings s = SettingsStore::getInstance().loadSleep();
@@ -1209,8 +1238,8 @@ void WebMgr::setupEndpoints() {
     });
 
     // API: Sleep Settings - POST
-    AsyncCallbackJsonWebHandler* sleepSettingsHandler = new AsyncCallbackJsonWebHandler("/api/settings/sleep",
-        [](AsyncWebServerRequest *request, JsonVariant &json) {
+    AsyncCallbackJsonWebHandler* sleepSettingsHandler = new AsyncCallbackJsonWebHandler(
+        "/api/settings/sleep", [](AsyncWebServerRequest* request, JsonVariant& json) {
             // Merge, so posting only one key doesn't blank the other.
             // Transacção pela mesma razão do handler do leitor, fechada antes
             // de avisar o BatteryMgr: assim nunca se detêm dois bloqueios ao
@@ -1236,14 +1265,14 @@ void WebMgr::setupEndpoints() {
                 BatteryMgr::getInstance().loadSleepSettings();
                 request->send(200, "application/json", "{\"status\":\"ok\"}");
             } else {
-                request->send(500, "application/json", "{\"status\":\"error\",\"message\":\"Failed to save\"}");
+                request->send(500, "application/json",
+                              "{\"status\":\"error\",\"message\":\"Failed to save\"}");
             }
-        }
-    );
+        });
     server->addHandler(sleepSettingsHandler);
 
     // API: Switch to app by name
-    server->on("/api/app/switch", HTTP_GET, [](AsyncWebServerRequest *request) {
+    server->on("/api/app/switch", HTTP_GET, [](AsyncWebServerRequest* request) {
         if (!request->hasParam("name")) {
             request->send(400, "application/json", "{\"error\":\"App name required\"}");
             return;
@@ -1275,8 +1304,8 @@ void WebMgr::setupEndpoints() {
     // === WIFI / HOTSPOT API ENDPOINTS ===
 
     // API: WiFi status - station connection + hotspot (AP) state
-    server->on("/api/wifi/status", HTTP_GET, [](AsyncWebServerRequest *request) {
-        AsyncResponseStream *response = request->beginResponseStream("application/json");
+    server->on("/api/wifi/status", HTTP_GET, [](AsyncWebServerRequest* request) {
+        AsyncResponseStream* response = request->beginResponseStream("application/json");
         DynamicJsonDocument doc(512);
 
         bool sta = WiFi.status() == WL_CONNECTED;
@@ -1297,20 +1326,20 @@ void WebMgr::setupEndpoints() {
 
     // API: WiFi scan - async so async_tcp keeps running. First call kicks off a
     // scan and returns 202; the client polls until results are ready.
-    server->on("/api/wifi/scan", HTTP_GET, [](AsyncWebServerRequest *request) {
+    server->on("/api/wifi/scan", HTTP_GET, [](AsyncWebServerRequest* request) {
         int n = WiFi.scanComplete();
         if (n == WIFI_SCAN_RUNNING) {
             request->send(202, "application/json", "{\"status\":\"scanning\"}");
             return;
         }
         if (n == WIFI_SCAN_FAILED) {
-            WiFi.scanNetworks(true);  // start async scan
+            WiFi.scanNetworks(true); // start async scan
             request->send(202, "application/json", "{\"status\":\"scanning\"}");
             return;
         }
 
         // n >= 0: results available
-        AsyncResponseStream *response = request->beginResponseStream("application/json");
+        AsyncResponseStream* response = request->beginResponseStream("application/json");
         DynamicJsonDocument doc(4096);
         JsonArray arr = doc.createNestedArray("networks");
         for (int i = 0; i < n && i < 20; i++) {
@@ -1326,8 +1355,8 @@ void WebMgr::setupEndpoints() {
 
     // API: WiFi connect - join a network. Credentials persist to NVS so the
     // device reconnects automatically on the next boot.
-    AsyncCallbackJsonWebHandler* wifiConnectHandler = new AsyncCallbackJsonWebHandler("/api/wifi/connect",
-        [](AsyncWebServerRequest *request, JsonVariant &json) {
+    AsyncCallbackJsonWebHandler* wifiConnectHandler = new AsyncCallbackJsonWebHandler(
+        "/api/wifi/connect", [](AsyncWebServerRequest* request, JsonVariant& json) {
             String ssid = json["ssid"].as<String>();
             String password = json["password"] | "";
 
@@ -1339,15 +1368,16 @@ void WebMgr::setupEndpoints() {
             // Keep the AP up (AP_STA) so the phone stays connected to the page
             // while the station connection is attempted.
             wifi_mode_t mode = WiFi.getMode();
-            if (mode == WIFI_AP) WiFi.mode(WIFI_AP_STA);
-            else if (mode == WIFI_OFF) WiFi.mode(WIFI_STA);
+            if (mode == WIFI_AP)
+                WiFi.mode(WIFI_AP_STA);
+            else if (mode == WIFI_OFF)
+                WiFi.mode(WIFI_STA);
 
             Serial.printf("WiFi connect requested via web: %s\n", ssid.c_str());
             WiFi.begin(ssid.c_str(), password.c_str());
 
             request->send(200, "application/json", "{\"status\":\"connecting\"}");
-        }
-    );
+        });
     server->addHandler(wifiConnectHandler);
 
     // Static Files - serve from SystemFS first (where OTA filesystem updates go)
