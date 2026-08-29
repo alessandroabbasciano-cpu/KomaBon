@@ -10,6 +10,7 @@
 #include "WebMgr.h"
 #include "BatteryMgr.h"
 #include "FontMgr.h"
+#include "SDMgr.h"
 
 #include "../KomaBon_Apps/AppMainMenu.h"
 #include "../Apps/AppReader/AppReader.h"
@@ -95,6 +96,9 @@ void setup() {
     // 2. Mount Filesystems EARLY (before WiFi, prevents race conditions)
     displayMgr.showBootScreen(28, "Mounting storage");
     webMgr.mountFilesystems();
+
+    // Initialize the external MicroSD card
+    SDMgr::getInstance().init();
 
     // 2.5. Initialize Font Manager (after filesystems, before UI)
     FontMgr::getInstance().init();

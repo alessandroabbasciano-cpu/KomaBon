@@ -931,8 +931,11 @@ void AppReader::drawLibrary() {
             snprintf(pageStr, sizeof(pageStr), "%d/%d", _selectedBookIndex + 1, (int)_books.size());
         }
         display.drawFastHLine(20, display.height() - 42, display.width() - 40, GxEPD_BLACK);
-        fontMgr.drawText(display, "Next: Move  |  Hold: Open", 22, display.height() - 18, FONT_SIZE_SMALL,
+        
+        // Testo aggiornato per riflettere i comandi del nuovo Joystick a 5 vie
+        fontMgr.drawText(display, "Joy: Move  |  Center: Open  |  Hold Left: Menu", 22, display.height() - 18, FONT_SIZE_SMALL,
                          GxEPD_BLACK);
+                         
         fontMgr.drawTextRight(display, pageStr, display.width() - 20, display.height() - 18, FONT_SIZE_SMALL,
                               GxEPD_BLACK);
 

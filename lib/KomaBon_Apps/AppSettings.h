@@ -19,12 +19,13 @@
 // =============================================================================
 
 enum SettingsScreen {
-    SCREEN_MAIN,               // Top-level settings list
-    SCREEN_FONT,               // Font family picker (too many entries to cycle blind)
-    SCREEN_NETWORK,            // Read-only network status
-    SCREEN_SYSTEM,             // Version/space/battery plus OTA and restart actions
-    SCREEN_CONFIRM,            // "Unsaved changes" prompt on exit
-    SCREEN_CONFIRM_FORGET_WIFI // "Erase Wi-Fi credentials?" prompt
+    SCREEN_MAIN,                // Top-level settings list
+    SCREEN_FONT,                // Font family picker
+    SCREEN_NETWORK,             // Read-only network status
+    SCREEN_SYSTEM,              // Version/space/battery plus OTA
+    SCREEN_CONFIRM,             // "Unsaved changes" prompt
+    SCREEN_CONFIRM_FORGET_WIFI, // "Erase Wi-Fi credentials?" prompt
+    SCREEN_JOYCAL               // NEW: Joystick Calibration Wizard
 };
 
 class AppSettings : public App {
@@ -64,6 +65,11 @@ class AppSettings : public App {
     bool _selectionOnlyRedraw;
     int _previousSelectedIndex;    // last _selectedIndex, for SCREEN_MAIN
     int _previousSubSelectedIndex; // last _subSelectedIndex, for SCREEN_FONT
+    int _joyCalStep = 0;           // Keeps track of the calibration phase
+    unsigned long _joyCalHoldStart = 0;
+    int _joyCalLastRaw = 4095;
+    bool _joyCalWaitingRelease = false;
+    int _joyCalValues[5]; // Stores the raw ADC targets for the 5 directions
 
     // Draft state: edited freely, only flushed to disk on save.
     ReaderSettings _reader;
@@ -99,6 +105,7 @@ class AppSettings : public App {
     void drawConfirmForgetWifiScreen();
     void drawHeader(const char* title);
     void drawFooter(const char* hint);
+    void drawJoyCalScreen();
 
     String valueForRow(int index) const;
     bool rowChanged(int index) const;

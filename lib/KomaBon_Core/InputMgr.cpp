@@ -4,10 +4,11 @@
 #include "AppMgr.h"
 #include "ButtonPressLogic.h"
 #include "StandbyGuard.h"
+#include "JoystickMgr.h"
 
 InputMgr::InputMgr()
-    : btn(PIN_BUTTON, true, true), btnBack(PIN_BUTTON_BACK, true, true),
-      btnSleep(PIN_BUTTON_SLEEP, true, true) { // Active Low, Pullup
+    : btn(255, true, true), btnBack(PIN_BUTTON_BACK, true, true), // 255 disables OneButton su GPIO2
+      btnSleep(PIN_BUTTON_SLEEP, true, true) {                    // Active Low, Pullup
     callback = nullptr;
 }
 
@@ -17,6 +18,7 @@ InputMgr& InputMgr::getInstance() {
 }
 
 void InputMgr::init() {
+    JoystickMgr::getInstance().init(); // Start the ADC safely first
     // Configure timing FIRST - ULTRA SNAPPY SETTINGS.
     // KEY3 is the one button actually driven by OneButton::tick(), so these
     // settings take effect here. KEY1 and KEY2 are polled with digitalRead()
@@ -95,6 +97,12 @@ void InputMgr::update() {
 
 void InputMgr::inputTask(void* parameter) {
     InputMgr* self = static_cast<InputMgr*>(parameter);
+
+    // Joystick state variables persist in the task
+    JoyDirection lastJoyDirection = JOY_NONE;
+    unsigned long joyPressTime = 0;
+    bool joyLongPressSent = false;
+
     while (true) {
         self->btn.tick();
         // btnBack.tick() removed - using manual polling instead
@@ -105,7 +113,11 @@ void InputMgr::inputTask(void* parameter) {
         // and not through OneButton, which only reports pre-classified events.[cite: 61]
         bool key1Pressed = (digitalRead(PIN_BUTTON_BACK) == LOW); // Active low
         bool key2Pressed = (digitalRead(PIN_BUTTON_SLEEP) == LOW);
-        bool key3Pressed = (digitalRead(PIN_BUTTON) == LOW);
+
+        JoyDirection currentJoyDir = JoystickMgr::getInstance().getDirection();
+        bool key3Pressed =
+            (currentJoyDir == JOY_CENTER); // Maintains compatibility with the underlying diagnostic
+        bool joyActive = (currentJoyDir != JOY_NONE);
         unsigned long now = millis();
 
         // v1.9.1 diagnostics (PINDIAG): raw snapshot of the three pins on each
@@ -119,7 +131,7 @@ void InputMgr::inputTask(void* parameter) {
                 self->_lastPinSnapshot = snapshot;
                 Serial.printf("PINDIAG: KEY1/GPIO%d=%d  KEY2/GPIO%d=%d  KEY3/GPIO%d=%d\n", PIN_BUTTON_BACK,
                               (snapshot & 0x01) ? 1 : 0, PIN_BUTTON_SLEEP, (snapshot & 0x02) ? 1 : 0,
-                              PIN_BUTTON, (snapshot & 0x04) ? 1 : 0);
+                              JOY_ADC_PIN, (snapshot & 0x04) ? 1 : 0);
             }
         }
 
@@ -132,10 +144,68 @@ void InputMgr::inputTask(void* parameter) {
         // Limited to once per IDLE_RESET_THROTTLE_MS: resetIdleTimer() acquires
         // the BatteryMgr mutex, which ADC readings hold for tens of ms, and
         // risking blocking button sampling every 5ms is not worth it.[cite: 61]
-        if ((key1Pressed || key2Pressed || key3Pressed) &&
+        if ((key1Pressed || key2Pressed || joyActive) &&
             (self->_lastIdleResetTime == 0 || (now - self->_lastIdleResetTime) >= IDLE_RESET_THROTTLE_MS)) {
             self->_lastIdleResetTime = now;
             BatteryMgr::getInstance().resetIdleTimer();
+        }
+
+        if (joyActive) {
+            if (joyPressTime == 0) {
+                // First moment the joystick is pressed
+                joyPressTime = now;
+                joyLongPressSent = false;
+                lastJoyDirection = currentJoyDir;
+            } else if (!joyLongPressSent && (now - joyPressTime) >= BUTTON_LONG_PRESS_MS) {
+                // Long press threshold reached. Check which direction is being held.
+                if (currentJoyDir == JOY_CENTER) {
+                    Serial.println("INPUT: JOY Center / KEY1 Long Press -> GO TO MAIN MENU");
+                    BatteryMgr::getInstance().resetIdleTimer();
+                    self->enqueueAction(INPUT_GO_TO_MAIN_MENU);
+                    joyLongPressSent = true;
+                } else if (currentJoyDir == JOY_LEFT) {
+                    // Long press LEFT to go back/abort without reaching for KEY3
+                    Serial.println("INPUT: JOY Left Long Press -> BACK");
+                    BatteryMgr::getInstance().resetIdleTimer();
+                    self->enqueueAction(INPUT_BACK);
+                    joyLongPressSent = true;
+                }
+            }
+        } else {
+            // Joystick released
+            if (joyPressTime != 0) {
+                unsigned long pressDuration = now - joyPressTime;
+                
+                // If a long press was already sent, joyLongPressSent is true, 
+                // so we safely skip the short-press action here.
+                if (pressDuration >= BUTTON_DEBOUNCE_MIN_MS && !joyLongPressSent) {
+                    BatteryMgr::getInstance().resetIdleTimer();
+                    // Logical mapping of directions for SHORT press.
+                    switch (lastJoyDirection) {
+                        case JOY_RIGHT:
+                            self->enqueueAction(INPUT_NEXT);
+                            break;
+                        case JOY_LEFT:
+                            self->enqueueAction(INPUT_PREV);
+                            break;
+                        case JOY_UP:
+                            self->enqueueAction(INPUT_PREV); // Pan up / Scroll up
+                            break; 
+                        case JOY_DOWN:
+                            self->enqueueAction(INPUT_NEXT); // Pan down / Scroll down
+                            break; 
+                        case JOY_CENTER:
+                            self->enqueueAction(INPUT_SELECT); // KEY1 or Joy Center
+                            break; 
+                        default:
+                            break;
+                    }
+                }
+                // Reset state machine
+                joyPressTime = 0;
+                joyLongPressSent = false;
+                lastJoyDirection = JOY_NONE;
+            }
         }
 
         // Manual KEY1 long press detection (PIN_BUTTON_BACK)
@@ -200,9 +270,9 @@ void InputMgr::inputTask(void* parameter) {
                 // STANDBY_HOLD_MS (well above BUTTON_LONG_PRESS_MS used by KEY1
                 // and KEY3) on purpose: a common navigation long press cannot pass
                 // as a standby request.[cite: 61]
-                StandbyDecision decision = classifyStandbyRequest(
-                    digitalRead(PIN_BUTTON_SLEEP) == LOW, digitalRead(PIN_BUTTON_BACK) == LOW,
-                    digitalRead(PIN_BUTTON) == LOW, now - self->_btnSleepPressTime);
+                StandbyDecision decision = classifyStandbyRequest(digitalRead(PIN_BUTTON_SLEEP) == LOW,
+                                                                  digitalRead(PIN_BUTTON_BACK) == LOW,
+                                                                  joyActive, now - self->_btnSleepPressTime);
 
                 if (decision == STANDBY_ALLOW) {
                     Serial.println("INPUT: KEY2 Long Press -> STANDBY requested");
@@ -267,9 +337,10 @@ void InputMgr::enterStandby() {
     // v1.9.1 diagnostics: record which pins were actually held at the moment
     // standby was decided. If KEY2/GPIO3 reads 1 (released) here, the LOW that
     // triggered the long press was transient or came from another pin.[cite: 61]
-    Serial.printf("SLEEPDIAG: path=KEY2_LONG_PRESS  KEY1/GPIO%d=%d  KEY2/GPIO%d=%d  KEY3/GPIO%d=%d\n",
+    Serial.printf("SLEEPDIAG: path=KEY2_LONG_PRESS  KEY1/GPIO%d=%d  KEY2/GPIO%d=%d  JOY_ACTIVE=%d\n",
                   PIN_BUTTON_BACK, digitalRead(PIN_BUTTON_BACK), PIN_BUTTON_SLEEP,
-                  digitalRead(PIN_BUTTON_SLEEP), PIN_BUTTON, digitalRead(PIN_BUTTON));
+                  digitalRead(PIN_BUTTON_SLEEP),
+                  (JoystickMgr::getInstance().getDirection() != JOY_NONE ? 1 : 0));
     Serial.flush();
 
     // Give the active app a chance to persist state first. The reader already

@@ -251,6 +251,13 @@ void AppMainMenu::handleInput(InputAction action) {
         if (selectedIndex == 0) selectedIndex = 1; // Should not happen but safety
         _selectionOnlyRedraw = !_firstDraw;
         _needsRedraw = true;
+    } else if (action == INPUT_PREV) {
+        // NEW: Support for backward navigation with Joystick Left/Up
+        _previousSelectedIndex = selectedIndex;
+        selectedIndex--;
+        if (selectedIndex < 1) selectedIndex = maxSelectable;
+        _selectionOnlyRedraw = !_firstDraw;
+        _needsRedraw = true;
     } else if (action == INPUT_SELECT) {
         if (_updateAvailable && selectedIndex == (int)apps.size()) {
             // Update selected
@@ -452,7 +459,7 @@ void AppMainMenu::draw() {
         }
 
         // === Footer ===
-        fontMgr.drawTextCentered(display, "Press: Next  |  Hold: Select", screenH - 45, FONT_SIZE_SMALL,
+        fontMgr.drawTextCentered(display, "Joy: Move  |  Center: Select", screenH - 45, FONT_SIZE_SMALL,
                                  GxEPD_BLACK);
         String ipStr = getWifiFooterText();
         fontMgr.drawTextCentered(display, ipStr.c_str(), screenH - 20, FONT_SIZE_SMALL, GxEPD_BLACK);

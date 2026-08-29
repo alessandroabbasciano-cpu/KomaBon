@@ -73,4 +73,4 @@ class FontMgr {
     void cacheCharWidths(const GFXfont* font);
 };
 
-#endif;
+#endif

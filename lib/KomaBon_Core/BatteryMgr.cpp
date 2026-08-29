@@ -386,10 +386,10 @@ void BatteryMgr::enterIdleSleep(const char* reason) {
     delay(100);
 
     // Configure wake sources
-    // Wake on KEY3 press (PIN_BUTTON, active LOW). Whichever GPIO that is on
+    // Wake on KEY3 press (PIN_BUTTON_BACK, active LOW). Whichever GPIO that is on
     // this board - see the wiring note in Config.h - ext0 only supports a
     // single pin, so KEY3 stays the one wake source.
-    esp_sleep_enable_ext0_wakeup((gpio_num_t)PIN_BUTTON, 0); // 0 = wake on LOW
+    esp_sleep_enable_ext0_wakeup((gpio_num_t)PIN_BUTTON_BACK, 0); // 0 = wake on LOW
 
     // Enter deep sleep
     Serial.println("Going to deep sleep...");

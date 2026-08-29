@@ -21,9 +21,12 @@
 // is the kit wiki's nominal assignment (KEY1=GPIO2, KEY2=GPIO3, KEY3=GPIO5),
 // confirmed correct by the user's own first log capture: a clean KEY3/GPIO5
 // press producing INPUT_NEXT, captured before any pin change ever shipped.
-#define PIN_BUTTON 5       // "KEY3" button
-#define PIN_BUTTON_BACK 2  // "KEY1" button - dedicated Back button
-#define PIN_BUTTON_SLEEP 3 // "KEY2" button - full refresh (click), standby (long press; off by default)
+// ==========================================
+// INPUT PINS (Joystick & Buttons)
+// ==========================================
+#define JOY_ADC_PIN 2      // ADC1_CH1: Analog Joystick & Physical KEY1
+#define PIN_BUTTON_BACK 5  // "KEY3" button - now used as Back button
+#define PIN_BUTTON_SLEEP 3 // "KEY2" button - full refresh (click) or standby
 
 // Display Pins (TRMNL 7.5" OG DIY Kit)
 #define EPD_SCK 7
@@ -33,6 +36,17 @@
 #define EPD_DC 10
 #define EPD_RST 38
 #define EPD_BUSY 4
+
+// ==========================================
+// MICRO SD CARD PINS (SPI2 Hardware)
+// ==========================================
+#define SD_CS_PIN 39
+#define SD_SCK_PIN 41
+#define SD_MOSI_PIN 42
+#define SD_MISO_PIN 8
+
+#define SD_INIT_FREQ 400000   // 400 kHz for the initial security handshake
+#define SD_FAST_FREQ 16000000 // 16 MHz for data transfer
 
 // Display Settings (Portrait 7.5")
 #define SCREEN_WIDTH 480

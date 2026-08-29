@@ -173,14 +173,10 @@ void WebMgr::mountFilesystems() {
 
     // Mount EbookFS without formatting first to preserve user data. If the
     // partition is brand-new/blank, format it once so new boards have storage.
-    bool ebookOK = EbookFS.begin(false, "/ebooks", 10, "ebooks");
-    if (!ebookOK && partitionLooksBlank(ebooksPart)) {
-        Serial.println("EbookFS appears blank; formatting first-use ebook storage...");
-        ebookOK = EbookFS.begin(true, "/ebooks", 10, "ebooks");
-    }
+    bool ebookOK = EbookFS_begin();
 
     if (ebookOK) {
-        Serial.printf("EbookFS OK: %u / %u bytes used\n", EbookFS.usedBytes(), EbookFS.totalBytes());
+        Serial.printf("EbookFS OK: %u / %u bytes used\n", EbookFS_usedBytes(), EbookFS_totalBytes());
         listFiles(EbookFS, "/", 1);
 
         // Uploads interrompidos deixam ficheiros .part. Como não são listados
@@ -607,9 +603,9 @@ void WebMgr::setupEndpoints() {
         doc["charging"] = BatteryMgr::getInstance().isCharging();
         doc["version"] = SYSTEM_VERSION;
 
-        doc["freeSpace"] = EbookFS.totalBytes() - EbookFS.usedBytes();
-        doc["totalSpace"] = EbookFS.totalBytes();
-        doc["usedSpace"] = EbookFS.usedBytes();
+        doc["freeSpace"] = EbookFS_totalBytes() - EbookFS_usedBytes();
+        doc["totalSpace"] = EbookFS_totalBytes();
+        doc["usedSpace"] = EbookFS_usedBytes();
         doc["systemFree"] = SystemFS.totalBytes() - SystemFS.usedBytes();
 
         serializeJson(doc, *response);
@@ -631,7 +627,7 @@ void WebMgr::setupEndpoints() {
             size_t total;
         };
         Target targets[] = {
-            {"ebooks", &EbookFS, EbookFS.usedBytes(), EbookFS.totalBytes()},
+            {"ebooks", &EbookFS, EbookFS_usedBytes(), EbookFS_totalBytes()},
             {"system", &SystemFS, SystemFS.usedBytes(), SystemFS.totalBytes()},
         };
 
@@ -820,7 +816,7 @@ void WebMgr::setupEndpoints() {
                     safeName = safeName.substring(0, 28 - ext.length()) + ext;
                 }
 
-                size_t freeBytes = EbookFS.totalBytes() - EbookFS.usedBytes();
+                size_t freeBytes = EbookFS_totalBytes() - EbookFS_usedBytes();
                 switch (checkUpload(safeName, request->contentLength(), freeBytes)) {
                     case UploadVerdict::BadExtension:
                         g_uploadState.status = UploadStatus::BadExtension;
