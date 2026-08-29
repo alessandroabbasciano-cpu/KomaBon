@@ -175,8 +175,8 @@ void InputMgr::inputTask(void* parameter) {
             // Joystick released
             if (joyPressTime != 0) {
                 unsigned long pressDuration = now - joyPressTime;
-                
-                // If a long press was already sent, joyLongPressSent is true, 
+
+                // If a long press was already sent, joyLongPressSent is true,
                 // so we safely skip the short-press action here.
                 if (pressDuration >= BUTTON_DEBOUNCE_MIN_MS && !joyLongPressSent) {
                     BatteryMgr::getInstance().resetIdleTimer();
@@ -190,13 +190,13 @@ void InputMgr::inputTask(void* parameter) {
                             break;
                         case JOY_UP:
                             self->enqueueAction(INPUT_PREV); // Pan up / Scroll up
-                            break; 
+                            break;
                         case JOY_DOWN:
                             self->enqueueAction(INPUT_NEXT); // Pan down / Scroll down
-                            break; 
+                            break;
                         case JOY_CENTER:
                             self->enqueueAction(INPUT_SELECT); // KEY1 or Joy Center
-                            break; 
+                            break;
                         default:
                             break;
                     }

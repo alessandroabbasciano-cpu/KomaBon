@@ -22,7 +22,7 @@ bool SDMgr::init() {
     _spi->begin(SD_SCK_PIN, SD_MISO_PIN, SD_MOSI_PIN, SD_CS_PIN);
 
     // 4. Mount SD Card at the custom "/ebooks" VFS mount point instead of default "/sd"
-    // This forces low-level C libraries (like unzipLIB) to transparently hit 
+    // This forces low-level C libraries (like unzipLIB) to transparently hit
     // the external SD card instead of the internal LittleFS partition.
     if (!SD.begin(SD_CS_PIN, *_spi, SD_FAST_FREQ, "/ebooks")) {
         Serial.println("SDMgr: Mount failed or no SD card present.");

@@ -4,7 +4,7 @@
 fs::LittleFSFS InternalEbookFS;
 
 // The global pointer that directs traffic.
-// Defaults to internal memory. SDMgr will redirect it to SD 
+// Defaults to internal memory. SDMgr will redirect it to SD
 // if the hardware mount succeeds at boot.
 fs::FS* EbookFSPtr = &InternalEbookFS;
 
