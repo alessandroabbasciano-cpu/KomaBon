@@ -4,7 +4,7 @@
 // Major.Minor.Patch, always with all three components: release.yml only triggers
 // on v[0-9]+.[0-9]+.[0-9]+ tags and compares the tag with this value character
 // by character. "1.10" here (or a v1.10 tag) would not publish any release.
-#define SYSTEM_VERSION "1.0.0"
+#define SYSTEM_VERSION "0.1.0-beta"
 #define DEVICE_NAME "KomaBon"
 
 // Offline management hotspot (SoftAP). When the device can't reach a known
