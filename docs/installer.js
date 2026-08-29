@@ -73,3 +73,4 @@ async function init() {
     installButton.hidden = false;
   }
 }
+init();
