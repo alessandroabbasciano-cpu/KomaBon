@@ -273,13 +273,14 @@ void AppSettings::activate(int index) {
 
 void AppSettings::handleInput(InputAction action) {
     // SHIELD: Absolute block during active calibration.
-    // Accidental logical inputs from uncalibrated hardware (like moving the 
-    // joystick causing INPUT_NEXT) are ignored. The only way out is the 
+    // Accidental logical inputs from uncalibrated hardware (like moving the
+    // joystick causing INPUT_NEXT) are ignored. The only way out is the
     // hardware KEY3 abort implemented in update().
     if (_screen == SCREEN_JOYCAL) {
         if (_joyCalStep >= 5) {
             // Calibration complete: allow standard exits
-            if (action == INPUT_BACK || action == INPUT_GO_TO_MAIN_MENU || action == INPUT_SELECT || action == INPUT_NEXT) {
+            if (action == INPUT_BACK || action == INPUT_GO_TO_MAIN_MENU || action == INPUT_SELECT ||
+                action == INPUT_NEXT) {
                 _screen = SCREEN_MAIN;
                 _needsRedraw = true;
             }
