@@ -260,8 +260,18 @@ void AppMainMenu::handleInput(InputAction action) {
         _needsRedraw = true;
     } else if (action == INPUT_SELECT) {
         if (_updateAvailable && selectedIndex == (int)apps.size()) {
-            // Update selected
-            GitHubMgr::getInstance().triggerUpdate(SYSTEM_VERSION);
+            // Update selected: launch in a dedicated high-memory task
+            Serial.println("AppMainMenu: Launching OTA task...");
+            xTaskCreatePinnedToCore(
+                [](void* param) {
+                    GitHubMgr::getInstance().triggerUpdate(SYSTEM_VERSION);
+                    vTaskDelete(NULL);
+                },
+                "OTA_Menu_Task",
+                16384, // 16KB stack space per la crittografia
+                nullptr, 1, nullptr,
+                1 // Esegui sul Core 1 (App Core)
+            );
         } else if (selectedIndex > 0 && selectedIndex < (int)apps.size()) {
             appMgr.switchTo(selectedIndex);
         }

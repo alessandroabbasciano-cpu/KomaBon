@@ -1376,6 +1376,15 @@ void WebMgr::setupEndpoints() {
         });
     server->addHandler(wifiConnectHandler);
 
+    // API: Debug download per joystick JSON
+    server->on("/joy_cal.json", HTTP_GET, [](AsyncWebServerRequest* request) {
+        if (EbookFS.exists("/joy_cal.json")) {
+            request->send(EbookFS, "/joy_cal.json", "application/json");
+        } else {
+            request->send(404, "text/plain", "File not found");
+        }
+    });
+
     // Static Files - serve from SystemFS first (where OTA filesystem updates go)
     // Fall back to EbookFS if not found
     if (SystemFS.exists("/index.html")) {

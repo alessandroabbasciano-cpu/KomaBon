@@ -359,7 +359,15 @@ void AppSettings::handleInput(InputAction action) {
                     if (info.available) {
                         // Persist edits first: the update reboots the device.
                         saveDraftIfDirty();
-                        GitHubMgr::getInstance().triggerUpdate(SYSTEM_VERSION);
+                        Serial.println("AppSettings: Launching OTA task...");
+                        xTaskCreatePinnedToCore(
+                            [](void* param) {
+                                GitHubMgr::getInstance().triggerUpdate(SYSTEM_VERSION);
+                                vTaskDelete(NULL);
+                            },
+                            "OTA_Settings_Task",
+                            16384, // 16KB stack
+                            nullptr, 1, nullptr, 1);
                     } else {
                         setStatus("Already on the latest version.");
                     }

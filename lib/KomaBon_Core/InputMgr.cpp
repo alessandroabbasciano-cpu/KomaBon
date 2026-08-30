@@ -83,8 +83,8 @@ void InputMgr::update() {
     }
 
     if (!_taskRunning) {
-        btn.tick();
-        // Don't tick btnBack - using manual polling in inputTask
+        // btn.tick(); // DISABLED: Prevent phantom input from pin 255
+        //  Don't tick btnBack - using manual polling in inputTask
     }
 
     InputAction action = INPUT_NONE;
@@ -115,7 +115,7 @@ void InputMgr::inputTask(void* parameter) {
     bool joyLongPressSent = false;
 
     while (true) {
-        self->btn.tick();
+        // self->btn.tick(); // DISABLED: Prevent phantom input from pin 255
         // btnBack.tick() removed - using manual polling instead
 
         // Raw state of the three buttons, read once per cycle and shared by
@@ -163,23 +163,27 @@ void InputMgr::inputTask(void* parameter) {
 
         if (joyActive) {
             if (joyPressTime == 0) {
-                // First moment the joystick is pressed
                 joyPressTime = now;
                 joyLongPressSent = false;
                 lastJoyDirection = currentJoyDir;
-            } else if (!joyLongPressSent && (now - joyPressTime) >= BUTTON_LONG_PRESS_MS) {
-                // Long press threshold reached. Check which direction is being held.
-                if (currentJoyDir == JOY_CENTER) {
-                    Serial.println("INPUT: JOY Center / KEY1 Long Press -> GO TO MAIN MENU");
-                    BatteryMgr::getInstance().resetIdleTimer();
-                    self->enqueueAction(INPUT_GO_TO_MAIN_MENU);
-                    joyLongPressSent = true;
-                } else if (currentJoyDir == JOY_LEFT) {
-                    // Long press LEFT to go back/abort without reaching for KEY3
-                    Serial.println("INPUT: JOY Left Long Press -> BACK");
-                    BatteryMgr::getInstance().resetIdleTimer();
-                    self->enqueueAction(INPUT_BACK);
-                    joyLongPressSent = true;
+            } else if (!joyLongPressSent) {
+                unsigned long heldTime = now - joyPressTime;
+                if (heldTime < 50) {
+                    lastJoyDirection = currentJoyDir;
+                } else if (heldTime >= BUTTON_LONG_PRESS_MS) {
+                    // Long press threshold reached. Check which direction is being held.
+                    if (currentJoyDir == JOY_CENTER) {
+                        Serial.println("INPUT: JOY Center / KEY1 Long Press -> GO TO MAIN MENU");
+                        BatteryMgr::getInstance().resetIdleTimer();
+                        self->enqueueAction(INPUT_GO_TO_MAIN_MENU);
+                        joyLongPressSent = true;
+                    } else if (currentJoyDir == JOY_LEFT) {
+                        // Long press LEFT to go back/abort without reaching for KEY3
+                        Serial.println("INPUT: JOY Left Long Press -> BACK");
+                        BatteryMgr::getInstance().resetIdleTimer();
+                        self->enqueueAction(INPUT_BACK);
+                        joyLongPressSent = true;
+                    }
                 }
             }
         } else {
