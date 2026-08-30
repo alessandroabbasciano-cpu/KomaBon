@@ -1,17 +1,16 @@
-// The manifest is built at runtime from latest.json instead of a committed
-// manifest-vX.json file, so this script never needs editing when a new
-// version ships — only docs/latest.json and docs/firmware/*-vX.bin change,
-// and both are written by .github/workflows/release.yml on every tag.
-//
-// Firmware and filesystem paths are versioned (firmware-vX.bin) rather than
-// reused (firmware.bin) so a browser or CDN cache can never serve a stale
-// binary under a name that still matches the current manifest.
-const FIRMWARE_OFFSET = 65536;   // app0, see partitions_16MB.csv
-const LITTLEFS_OFFSET = 5308416; // spiffs, see partitions_16MB.csv
+// Indirizzi di memoria standard ESP32 (Offset)
+const FIRMWARE_OFFSET = 65536;   // 0x10000
+const LITTLEFS_OFFSET = 5308416; // 0x510000
+const BOOTLOADER_OFFSET = 0;     // 0x0
+const PARTITIONS_OFFSET = 32768; // 0x8000
+const BOOT_APP0_OFFSET = 57344;  // 0xE000
 
 const versionBadge = document.querySelector('[data-version-badge]');
-const installButton = document.querySelector('esp-web-install-button');
+const updateInstaller = document.querySelector('#update-installer');
+const factoryInstaller = document.querySelector('#factory-installer');
 const errorBox = document.querySelector('[data-installer-error]');
+const modeButtons = document.querySelectorAll('.mode-button');
+const modePanels = document.querySelectorAll('.mode-panel');
 
 function showError(message) {
   if (errorBox) {
@@ -19,6 +18,25 @@ function showError(message) {
     errorBox.hidden = false;
   }
 }
+
+// Logica per il cambio di Tab (Update vs Factory)
+modeButtons.forEach((button) => {
+  button.addEventListener('click', () => {
+    const targetId = button.dataset.panel;
+
+    modeButtons.forEach((item) => {
+      const selected = item === button;
+      item.classList.toggle('active', selected);
+      item.setAttribute('aria-selected', String(selected));
+    });
+
+    modePanels.forEach((panel) => {
+      const selected = panel.id === targetId;
+      panel.classList.toggle('active', selected);
+      panel.hidden = !selected;
+    });
+  });
+});
 
 async function init() {
   let info;
@@ -40,18 +58,10 @@ async function init() {
     versionBadge.hidden = false;
   }
 
-  const manifest = {
+  // Manifest 1: Update 
+  const updateManifest = {
     name: 'KomaBon',
     version,
-    // CRITICAL: this must stay true. ESP Web Tools' actual behaviour is the
-    // opposite of what the field name suggests - when this is false (or
-    // absent), it erases the ENTIRE flash chip automatically, with no
-    // prompt and no way to opt out (see esphome/esp-web-tools
-    // src/install-dialog.ts: "Default is to erase a device that does not
-    // support Improv Serial"). Only `true` shows the user a confirmation
-    // dialog where they can decline the erase. A `false` here silently
-    // wiped a real device's bootloader, WiFi settings and ebook library on
-    // 2026-08-25 before this was caught - do not change it back.
     new_install_prompt_erase: true,
     builds: [
       {
@@ -65,12 +75,40 @@ async function init() {
     ],
   };
 
-  const manifestUrl = URL.createObjectURL(new Blob([JSON.stringify(manifest)], { type: 'application/json' }));
+  // Manifest 2: Factory (Include Bootloader, Partitions, Firmware, UI Web)
+  const factoryManifest = {
+    name: 'KomaBon',
+    version,
+    new_install_prompt_erase: true,
+    builds: [
+      {
+        chipFamily: 'ESP32-S3',
+        improv: false,
+        parts: [
+          { path: new URL(`firmware/bootloader-v${version}.bin`, document.baseURI).href, offset: BOOTLOADER_OFFSET },
+          { path: new URL(`firmware/partitions-v${version}.bin`, document.baseURI).href, offset: PARTITIONS_OFFSET },
+          { path: new URL(`firmware/boot_app0-v${version}.bin`, document.baseURI).href, offset: BOOT_APP0_OFFSET },
+          { path: new URL(`firmware/firmware-v${version}.bin`, document.baseURI).href, offset: FIRMWARE_OFFSET },
+          { path: new URL(`firmware/littlefs-v${version}.bin`, document.baseURI).href, offset: LITTLEFS_OFFSET },
+        ],
+      },
+    ],
+  };
 
-  if (installButton) {
-    installButton.setAttribute('manifest', manifestUrl);
-    installButton.manifest = manifestUrl;
-    installButton.hidden = false;
+  const updateManifestUrl = URL.createObjectURL(new Blob([JSON.stringify(updateManifest)], { type: 'application/json' }));
+  const factoryManifestUrl = URL.createObjectURL(new Blob([JSON.stringify(factoryManifest)], { type: 'application/json' }));
+
+  if (updateInstaller) {
+    updateInstaller.setAttribute('manifest', updateManifestUrl);
+    updateInstaller.manifest = updateManifestUrl;
+    updateInstaller.hidden = false;
+  }
+  
+  if (factoryInstaller) {
+    factoryInstaller.setAttribute('manifest', factoryManifestUrl);
+    factoryInstaller.manifest = factoryManifestUrl;
+    factoryInstaller.hidden = false;
   }
 }
+
 init();

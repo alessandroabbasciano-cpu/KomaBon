@@ -68,6 +68,9 @@ jobs:
           mkdir -p dist
           cp .pio/build/seeed_xiao_esp32s3/firmware.bin dist/firmware.bin
           cp .pio/build/seeed_xiao_esp32s3/littlefs.bin dist/littlefs.bin
+          cp .pio/build/seeed_xiao_esp32s3/bootloader.bin dist/bootloader.bin
+          cp .pio/build/seeed_xiao_esp32s3/partitions.bin dist/partitions.bin
+          cp .pio/build/seeed_xiao_esp32s3/boot_app0.bin dist/boot_app0.bin
           ls -l dist
 
       - name: Compute checksums
@@ -154,6 +157,10 @@ jobs:
           rm -f docs/firmware/*.bin
           cp dist/firmware.bin "docs/firmware/firmware-v${VERSION}.bin"
           cp dist/littlefs.bin "docs/firmware/littlefs-v${VERSION}.bin"
+          cp dist/bootloader.bin "docs/firmware/bootloader-v${VERSION}.bin"
+          cp dist/partitions.bin "docs/firmware/partitions-v${VERSION}.bin"
+          cp dist/boot_app0.bin "docs/firmware/boot_app0-v${VERSION}.bin"
+
           printf '{\n  "version": "%s"\n}\n' "$VERSION" > docs/latest.json
 
           git add docs/firmware docs/latest.json
