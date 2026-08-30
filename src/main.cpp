@@ -11,6 +11,7 @@
 #include "BatteryMgr.h"
 #include "FontMgr.h"
 #include "SDMgr.h"
+#include "KomaBonFS.h"
 
 #include "../KomaBon_Apps/AppMainMenu.h"
 #include "../Apps/AppReader/AppReader.h"
@@ -93,12 +94,13 @@ void setup() {
     AppMgr& appMgr = AppMgr::getInstance();
     WebMgr& webMgr = WebMgr::getInstance();
 
-    // 2. Mount Filesystems EARLY (before WiFi, prevents race conditions)
+    // 2. Initialize the external MicroSD card FIRST to claim the VFS mount point.
+    // Must happen before webMgr starts to prevent VFS lock corruption on "/ebooks".
+    SDMgr::getInstance().init();
+
+    // 2.4 Mount internal Filesystems. If SD failed, this will safely mount the fallback.
     displayMgr.showBootScreen(28, "Mounting storage");
     webMgr.mountFilesystems();
-
-    // Initialize the external MicroSD card
-    SDMgr::getInstance().init();
 
     // 2.5. Initialize Font Manager (after filesystems, before UI)
     FontMgr::getInstance().init();
@@ -119,9 +121,9 @@ void setup() {
     appMgr.registerApp(new AppMainMenu());
     AppReader* readerApp = new AppReader();
     appMgr.registerApp(readerApp);
-    // On-device settings menu. The main menu renders one grid icon per
-    // registered app, so this appears on the home screen automatically.
-    appMgr.registerApp(new AppSettings());
+
+    AppSettings* settingsApp = new AppSettings();
+    appMgr.registerApp(settingsApp);
 
     displayMgr.showBootScreen(90, "Starting network");
     gNetworkStartupInProgress = true;
@@ -132,7 +134,14 @@ void setup() {
         Serial.println("Failed to start network task; continuing offline");
     }
 
-    if (readerApp->hasBootResume()) {
+    // --- BOOT ROUTING LOGIC ---
+    // Check if joystick calibration file exists. Adapt "/joy_cal.json" to your actual filename.
+    if (!EbookFS.exists("/joy_cal.json")) {
+        displayMgr.showBootScreen(100, "Joystick Setup");
+        appMgr.switchTo(2); // SettingsApp is index 2
+        settingsApp->startCalibrationWizard();
+
+    } else if (readerApp->hasBootResume()) {
         displayMgr.showBootScreen(100, "Opening reader");
         readerApp->resumeSavedBookOnStart();
         appMgr.switchTo(1);
@@ -142,7 +151,7 @@ void setup() {
     }
 
     Serial.println("Setup Complete");
-}
+} // End of setup()
 
 void loop() {
     InputMgr::getInstance().update();

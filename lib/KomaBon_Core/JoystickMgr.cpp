@@ -1,29 +1,96 @@
 #include "JoystickMgr.h"
-#include "Config.h" // Assumes JOY_ADC_PIN is defined here as 2
+#include "Config.h"      // Assumes JOY_ADC_PIN is defined here as 2
+#include "KomaBonFS.h"   // NEW: Required for file operations
+#include <ArduinoJson.h> // NEW: Required to parse/build the config file
 
 JoystickMgr::JoystickMgr() {
-    // Default safe calibration windows (assuming 3.3V logic, 12-bit ADC).
-    // These will be overridden later by the auto-calibration tool.
-    _cal = {
-        500,        // centerMax (0-500) -> Dead short to GND
-        1000, 1500, // down window
-        1700, 2200, // right window
-        2400, 2900, // left window
-        3100, 3600  // up window
-    };
+    // Safe fallback defaults in case calibration is missing
+    _cal = {0, 3350, 1250, 2650, 1950};
 }
 
-void JoystickMgr::init() {
-    // STRICT HARDWARE SAFETY: Ensure the pin is explicitly configured
-    // for analog input to prevent dead shorts if the center button is pressed.
+JoyDirection JoystickMgr::getDirection() {
+    int val = readAnalogAveraged();
 
-    // Set 11dB attenuation for full 0-3.3V range mapping
-    analogSetPinAttenuation(JOY_ADC_PIN, ADC_11db);
+    if (val > 3800) return JOY_NONE; // Pull-up resting state
 
-    // Set 12-bit resolution (0 to 4095)
-    analogReadResolution(12);
+    // Find the "Nearest Neighbor": calculate absolute distance to each target
+    int dCenter = abs(val - _cal.center);
+    int dUp = abs(val - _cal.up);
+    int dDown = abs(val - _cal.down);
+    int dLeft = abs(val - _cal.left);
+    int dRight = abs(val - _cal.right);
 
-    Serial.println("JoystickMgr: ADC1 initialized safely on JOY_ADC_PIN");
+    // Assume center is the closest initially
+    int minD = dCenter;
+    JoyDirection dir = JOY_CENTER;
+
+    // Check if any other direction is closer
+    if (dUp < minD) {
+        minD = dUp;
+        dir = JOY_UP;
+    }
+    if (dDown < minD) {
+        minD = dDown;
+        dir = JOY_DOWN;
+    }
+    if (dLeft < minD) {
+        minD = dLeft;
+        dir = JOY_LEFT;
+    }
+    if (dRight < minD) {
+        minD = dRight;
+        dir = JOY_RIGHT;
+    }
+
+    // Ignore completely wild values (noise spike during transition)
+    if (minD > 500) return JOY_NONE;
+
+    return dir;
+}
+
+bool JoystickMgr::loadCalibration() {
+    if (!EbookFS.exists("/joy_cal.json")) return false;
+
+    File file = EbookFS.open("/joy_cal.json", "r");
+    if (!file) return false;
+
+    DynamicJsonDocument doc(512);
+    DeserializationError err = deserializeJson(doc, file);
+    file.close();
+
+    if (err) return false;
+
+    _cal.center = doc["center"] | 0;
+    _cal.up = doc["up"] | 3350;
+    _cal.down = doc["down"] | 1250;
+    _cal.left = doc["left"] | 2650;
+    _cal.right = doc["right"] | 1950;
+
+    Serial.println("JoystickMgr: Calibration v2 loaded.");
+    return true;
+}
+
+bool JoystickMgr::saveCalibration(int center, int up, int down, int left, int right) {
+    _cal.center = center;
+    _cal.up = up;
+    _cal.down = down;
+    _cal.left = left;
+    _cal.right = right;
+
+    DynamicJsonDocument doc(512);
+    doc["center"] = _cal.center;
+    doc["up"] = _cal.up;
+    doc["down"] = _cal.down;
+    doc["left"] = _cal.left;
+    doc["right"] = _cal.right;
+
+    File file = EbookFS.open("/joy_cal.json", "w");
+    if (!file) return false;
+    serializeJson(doc, file);
+    file.close();
+
+    Serial.println("JoystickMgr: Calibration saved to /joy_cal.json");
+    return true;
 }
 
 void JoystickMgr::setCalibration(const JoyCalibration& cal) {
@@ -37,25 +104,8 @@ int JoystickMgr::readAnalogAveraged() {
     // Perform multisampling to filter out hardware noise
     for (int i = 0; i < numSamples; i++) {
         sum += analogRead(JOY_ADC_PIN);
-        delayMicroseconds(50); // Small delay allows the ADC to stabilize
+        delayMicroseconds(50);
     }
 
     return sum / numSamples;
-}
-
-JoyDirection JoystickMgr::getDirection() {
-    int val = readAnalogAveraged();
-
-    // Deadzone: Nothing pressed usually pulls the line near VCC (4095)
-    if (val > 3800) return JOY_NONE;
-
-    // Map the averaged ADC value to a logical direction
-    if (val >= 0 && val <= _cal.centerMax) return JOY_CENTER;
-    if (val >= _cal.downMin && val <= _cal.downMax) return JOY_DOWN;
-    if (val >= _cal.rightMin && val <= _cal.rightMax) return JOY_RIGHT;
-    if (val >= _cal.leftMin && val <= _cal.leftMax) return JOY_LEFT;
-    if (val >= _cal.upMin && val <= _cal.upMax) return JOY_UP;
-
-    // Fallback if the value falls in a noise gap between windows
-    return JOY_NONE;
 }

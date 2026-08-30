@@ -16,9 +16,9 @@ bool SDMgr::init() {
     // is deselected or not inserted.
     pinMode(SD_MISO_PIN, INPUT_PULLUP);
 
-    // 3. Initialize custom SPI bus (FSPI corresponds to SPI2 on ESP32-S3)
+    // 3. Initialize custom SPI bus (HSPI corresponds to SPI2 on ESP32-S3)
     // Avoids touching SPI0/SPI1 which are strictly reserved for PSRAM.
-    _spi = new SPIClass(FSPI);
+    _spi = new SPIClass(HSPI);
     _spi->begin(SD_SCK_PIN, SD_MISO_PIN, SD_MOSI_PIN, SD_CS_PIN);
 
     // 4. Mount SD Card at the custom "/ebooks" VFS mount point instead of default "/sd"

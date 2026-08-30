@@ -34,6 +34,7 @@ class AppSettings : public App {
 
     // App interface
     void start() override;
+    void startCalibrationWizard();
     void update() override;
     void draw() override;
     void stop() override;
