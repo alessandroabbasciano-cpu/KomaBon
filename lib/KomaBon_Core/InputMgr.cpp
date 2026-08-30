@@ -17,17 +17,6 @@ InputMgr& InputMgr::getInstance() {
     return instance;
 }
 
-void JoystickMgr::init() {
-    analogSetPinAttenuation(JOY_ADC_PIN, ADC_11db);
-    analogReadResolution(12);
-    Serial.println("JoystickMgr: ADC1 initialized safely on JOY_ADC_PIN");
-
-    // Try to load saved calibration, otherwise retain hardcoded defaults
-    if (!loadCalibration()) {
-        Serial.println("JoystickMgr: No calibration file found, using defaults");
-    }
-}
-
 void InputMgr::init() {
     JoystickMgr::getInstance().init(); // Start the ADC safely first
     // Configure timing FIRST - ULTRA SNAPPY SETTINGS.

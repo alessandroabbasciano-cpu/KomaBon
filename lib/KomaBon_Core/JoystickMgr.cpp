@@ -109,3 +109,19 @@ int JoystickMgr::readAnalogAveraged() {
 
     return sum / numSamples;
 }
+
+void JoystickMgr::init() {
+    // CRITICAL: Enable internal pull-up resistor.
+    // On unmodified (stock) hardware, this prevents the ADC pin from floating
+    // when KEY1 is released, ensuring a clean return to 4095 (JOY_NONE).
+    pinMode(JOY_ADC_PIN, INPUT_PULLUP);
+
+    analogSetPinAttenuation(JOY_ADC_PIN, ADC_11db);
+    analogReadResolution(12);
+    Serial.println("JoystickMgr: ADC1 initialized safely on JOY_ADC_PIN with internal pull-up");
+
+    // Try to load saved calibration, otherwise retain hardcoded defaults
+    if (!loadCalibration()) {
+        Serial.println("JoystickMgr: No calibration file found, using defaults");
+    }
+}

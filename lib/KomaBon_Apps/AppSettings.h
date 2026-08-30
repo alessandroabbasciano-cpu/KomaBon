@@ -5,34 +5,20 @@
 #include "../KomaBon_Core/InputMgr.h"
 #include "../KomaBon_Core/SettingsStore.h"
 
-// =============================================================================
-// AppSettings
-// =============================================================================
-// On-device configuration menu, so the reader can be configured without a
-// phone or a Wi-Fi connection. Registered like any other app, which means the
-// main menu picks it up as a grid icon automatically.
-//
-// Edits happen on an in-RAM draft; nothing is written until the user picks
-// "Save". The one exception is the Wi-Fi toggle, which acts immediately
-// because it's a command rather than a stored preference (and you need to see
-// it connect before the IP is readable).
-// =============================================================================
-
 enum SettingsScreen {
-    SCREEN_MAIN,                // Top-level settings list
-    SCREEN_FONT,                // Font family picker
-    SCREEN_NETWORK,             // Read-only network status
-    SCREEN_SYSTEM,              // Version/space/battery plus OTA
-    SCREEN_CONFIRM,             // "Unsaved changes" prompt
-    SCREEN_CONFIRM_FORGET_WIFI, // "Erase Wi-Fi credentials?" prompt
-    SCREEN_JOYCAL               // NEW: Joystick Calibration Wizard
+    SCREEN_MAIN,
+    SCREEN_FONT,
+    SCREEN_NETWORK,
+    SCREEN_SYSTEM,
+    SCREEN_CONFIRM,
+    SCREEN_CONFIRM_FORGET_WIFI,
+    SCREEN_JOYCAL
 };
 
 class AppSettings : public App {
   public:
     AppSettings();
 
-    // App interface
     void start() override;
     void startCalibrationWizard();
     void update() override;
@@ -46,45 +32,47 @@ class AppSettings : public App {
     const uint8_t* getIconImage() override;
 
     void handleInput(InputAction action);
-
-    // Persist the draft if it has unsaved edits. Called before the device
-    // enters standby so a KEY2 press never silently discards the user's work.
     void saveDraftIfDirty();
 
   private:
+    // Moved here so both CPP files can share the layout definitions
+    enum SettingsRow {
+        ROW_FONT_SIZE = 0,
+        ROW_FONT_FAMILY,
+        ROW_ROTATION,
+        ROW_REFRESH,
+        ROW_SLEEP,
+        ROW_WIFI,
+        ROW_NETWORK,
+        ROW_SYSTEM,
+        ROW_JOYSTICK,
+        ROW_SAVE,
+        ROW_DISCARD,
+        ROW_COUNT
+    };
+
     SettingsScreen _screen;
     int _selectedIndex;
     int _subSelectedIndex;
     bool _needsRedraw;
     bool _dirty;
-
-    // Set by handleInput() when NEXT/PREV just moved the highlighted row on
-    // SCREEN_MAIN or SCREEN_FONT, with nothing else on screen changing. draw()
-    // consumes it into a partial refresh over the old + new row instead of a
-    // full-window flash. Any other redraw reason (screen switch, value edit,
-    // status message) leaves it false, so those still get a full refresh.
     bool _selectionOnlyRedraw;
-    int _previousSelectedIndex;    // last _selectedIndex, for SCREEN_MAIN
-    int _previousSubSelectedIndex; // last _subSelectedIndex, for SCREEN_FONT
-    int _joyCalStep = 0;           // Keeps track of the calibration phase
+    int _previousSelectedIndex;
+    int _previousSubSelectedIndex;
+    int _joyCalStep = 0;
     unsigned long _joyCalHoldStart = 0;
     int _joyCalLastRaw = 4095;
     bool _joyCalWaitingRelease = false;
-    int _joyCalValues[5]; // Stores the raw ADC targets for the 5 directions
+    int _joyCalValues[5];
 
-    // Draft state: edited freely, only flushed to disk on save.
     ReaderSettings _reader;
     DisplaySettings _display;
     SleepSettings _sleep;
-
-    // Baseline, kept so we can tell which individual rows changed.
     ReaderSettings _readerSaved;
     DisplaySettings _displaySaved;
 
-    // Transient status line ("Saved", "Save error", ...).
     String _statusMessage;
     unsigned long _statusUntil;
-
     unsigned long _lastNetworkPoll;
 
     void cycleValue(int index);
@@ -98,6 +86,7 @@ class AppSettings : public App {
     bool isWifiOn() const;
     void forgetNetwork();
 
+    // UI Rendering declarations (Implemented in AppSettings_UI.cpp)
     void drawMainScreen();
     void drawFontScreen();
     void drawNetworkScreen();
