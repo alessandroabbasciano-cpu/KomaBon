@@ -4,30 +4,21 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta name="theme-color" content="#151817">
+  <meta name="theme-color" content="#18181b">
   <title>KomaBon Browser Installer</title>
   <meta name="description" content="Update KomaBon directly from a supported web browser.">
-  <link rel="icon" href="assets/book32-reader.png">
   <link rel="stylesheet" href="installer.css">
   <script type="module" src="https://unpkg.com/esp-web-tools@10/dist/web/install-button.js?module"></script>
 </head>
 
 <body>
-  <header class="site-header">
-    <a class="brand" href="./" aria-label="KomaBon installer home">
-      <img src="assets/book32-reader.png" alt="" width="48" height="48">
-      <span>KomaBon</span>
-    </a>
-    <div class="header-actions">
-      <span class="version" data-version-badge hidden>Loading…</span>
-      <a href="https://github.com/alessandroabbasciano-cpu/KomaBon">Source</a>
-    </div>
-  </header>
-
   <main>
     <section class="intro" aria-labelledby="page-title">
-      <p class="eyebrow">XIAO ESP32-S3</p>
-      <h1 id="page-title">Flash KomaBon</h1>
+      <p class="eyebrow">XIAO ePaper Dev Board (ESP32-S3 Plus)</p>
+      <div class="title-row">
+        <h1 id="page-title">Flash KomaBon</h1>
+        <span class="version" data-version-badge hidden>Loading…</span>
+      </div>
       <p>Install or update the firmware and web interface over USB. No PlatformIO or command line required.</p>
     </section>
 
@@ -68,7 +59,7 @@
 
       <div id="factory-panel" class="mode-panel" role="tabpanel" aria-labelledby="factory-tab" hidden>
         <div class="mode-copy">
-          <p class="mode-kicker">For a blank XIAO ePaper Display Dev Board with XIAO ESP32-S3</p>
+          <p class="mode-kicker">For a blank XIAO ePaper Dev Board (ESP32-S3 Plus)</p>
           <h3>Install the complete KomaBon system</h3>
           <p>Writes the bootloader, partition table, firmware, and web interface. Wi-Fi will need to be configured after
             first boot.</p>
@@ -84,12 +75,10 @@
       <p class="installer-error" data-installer-error role="alert" hidden></p>
 
       <div class="erase-warning" role="note">
-        <strong>Do not check "Erase device".</strong>
-        The installer will ask whether to erase the chip before writing.
-        Leave that box unchecked. Answering yes wipes the <em>entire</em>
-        flash first &mdash; WiFi settings, your ebook library, everything &mdash;
-        and this update only rewrites firmware and the web UI afterwards,
-        so nothing else gets restored.
+        <strong>About the "Erase device" option.</strong>
+        If you are updating an existing KomaBon, do not check this box, or you will lose your Wi-Fi settings and ebook
+        library. If you are flashing a blank board for the first time via the "Set up new hardware" tab, erasing is
+        optional but entirely safe.
       </div>
     </section>
 
@@ -128,23 +117,34 @@
           </div>
         </li>
       </ol>
-      <details>
+
+      <<details>
         <summary>Device does not appear?</summary>
         <p>Hold the BOOT button, tap RESET, then release BOOT and try connecting again.</p>
-      </details>
-      <details>
+        </details>
+
         <details>
-          <summary>New or blank hardware?</summary>
-          <p>Select the "Set up new hardware" tab above. The installer will write the bootloader, partition table, and
-            the full OS directly to a blank XIAO ePaper Display Dev Board with XIAO ESP32-S3.</p>
+          <summary>What hardware modifications are expected?</summary>
+          <p>KomaBon is heavily optimized for a <strong>TRMNL 7.5" (OG) DIY Kit</strong> that has been manually modified
+            with a 5-way analog joystick (wired in parallel to Button 1 / GPIO2) and a MicroSD module (using the SPI2
+            bus).</p>
+        </details>
+
+        <details>
+          <summary>What happens on unmodified (stock) hardware?</summary>
+          <p>If you flash KomaBon on a stock TRMNL board without the joystick or SD card, the operating system will boot
+            and remain completely stable. However, UI navigation will be severely limited, as you will only have the
+            single built-in button available instead of full directional controls. The system will automatically use the
+            10 MB internal storage fallback for your ebooks.</p>
         </details>
     </section>
   </main>
 
   <footer>
-    <span>KomaBon</span>
+    <a href="https://github.com/alessandroabbasciano-cpu/KomaBon">KomaBon Source</a>
     <a href="https://github.com/alessandroabbasciano-cpu/KomaBon/issues">Report a problem</a>
   </footer>
+
   <script src="installer.js"></script>
 </body>
 

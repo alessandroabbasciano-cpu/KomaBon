@@ -272,17 +272,19 @@ void AppSettings::activate(int index) {
 }
 
 void AppSettings::handleInput(InputAction action) {
-    // SHIELD: During calibration, totally ignore logical input actions
-    // because the uncalibrated hardware generates false "Back" and "Menu" commands.
+    // SHIELD: Absolute block during active calibration.
+    // Accidental logical inputs from uncalibrated hardware (like moving the 
+    // joystick causing INPUT_NEXT) are ignored. The only way out is the 
+    // hardware KEY3 abort implemented in update().
     if (_screen == SCREEN_JOYCAL) {
-        // Allow exit ONLY if calibration is complete (step 5 reached)
         if (_joyCalStep >= 5) {
-            if (action == INPUT_BACK || action == INPUT_GO_TO_MAIN_MENU || action == INPUT_SELECT) {
+            // Calibration complete: allow standard exits
+            if (action == INPUT_BACK || action == INPUT_GO_TO_MAIN_MENU || action == INPUT_SELECT || action == INPUT_NEXT) {
                 _screen = SCREEN_MAIN;
                 _needsRedraw = true;
             }
         }
-        return; // Ignore all logical inputs while calibrating
+        return; // Ignore all logical inputs while calibrating (step < 5)
     }
 
     if (_screen == SCREEN_CONFIRM) {
@@ -521,8 +523,26 @@ void AppSettings::update() {
             _needsRedraw = true;
         }
     }
+
     // Auto-capture logic for Joystick Calibration
     if (_screen == SCREEN_JOYCAL && _joyCalStep < 5) {
+
+        // HARDWARE EMERGENCY ABORT
+        // Read physical KEY3 (GPIO4) directly to avoid logical conflicts
+        // with joystick movements that generate INPUT_NEXT.
+        pinMode(4, INPUT_PULLUP);
+        if (digitalRead(4) == LOW) {
+            Serial.println("AppSettings: Calibration aborted via physical KEY3.");
+            _screen = SCREEN_MAIN;
+            _needsRedraw = true;
+
+            // Wait for button release to avoid triggering actions in the main menu
+            while (digitalRead(4) == LOW) {
+                delay(10);
+            }
+            return;
+        }
+
         // Read raw voltage from hardware
         int raw = JoystickMgr::getInstance().readAnalogAveraged();
 
@@ -866,8 +886,8 @@ void AppSettings::drawJoyCalScreen() {
     display.setTextColor(GxEPD_BLACK);
 
     if (_joyCalStep < 5) {
-        drawFooter("KEY3 hold: abort");
+        drawFooter("KEY3: abort");
     } else {
-        drawFooter("KEY3 hold: exit to menu");
+        drawFooter("KEY3 / Center: exit to menu");
     }
 }
