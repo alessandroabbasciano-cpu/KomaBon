@@ -40,7 +40,6 @@ jobs:
           set -e
           for t in tools/tests/test_*.cpp; do
             echo "=== $t ==="
-            # Aggiornato il riferimento alla cartella KomaBon_Core
             g++ -std=c++17 -Wall -I lib/KomaBon_Core "$t" -o /tmp/$(basename "$t" .cpp)
             /tmp/$(basename "$t" .cpp)
           done
@@ -70,7 +69,10 @@ jobs:
           cp .pio/build/seeed_xiao_esp32s3/littlefs.bin dist/littlefs.bin
           cp .pio/build/seeed_xiao_esp32s3/bootloader.bin dist/bootloader.bin
           cp .pio/build/seeed_xiao_esp32s3/partitions.bin dist/partitions.bin
-          cp .pio/build/seeed_xiao_esp32s3/boot_app0.bin dist/boot_app0.bin
+          
+          # CRITICAL FIX: Download the standard ESP32 OTA boot app binary directly from Espressif
+          curl -L -o dist/boot_app0.bin https://raw.githubusercontent.com/espressif/arduino-esp32/master/tools/partitions/boot_app0.bin
+          
           ls -l dist
 
       - name: Compute checksums
@@ -116,17 +118,19 @@ jobs:
       - name: Write release notes
         run: |
           cat > notes.md <<EOF
-          KomaBon ${GITHUB_REF_NAME}
+          ## KomaBon ${GITHUB_REF_NAME}
 
-          Install over the air from the device web interface, or flash by USB
-          with \`pio run --target upload\` and \`pio run --target uploadfs\`.
+          🚀 **Browser Installation is now available!**
+          You can easily set up new hardware or update KomaBon directly from your browser (Chrome/Edge) without using the command line. 
+          👉 **[Launch the Web Installer](https://${{ github.repository_owner }}.github.io/KomaBon/)**
 
-          ### Checksums
+          Alternatively, install over the air from the device web interface, or flash by USB via terminal:
+          \`pio run --target upload\` and \`pio run --target uploadfs\`
 
-          The device verifies these before flashing and refuses to install an
-          asset whose digest or signature is missing or does not match.
+          ### Security & Checksums
+          The device verifies these digests before flashing and refuses to install an asset whose signature is missing or tampered with.
 
-          \`\`\`
+          \`\`\`text
           SHA256 (firmware.bin) = ${{ steps.sums.outputs.fw }}
           SHA256 (littlefs.bin) = ${{ steps.sums.outputs.fs }}
           ED25519 (firmware.bin) = ${{ steps.sigs.outputs.fw_sig }}
