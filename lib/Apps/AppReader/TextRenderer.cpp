@@ -1,9 +1,34 @@
 #include "TextRenderer.h"
 #include "WordFitLogic.h"
+#include <JPEGDEC.h>
 
-TextRenderer::TextRenderer(int width, int height, int fontSize) {
+static KomaBonDisplay* g_jpegDisplay = nullptr;
+static int g_jpegX = 0;
+static int g_jpegY = 0;
+
+static int drawJpegCallback(JPEGDRAW* pDraw) {
+    if (!g_jpegDisplay) return 0;
+
+    int bytesPerRow = pDraw->iWidth / 8;
+    uint8_t* invertedPixels = (uint8_t*)malloc(bytesPerRow * pDraw->iHeight);
+    if (!invertedPixels) return 0;
+
+    uint8_t* src = (uint8_t*)pDraw->pPixels;
+    for (int i = 0; i < bytesPerRow * pDraw->iHeight; i++) {
+        invertedPixels[i] = ~src[i];
+    }
+
+    g_jpegDisplay->drawBitmap(g_jpegX + pDraw->x, g_jpegY + pDraw->y, invertedPixels, pDraw->iWidth,
+                              pDraw->iHeight, GxEPD_BLACK);
+    free(invertedPixels);
+    return 1;
+}
+
+TextRenderer::TextRenderer(int width, int height, int fontSize, EpubLoader* epubLoader) {
     _width = width;
     _height = height;
+    _epubLoader = epubLoader;
+
     // Normalize to a supported body size (9/12/18); default to small.
     if (fontSize >= 18)
         _fontSize = 18;
@@ -388,29 +413,74 @@ RenderResult TextRenderer::renderRichPageDynamic(KomaBonDisplay& display,
             } else if (node.textNode.style == STYLE_HEADER3) {
                 y += 10;
             }
+        } else if (node.type == CONTENT_IMAGE) {
+            int imgHeight = 200;
+
+            if (y + 50 > maxY) {
+                result.pageFull = true;
+                result.nextNodeIndex = currentNode;
+                result.nextCharOffset = 0;
+                _cachedResult = result;
+                _hasCachedResult = true;
+                return result;
+            }
+
+            if (draw && _epubLoader) {
+                size_t imgSize = 0;
+                uint8_t* imgData = _epubLoader->getFileData(node.imageNode.imagePath, &imgSize);
+
+                if (imgData) {
+                    // NEW: Allocate this massive object on the HEAP, not the STACK!
+                    JPEGDEC* jpeg = new JPEGDEC();
+
+                    if (jpeg->openRAM(imgData, imgSize, drawJpegCallback)) {
+                        jpeg->setPixelType(ONE_BIT_DITHERED);
+
+                        int scale = 0;
+                        if (jpeg->getWidth() > _width || jpeg->getHeight() > (maxY - y)) {
+                            if (jpeg->getWidth() / 2 <= _width && jpeg->getHeight() / 2 <= (maxY - y))
+                                scale = JPEG_SCALE_HALF;
+                            else if (jpeg->getWidth() / 4 <= _width && jpeg->getHeight() / 4 <= (maxY - y))
+                                scale = JPEG_SCALE_QUARTER;
+                            else
+                                scale = JPEG_SCALE_EIGHTH;
+                        }
+
+                        int ditherBufferSize = jpeg->getWidth() * 16;
+                        uint8_t* ditherBuffer = (uint8_t*)ps_malloc(ditherBufferSize);
+                        if (!ditherBuffer) ditherBuffer = (uint8_t*)malloc(ditherBufferSize);
+
+                        if (ditherBuffer) {
+                            g_jpegDisplay = &display;
+                            g_jpegX = (_width - (jpeg->getWidth() >> scale)) / 2;
+                            if (g_jpegX < 0) g_jpegX = 0;
+                            g_jpegY = y;
+
+                            jpeg->decodeDither(ditherBuffer, scale);
+                            imgHeight = (jpeg->getHeight() >> scale);
+                            free(ditherBuffer);
+                        }
+                        jpeg->close();
+                    } else {
+                        display.setCursor(currentX, y + 20);
+                        display.print("[PNG/Unsupported Image]");
+                        imgHeight = 40;
+                    }
+
+                    // NEW: Free the heap memory to prevent memory leaks
+                    delete jpeg;
+                    free(imgData);
+                }
+            }
+
+            y += imgHeight + 20;
+            currentX = x_margin;
         }
+
         currentNode++;
         currentOffset = 0;
         result.nodesConsumed++;
-        result.nextNodeIndex = currentNode;
-        result.nextCharOffset = currentOffset;
     }
 
-    // CRITICAL: Check if we stopped because the page is full but there's more content
-    // This happens when y >= maxY but we haven't processed all nodes
-    if (currentNode < (int)content.size()) {
-        // There's still more content to display
-        result.pageFull = true;
-        result.charsConsumedInLastNode = currentOffset; // Position in current node
-        result.nextNodeIndex = currentNode;
-        result.nextCharOffset = currentOffset;
-        // nodesConsumed already reflects completed nodes
-    }
-    // If currentNode >= content.size(), all content was displayed -> pageFull stays false (true end of
-    // chapter)
-
-    // Page number drawing moved to AppReader for consistency
-    _cachedResult = result;
-    _hasCachedResult = true;
     return result;
 }

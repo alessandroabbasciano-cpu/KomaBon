@@ -688,9 +688,49 @@ std::vector<ContentNode> EpubLoader::parseHtmlToRichContent(const String& html) 
                 }
             }
             // Skip self-closing image tags
+            // Intercept image tags instead of skipping
             else if (tag == "img" || tag == "image") {
-                // Just skip - nothing to do for self-closing tags
-            } else if (tag == "br") {
+                String src = extractAttribute(fullTag, tag, "src");
+                if (src.length() == 0) {
+                    src = extractAttribute(fullTag, tag, "href"); // Fallback for SVG <image>
+                }
+
+                if (src.length() > 0) {
+                    // Flush any pending text before inserting the image
+                    if (currentText.length() > 0) {
+                        ContentNode textNodeObj;
+                        textNodeObj.type = CONTENT_TEXT;
+                        textNodeObj.textNode.text = currentText;
+                        textNodeObj.textNode.style = styleStack.back();
+                        textNodeObj.textNode.align = currentAlign;
+                        textNodeObj.textNode.isListItem = isListItem;
+                        textNodeObj.textNode.indent = currentIndent;
+                        textNodeObj.textNode.isBlockStart = nextIsBlockStart;
+                        nodes.push_back(textNodeObj);
+
+                        currentText = "";
+                        isListItem = false;
+                        currentIndent = 0;
+                    }
+
+                    // Create and push the image node
+                    ContentNode imgNode;
+                    imgNode.type = CONTENT_IMAGE;
+                    imgNode.imageNode.imagePath = src;
+
+                    String wAttr = extractAttribute(fullTag, tag, "width");
+                    String hAttr = extractAttribute(fullTag, tag, "height");
+                    imgNode.imageNode.width = (wAttr.length() > 0) ? wAttr.toInt() : 0;
+                    imgNode.imageNode.height = (hAttr.length() > 0) ? hAttr.toInt() : 0;
+
+                    nodes.push_back(imgNode);
+
+                    // Force the next element to start a new block
+                    nextIsBlockStart = true;
+                }
+            }
+
+            else if (tag == "br") {
                 currentText += "\n";
             }
             i = tagEnd + 1;
@@ -781,4 +821,10 @@ std::vector<ContentNode> EpubLoader::getChapterContentRich(int index) {
     if (fullPath.startsWith("./")) fullPath = fullPath.substring(2);
     String content = readFileFromZip(fullPath.c_str());
     return parseHtmlToRichContent(content);
+}
+
+uint8_t* EpubLoader::getFileData(String path, size_t* outSize) {
+    String fullPath = rootDir + path;
+    if (fullPath.startsWith("./")) fullPath = fullPath.substring(2);
+    return getFontData(fullPath, outSize);
 }

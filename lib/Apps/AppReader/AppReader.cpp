@@ -106,6 +106,8 @@ AppReader::AppReader() {
     _libraryScrollOffset = 0;
     _epubLoader = nullptr;
     _textRenderer = nullptr;
+    _kbReader = nullptr;  // NEW
+    _isComicMode = false; // NEW
     _currentChapter = 0;
     _needsRedraw = true;
     _totalPages = 0;
@@ -156,6 +158,7 @@ AppReader::~AppReader() {
     closeBook(false);
     if (_epubLoader) delete _epubLoader;
     if (_textRenderer) delete _textRenderer;
+    if (_kbReader) delete _kbReader;
 }
 
 bool AppReader::hasBootResume() {
@@ -222,7 +225,7 @@ void AppReader::scanBooks() {
         String fileName = normalizedBookName(file.name());
         String fileNameLower = fileName;
         fileNameLower.toLowerCase();
-        if (fileNameLower.endsWith(".epub")) {
+        if (fileNameLower.endsWith(".epub") || fileNameLower.endsWith(".kmb")) {
             BookEntry entry;
             entry.path = "/" + fileName;
             auto meta = metadata.find(fileName);
@@ -385,32 +388,51 @@ void AppReader::handleInput(InputAction action) {
 bool AppReader::openBook(const String& path, bool restoreProgress) {
     String fullPath = "/ebooks" + path;
     closeBook(false);
-    _epubLoader = new EpubLoader();
-    if (!_epubLoader->open(fullPath.c_str())) {
-        delete _epubLoader;
-        _epubLoader = nullptr;
-        return false;
-    }
     _currentBookPath = path;
-    if (!_textRenderer) {
-        DisplayMgr& dispMgr = DisplayMgr::getInstance();
-        KomaBonDisplay& display = dispMgr.getDisplay();
-        _textRenderer = new TextRenderer(display.width(), display.height(), _fontSizePt);
+
+    String pathLower = path;
+    pathLower.toLowerCase();
+
+    // 1. ENGINE ROUTING
+    if (pathLower.endsWith(".kmb")) {
+        Serial.println("AppReader: KMB detected, starting COMIC engine.");
+        _isComicMode = true;
+        _kbReader = new KBReader();
+
+        if (!_kbReader->open(fullPath.c_str())) {
+            delete _kbReader;
+            _kbReader = nullptr;
+            return false;
+        }
+        _totalPages = _kbReader->getPageCount();
+        _globalPageNumber = 1;
+        _currentPageRenderValid = false;
+
+    } else {
+        Serial.println("AppReader: EPUB detected, starting TEXT engine.");
+        _isComicMode = false;
+        _epubLoader = new EpubLoader();
+
+        if (!_epubLoader->open(fullPath.c_str())) {
+            delete _epubLoader;
+            _epubLoader = nullptr;
+            return false;
+        }
+
+        if (!_textRenderer) {
+            DisplayMgr& dispMgr = DisplayMgr::getInstance();
+            KomaBonDisplay& display = dispMgr.getDisplay();
+            _textRenderer = new TextRenderer(display.width(), display.height(), _fontSizePt, _epubLoader);
+        }
+        _textRenderer->setFontSize(_fontSizePt);
+        _textRenderer->setFontFamily(_fontFamily);
+        _textRenderer->calculateDimensions();
+        _globalPageNumber = 1;
+        _currentPageRenderValid = false;
+        startTotalPagesCounting();
     }
-    _textRenderer->setFontSize(_fontSizePt);   // Honor the current reading size
-    _textRenderer->setFontFamily(_fontFamily); // Honor the current reading font
 
-    // Using Adafruit GFX bitmap fonts (same rendering path as main menu and all apps)
-    Serial.println("TextRenderer: Using Adafruit GFX fonts");
-
-    _textRenderer->calculateDimensions();
-
-    // Paginating the whole book here would stall opening a large one, so only
-    // the running position is known immediately; startTotalPagesCounting()
-    // below fills in the total a little at a time instead.
-    _globalPageNumber = 1; // Start at page 1
-    _currentPageRenderValid = false;
-
+    // 2. STATE RESTORATION
     int restoreChapter = 0;
     PagePointer restorePointer = {0, 0};
     int restorePage = 1;
@@ -418,29 +440,29 @@ bool AppReader::openBook(const String& path, bool restoreProgress) {
     bool restored =
         restoreProgress && loadBookProgress(progressKey, restoreChapter, restorePointer, restorePage);
 
-    loadChapter(restored ? restoreChapter : 0);
-    // The saved chapter can be gone (book replaced by a different edition), in
-    // which case loadChapter fell through to a later one: restoring a pointer
-    // from another chapter would land anywhere, so start that chapter clean.
-    if (restored && restoreChapter != _currentChapter) {
-        Serial.printf("AppReader: saved chapter %d unavailable, starting at %d\n", restoreChapter,
-                      _currentChapter);
-    }
-    if (restored && restoreChapter == _currentChapter) {
-        int maxNode = (int)_currentRichContent.size();
-        if (restorePointer.nodeIndex >= 0 && restorePointer.nodeIndex <= maxNode &&
-            restorePointer.charOffset >= 0) {
-            _currentPagePointer = restorePointer;
+    if (_isComicMode) {
+        if (restored) {
             _globalPageNumber = max(1, restorePage);
-            _currentPageRenderValid = false;
+            if (_globalPageNumber > _totalPages) _globalPageNumber = _totalPages;
+        }
+    } else {
+        loadChapter(restored ? restoreChapter : 0);
+        if (restored && restoreChapter != _currentChapter) {
+            Serial.printf("AppReader: saved chapter %d unavailable, starting at %d\n", restoreChapter,
+                          _currentChapter);
+        }
+        if (restored && restoreChapter == _currentChapter) {
+            int maxNode = (int)_currentRichContent.size();
+            if (restorePointer.nodeIndex >= 0 && restorePointer.nodeIndex <= maxNode &&
+                restorePointer.charOffset >= 0) {
+                _currentPagePointer = restorePointer;
+                _globalPageNumber = max(1, restorePage);
+                _currentPageRenderValid = false;
+            }
         }
     }
 
     _state = VIEW_READING;
-    startTotalPagesCounting();
-
-    // Opening a book saves immediately: this marks the book as "last opened"
-    // for boot resume, and it happens once per book, not per page.
     saveReadingProgress(true);
     flushProgress();
     _needsRedraw = true;
@@ -509,10 +531,6 @@ void AppReader::closeBook(bool markInactive) {
     if (markInactive && _state == VIEW_READING) {
         saveReadingProgress(false);
     }
-
-    // Closing the book is when the deferred position must be written to flash:
-    // after this, the page state disappears. This also covers standby and
-    // returning to the menu, which pass through stop().
     flushProgress();
 
     if (_epubLoader) {
@@ -524,9 +542,15 @@ void AppReader::closeBook(bool markInactive) {
         delete _textRenderer;
         _textRenderer = nullptr;
     }
+    if (_kbReader) { // NEW
+        _kbReader->close();
+        delete _kbReader;
+        _kbReader = nullptr;
+    }
+
+    _isComicMode = false; // NEW
     _pageHistory.clear();
     _currentPageRenderValid = false;
-
     _countingActive = false;
     _countChapterContent.clear();
     if (_countRenderer) {
@@ -592,7 +616,7 @@ void AppReader::updateTotalPagesCount() {
     KomaBonDisplay& display = dispMgr.getDisplay();
 
     if (!_countRenderer) {
-        _countRenderer = new TextRenderer(display.width(), display.height(), _fontSizePt);
+        _countRenderer = new TextRenderer(display.width(), display.height(), _fontSizePt, _epubLoader);
         _countRenderer->setFontFamily(_fontFamily);
     }
 
@@ -666,6 +690,16 @@ void AppReader::loadChapter(int chapterIndex) {
 }
 
 void AppReader::nextPage() {
+
+    if (_isComicMode) {
+        if (_globalPageNumber < _totalPages) {
+            _globalPageNumber++;
+            saveReadingProgress(true);
+            _needsRedraw = true;
+        }
+        return;
+    }
+
     if (!_textRenderer) return;
 
     RenderResult result = _currentPageRender;
@@ -708,6 +742,16 @@ void AppReader::nextPage() {
 }
 
 void AppReader::prevPage() {
+
+    if (_isComicMode) {
+        if (_globalPageNumber > 1) {
+            _globalPageNumber--;
+            saveReadingProgress(true);
+            _needsRedraw = true;
+        }
+        return;
+    }
+
     if (!_pageHistory.empty()) {
         _currentPagePointer = _pageHistory.back();
         _pageHistory.pop_back();
@@ -943,10 +987,13 @@ void AppReader::drawLibrary() {
 }
 
 void AppReader::drawReading() {
-    // Without a renderer there is no page: this happens if a book fails to open
-    // after closeBook() has already freed the state. Falling back to the library
-    // is the correct visible behavior — dereferencing it would cause a reset.
-    if (!_textRenderer) {
+    if (!_isComicMode && !_textRenderer) {
+        _state = VIEW_LIBRARY;
+        _librarySelectionOnlyRedraw = false;
+        drawLibrary();
+        return;
+    }
+    if (_isComicMode && !_kbReader) {
         _state = VIEW_LIBRARY;
         _librarySelectionOnlyRedraw = false;
         drawLibrary();
@@ -956,30 +1003,44 @@ void AppReader::drawReading() {
     DisplayMgr& dispMgr = DisplayMgr::getInstance();
     KomaBonDisplay& display = dispMgr.getDisplay();
 
-    // Check if we need a full refresh
     if (_readingFirstDraw || _pageTurnsSinceRefresh >= _refreshEveryNPages) {
-        Serial.println("AppReader: Full Refresh Cycle");
         display.setFullWindow();
         _pageTurnsSinceRefresh = 0;
         _readingFirstDraw = false;
     } else {
-        Serial.printf("AppReader: Partial Refresh (%d/%d)\n", _pageTurnsSinceRefresh + 1,
-                      _refreshEveryNPages);
         display.setPartialWindow(0, 0, display.width(), display.height());
         _pageTurnsSinceRefresh++;
     }
 
-    // Page numbers: use _globalPageNumber which is tracked at runtime
-    int currentPageNum = _pageHistory.size(); // For render cache key
+    int currentPageNum = _pageHistory.size();
 
     display.firstPage();
     do {
         display.fillScreen(GxEPD_WHITE);
-        _currentPageRender = _textRenderer->renderRichPageDynamic(
-            display, _currentRichContent, _currentPagePointer.nodeIndex, _currentPagePointer.charOffset,
-            currentPageNum, _globalPageNumber, true);
-        _currentPageRenderValid = true;
-        // Draw page number directly here for consistent display
+
+        // 1. CONTENT RENDERING
+        if (_isComicMode) {
+            // Calculate buffer size needed for the 1bpp image
+            size_t bufferSize = (_kbReader->getWidth() + 7) / 8 * _kbReader->getHeight();
+            uint8_t* pageBuffer = (uint8_t*)ps_malloc(bufferSize);
+
+            if (pageBuffer) {
+                // Read and decompress directly into buffer
+                if (_kbReader->readPage(_globalPageNumber - 1, pageBuffer)) {
+                    // Draw decompressed bitmap to screen
+                    display.drawBitmap(0, 0, pageBuffer, _kbReader->getWidth(), _kbReader->getHeight(),
+                                       GxEPD_BLACK);
+                }
+                free(pageBuffer);
+            }
+        } else {
+            _currentPageRender = _textRenderer->renderRichPageDynamic(
+                display, _currentRichContent, _currentPagePointer.nodeIndex, _currentPagePointer.charOffset,
+                currentPageNum, _globalPageNumber, true);
+            _currentPageRenderValid = true;
+        }
+
+        // 2. FOOTER RENDERING
         display.setFont(NULL);
         display.setTextColor(GxEPD_BLACK);
         char footerText[40];
@@ -988,11 +1049,21 @@ void AppReader::drawReading() {
         } else {
             snprintf(footerText, sizeof(footerText), "Page %d", _globalPageNumber);
         }
+
         int16_t fx1, fy1;
         uint16_t fw, fh;
         display.getTextBounds(footerText, 0, 0, &fx1, &fy1, &fw, &fh);
-        display.setCursor(display.width() / 2 - (int)fw / 2, display.height() - 15);
+        int cursorX = display.width() / 2 - (int)fw / 2;
+        int cursorY = display.height() - 15;
+
+        // Solid white background behind text to ensure readability over comic art
+        if (_isComicMode) {
+            display.fillRect(cursorX - 2, cursorY - fh - 2, fw + 4, fh + 4, GxEPD_WHITE);
+        }
+
+        display.setCursor(cursorX, cursorY);
         display.print(footerText);
+
     } while (display.nextPage());
 }
 

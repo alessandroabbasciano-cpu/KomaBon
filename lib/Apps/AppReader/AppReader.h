@@ -7,6 +7,7 @@
 #include "../../KomaBon_Core/InputMgr.h"
 #include <vector>
 #include <map>
+#include "KBReader.h"
 
 enum ReaderState { VIEW_LIBRARY, VIEW_READING };
 
@@ -35,7 +36,7 @@ class AppReader : public App {
     // Icon
     const uint8_t* getIconImage() override;
     const char* getName() override {
-        return "eReader";
+        return "Bookshelf";
     }
 
     // The reader page occupies the whole screen: the system battery indicator
@@ -85,6 +86,8 @@ class AppReader : public App {
     void loadSettings();
 
     // Reading
+    bool _isComicMode;   // NEW: Determines which engine is active
+    KBReader* _kbReader; // NEW: Comic engine instance
     EpubLoader* _epubLoader;
     TextRenderer* _textRenderer;
     String _currentBookPath;

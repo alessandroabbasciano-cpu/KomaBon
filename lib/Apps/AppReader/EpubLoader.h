@@ -62,13 +62,18 @@ struct FontInfo {
     String format; // ttf, otf, woff, woff2
 };
 
-// Content node - can be text or table
-enum ContentType { CONTENT_TEXT, CONTENT_TABLE };
-
+// Content node - can be text, table, or an image!
+enum ContentType { CONTENT_TEXT, CONTENT_TABLE, CONTENT_IMAGE };
+struct ImageNode {
+    String imagePath;
+    int width;
+    int height;
+};
 struct ContentNode {
     ContentType type;
     RichTextNode textNode;
     Table table;
+    ImageNode imageNode; // Inseriamo la nostra immagine nelle opzioni possibili
 
     ContentNode() : type(CONTENT_TEXT) {}
 };
@@ -96,6 +101,8 @@ class EpubLoader {
     // Font support
     std::vector<FontInfo> getFonts();
     uint8_t* getFontData(String path, size_t* outSize);
+
+    uint8_t* getFileData(String path, size_t* outSize);
 
   private:
     // Metadata

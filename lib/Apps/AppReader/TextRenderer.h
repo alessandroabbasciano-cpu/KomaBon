@@ -47,7 +47,7 @@ struct RenderedLine {
 
 class TextRenderer {
   public:
-    TextRenderer(int width, int height, int fontSize = 26);
+    TextRenderer(int width, int height, int fontSize = 26, EpubLoader* epubLoader = nullptr);
 
     // Body text size in points. Supported: 9 (small), 12 (medium), 18 (large).
     // Invalidates caches so word-wrap and pagination recompute at the new size.
@@ -78,6 +78,7 @@ class TextRenderer {
     int _fontSize;
     int _fontFamily = READER_FONT_SANS;
     int _lineHeight;
+    EpubLoader* _epubLoader;
 
     std::vector<RenderedLine> _lineCache;
     int _cachedPage = -1;

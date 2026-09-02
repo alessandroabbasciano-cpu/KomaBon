@@ -1,24 +1,24 @@
-#ifndef B32_READER_H
-#define B32_READER_H
+#ifndef KB_READER_H
+#define KB_READER_H
 
 #include <Arduino.h>
 #include <LittleFS.h>
 #include <vector>
 
-// 1. Miniz is often built-in to ESP32 Arduino Core, but sometimes hidden.
-// We can try using <rom/miniz.h> or if that fails, use standard zlib if available.
-// ESP32-S3 ROM has miniz.
+// ROM-based decompression library for ESP32
+// Essential for extremely fast, low-memory extraction of comic pages
 #include <rom/miniz.h>
 
-class B32Reader {
+class KBReader {
   public:
-    B32Reader();
-    ~B32Reader();
+    KBReader();
+    ~KBReader();
 
+    // Opens a .kmb comic file
     bool open(const char* path);
     void close();
 
-    // Metadata
+    // Comic Metadata
     uint16_t getWidth() const {
         return _width;
     }
@@ -29,17 +29,14 @@ class B32Reader {
         return _pageCount;
     }
 
-    // Cover
+    // Cover Management
     bool hasCover() const {
         return _coverLen > 0;
     }
-    // Returns a pointer to the decompressed cover bitmap (allocates memory, caller must free? No, let's keep
-    // it internal or return raw) Actually, Display works best with raw buffers. For now, let's just expose a
-    // method to load cover into a buffer.
     bool getCover(uint8_t* buffer, size_t bufferSize);
 
-    // Reading
-    // Decompresses page 'index' into 'buffer'. Buffer must be large enough (width*height/8 bytes).
+    // Page Reading
+    // Decompresses the specific comic page index into the provided buffer
     bool readPage(uint16_t index, uint8_t* buffer);
 
   private:
