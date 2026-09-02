@@ -35,6 +35,10 @@ class InputMgr {
         callback = nullptr;
     }
 
+    bool isInteracting() const {
+        return _isInteracting;
+    }
+
   private:
     InputMgr();
     OneButton btn;
@@ -98,6 +102,8 @@ class InputMgr {
     // be lost: the queue drops actions when full, and a power command that
     // the user has to repeat is worse than one arriving a cycle later.
     volatile bool _standbyRequested = false;
+
+    volatile bool _isInteracting = false;
 
     static void staticClick(void* ptr);
     static void staticDoubleClick(void* ptr);

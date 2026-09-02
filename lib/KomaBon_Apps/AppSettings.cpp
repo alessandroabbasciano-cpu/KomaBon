@@ -219,12 +219,10 @@ void AppSettings::handleInput(InputAction action) {
     if (_screen == SCREEN_FONT) {
         if (action == INPUT_NEXT) {
             _selectionOnlyRedraw = true;
-            _previousSubSelectedIndex = _subSelectedIndex;
             _subSelectedIndex = (_subSelectedIndex + 1) % 6;
             _needsRedraw = true;
         } else if (action == INPUT_PREV) {
             _selectionOnlyRedraw = true;
-            _previousSubSelectedIndex = _subSelectedIndex;
             _subSelectedIndex = (_subSelectedIndex + 5) % 6;
             _needsRedraw = true;
         } else if (action == INPUT_SELECT) {
@@ -317,12 +315,10 @@ void AppSettings::handleInput(InputAction action) {
 
     if (action == INPUT_NEXT) {
         _selectionOnlyRedraw = true;
-        _previousSelectedIndex = _selectedIndex;
         _selectedIndex = (_selectedIndex + 1) % ROW_COUNT;
         _needsRedraw = true;
     } else if (action == INPUT_PREV) {
         _selectionOnlyRedraw = true;
-        _previousSelectedIndex = _selectedIndex;
         _selectedIndex = (_selectedIndex + ROW_COUNT - 1) % ROW_COUNT;
         _needsRedraw = true;
     } else if (action == INPUT_SELECT) {

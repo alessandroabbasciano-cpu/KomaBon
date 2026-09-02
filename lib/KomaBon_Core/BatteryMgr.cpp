@@ -221,17 +221,32 @@ void BatteryMgr::updateCache(bool clearStaleCharging) {
     }
 
     // Quick charging detection: if voltage increased since last read, we're likely charging
-    if (previousVoltage > 0 && voltage > previousVoltage + 0.02f) {
-        // Voltage increased by >20mV since last read - likely charging
+
+    // The previous 20mV trigger was too sensitive to ADC noise and load spikes
+    // (e.g., the voltage recovering after an e-ink refresh), causing infinite redraw loops.
+    // We now rely on the 90-second trend analyzer in update() for standard charge detection.
+    // We only trigger an INSTANT state change if we see a massive voltage jump/drop
+    // indicative of physically plugging/unplugging a USB cable (> 100mV).
+
+    if (previousVoltage > 0 && voltage > previousVoltage + 0.10f) {
+        // Massive jump (>100mV) - Cable was just plugged in
         if (!currentCharging) {
             currentCharging = true;
-            Serial.printf("Battery: Quick charge detect (%.3fV -> %.3fV, +%.3fV)\n", previousVoltage, voltage,
-                          voltage - previousVoltage);
+            Serial.printf("Battery: Hard USB plug detected (%.3fV -> %.3fV, +%.3fV)\n", previousVoltage,
+                          voltage, voltage - previousVoltage);
         }
         _lastChargingTime = millis();
-    } else if (previousVoltage > 0 && voltage < previousVoltage - 0.01f) {
-        currentCharging = false;
+    } else if (previousVoltage > 0 && voltage < previousVoltage - 0.08f) {
+        // Massive drop (>80mV) - Cable was just unplugged
+        if (currentCharging) {
+            currentCharging = false;
+            Serial.printf("Battery: Hard USB unplug detected (%.3fV -> %.3fV, %.3fV)\n", previousVoltage,
+                          voltage, voltage - previousVoltage);
+        }
     }
+
+    // Tiny fluctuations are ignored here. The 90-second trend analyzer in update()
+    // will gracefully handle slow voltage sags or slow charging over time.
 
     // High voltage means "full", not necessarily connected to the charger. We
     // only label it charging when voltage is actually rising.

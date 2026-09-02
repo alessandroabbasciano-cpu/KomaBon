@@ -120,7 +120,10 @@ void InputMgr::inputTask(void* parameter) {
         bool joyActive = (currentJoyDir != JOY_NONE);
         unsigned long now = millis();
 
-        // v1.9.1 diagnostics (PINDIAG): raw snapshot of the three pins on each
+        // Keeps track if the user is currently pressing any physical control
+        self->_isInteracting = (key1Pressed || key2Pressed || joyActive);
+
+        // diagnostics (PINDIAG): raw snapshot of the three pins on each
         // transition. 1 = released (pull-up), 0 = pressed (active low).
         // Maintained after correction: shows if pressing KEY3 drags GPIO3 with
         // it, which is the hypothesis defended by the standby guard.[cite: 61]
@@ -157,7 +160,7 @@ void InputMgr::inputTask(void* parameter) {
                 lastJoyDirection = currentJoyDir;
             } else if (!joyLongPressSent) {
                 unsigned long heldTime = now - joyPressTime;
-                if (heldTime < 50) {
+                if (heldTime < 15) {
                     lastJoyDirection = currentJoyDir;
                 } else if (heldTime >= BUTTON_LONG_PRESS_MS) {
                     // Long press threshold reached. Check which direction is being held.

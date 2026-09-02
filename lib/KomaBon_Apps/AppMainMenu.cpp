@@ -245,7 +245,6 @@ void AppMainMenu::handleInput(InputAction action) {
     int maxSelectable = apps.size() - 1 + (_updateAvailable ? 1 : 0);
 
     if (action == INPUT_NEXT) {
-        _previousSelectedIndex = selectedIndex;
         selectedIndex++;
         if (selectedIndex > maxSelectable) selectedIndex = 1;
         if (selectedIndex == 0) selectedIndex = 1; // Should not happen but safety
@@ -253,7 +252,6 @@ void AppMainMenu::handleInput(InputAction action) {
         _needsRedraw = true;
     } else if (action == INPUT_PREV) {
         // NEW: Support for backward navigation with Joystick Left/Up
-        _previousSelectedIndex = selectedIndex;
         selectedIndex--;
         if (selectedIndex < 1) selectedIndex = maxSelectable;
         _selectionOnlyRedraw = !_firstDraw;
@@ -376,6 +374,8 @@ void AppMainMenu::draw() {
     _selectionOnlyRedraw = false;
     _batteryOnlyRedraw = false;
     _footerOnlyRedraw = false;
+    // NEW: Update the tracking variable ONLY when a physical draw occurs.
+    _previousSelectedIndex = selectedIndex;
 
     display.firstPage();
     do {

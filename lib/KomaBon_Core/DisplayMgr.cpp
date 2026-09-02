@@ -2,8 +2,15 @@
 #include "../../include/Config.h"
 #include "KomaBonFS.h"
 #include <ArduinoJson.h>
-// Local FreeSans with Latin-1 Supplement (0x20-0xFF).
 #include "Fonts/FreeSans.h"
+
+// NEW: FreeRTOS Yield Callback.
+// While the e-ink panel is physically refreshing (taking ~1.5s),
+// this allows the ESP32 to process inputs, WiFi, and background tasks
+// instead of completely freezing the UI.
+void busyCallback(const void* p) {
+    vTaskDelay(pdMS_TO_TICKS(1));
+}
 
 static void drawCenteredText(KomaBonDisplay& display, const char* text, const GFXfont* font, int16_t baseline,
                              uint16_t color) {
@@ -49,16 +56,21 @@ DisplayMgr& DisplayMgr::getInstance() {
 }
 
 void DisplayMgr::init() {
-    // For ESP32-S3 we must initialize SPI with custom pins before display.init
     SPI.begin(EPD_SCK, EPD_MISO, EPD_MOSI, EPD_CS);
+
+    display.epd2.selectSPI(SPI, SPISettings(20000000, MSBFIRST, SPI_MODE0));
+
+    // Inject the callback into the driver BEFORE init
+    display.epd2.setBusyCallback(busyCallback);
 
     display.init(115200, true, 10, false);
 
-    display.setRotation(_rotation); // Portrait mode (480x800); _rotation = 1 or 3
+    display.setRotation(_rotation);
     display.setTextColor(GxEPD_BLACK);
     display.setFont(NULL);
 
-    Serial.printf("Display initialized: %dx%d (rotation %d)\n", display.width(), display.height(), _rotation);
+    Serial.printf("Display initialized: %dx%d (rotation %d) | IC: UC8179 | 20MHz SPI (Non-Blocking)\n",
+                  display.width(), display.height(), _rotation);
 }
 
 void DisplayMgr::setRotation(int rotation) {

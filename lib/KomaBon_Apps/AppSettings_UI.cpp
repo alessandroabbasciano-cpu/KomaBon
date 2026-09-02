@@ -93,23 +93,24 @@ void AppSettings::drawMainScreen() {
     for (int i = 0; i < ROW_COUNT; i++) {
         int y = LIST_START_Y + i * ROW_HEIGHT;
 
+        // NEW AESTHETIC: Double-thickness outline box instead of solid fill.
+        // Text remains black regardless of selection.
+        display.setTextColor(GxEPD_BLACK);
+
         if (i == _selectedIndex) {
-            display.fillRect(12, y - 30, w - 24, ROW_HEIGHT - 8, GxEPD_BLACK);
-            display.setTextColor(GxEPD_WHITE);
-        } else {
-            display.setTextColor(GxEPD_BLACK);
+            display.drawRect(12, y - 30, w - 24, ROW_HEIGHT - 8, GxEPD_BLACK);
+            display.drawRect(13, y - 29, w - 26, ROW_HEIGHT - 10, GxEPD_BLACK);
         }
 
-        uint16_t color = (i == _selectedIndex) ? GxEPD_WHITE : GxEPD_BLACK;
-
+        // Removed the color toggling variable, hardcoded to GxEPD_BLACK
         String label = String(ROW_LABELS[i]);
         if (rowChanged(i)) label = "*" + label;
-        font.drawText(display, label.c_str(), 26, y, FONT_SIZE_BODY, color);
+        font.drawText(display, label.c_str(), 26, y, FONT_SIZE_BODY, GxEPD_BLACK);
 
         String value = valueForRow(i);
         if (value.length() > 0) {
             int vw = font.getTextWidth(value.c_str(), FONT_SIZE_BODY);
-            font.drawText(display, value.c_str(), w - 26 - vw, y, FONT_SIZE_BODY, color);
+            font.drawText(display, value.c_str(), w - 26 - vw, y, FONT_SIZE_BODY, GxEPD_BLACK);
         }
     }
 
@@ -126,16 +127,20 @@ void AppSettings::drawFontScreen() {
 
     for (int i = 0; i < 6; i++) {
         int y = LIST_START_Y + i * ROW_HEIGHT;
-        uint16_t color = GxEPD_BLACK;
+
+        display.setTextColor(GxEPD_BLACK);
 
         if (i == _subSelectedIndex) {
-            display.fillRect(12, y - 30, w - 24, ROW_HEIGHT - 8, GxEPD_BLACK);
-            color = GxEPD_WHITE;
+            // NEW AESTHETIC: Double-thickness outline box
+            display.drawRect(12, y - 30, w - 24, ROW_HEIGHT - 8, GxEPD_BLACK);
+            display.drawRect(13, y - 29, w - 26, ROW_HEIGHT - 10, GxEPD_BLACK);
         }
 
         String label = String(FONT_FAMILY_NAMES[i]);
         if (i == _reader.fontFamily) label += "  (current)";
-        font.drawText(display, label.c_str(), 26, y, FONT_SIZE_BODY, color);
+
+        // Text is always black
+        font.drawText(display, label.c_str(), 26, y, FONT_SIZE_BODY, GxEPD_BLACK);
     }
 
     display.setTextColor(GxEPD_BLACK);
@@ -207,12 +212,17 @@ void AppSettings::drawSystemScreen() {
     const char* actions[3] = {"Check for updates", "Restart", "Forget network"};
     for (int i = 0; i < 3; i++) {
         int ay = y + i * ROW_HEIGHT;
-        uint16_t color = GxEPD_BLACK;
+
+        display.setTextColor(GxEPD_BLACK);
+
         if (i == _subSelectedIndex) {
-            display.fillRect(12, ay - 30, w - 24, ROW_HEIGHT - 8, GxEPD_BLACK);
-            color = GxEPD_WHITE;
+            // NEW AESTHETIC: Double-thickness outline box
+            display.drawRect(12, ay - 30, w - 24, ROW_HEIGHT - 8, GxEPD_BLACK);
+            display.drawRect(13, ay - 29, w - 26, ROW_HEIGHT - 10, GxEPD_BLACK);
         }
-        font.drawText(display, actions[i], 26, ay, FONT_SIZE_BODY, color);
+
+        // Text is always black
+        font.drawText(display, actions[i], 26, ay, FONT_SIZE_BODY, GxEPD_BLACK);
     }
 
     display.setTextColor(GxEPD_BLACK);
@@ -233,12 +243,17 @@ void AppSettings::drawConfirmScreen() {
     int y = LIST_START_Y + 70;
     for (int i = 0; i < 3; i++) {
         int oy = y + i * ROW_HEIGHT;
-        uint16_t color = GxEPD_BLACK;
+
+        display.setTextColor(GxEPD_BLACK);
+
         if (i == _subSelectedIndex) {
-            display.fillRect(12, oy - 30, w - 24, ROW_HEIGHT - 8, GxEPD_BLACK);
-            color = GxEPD_WHITE;
+            // NEW AESTHETIC: Double-thickness outline box
+            display.drawRect(12, oy - 30, w - 24, ROW_HEIGHT - 8, GxEPD_BLACK);
+            display.drawRect(13, oy - 29, w - 26, ROW_HEIGHT - 10, GxEPD_BLACK);
         }
-        font.drawText(display, options[i], 26, oy, FONT_SIZE_BODY, color);
+
+        // Text is always black
+        font.drawText(display, options[i], 26, oy, FONT_SIZE_BODY, GxEPD_BLACK);
     }
 
     display.setTextColor(GxEPD_BLACK);
@@ -261,12 +276,17 @@ void AppSettings::drawConfirmForgetWifiScreen() {
     int y = LIST_START_Y + 100;
     for (int i = 0; i < 2; i++) {
         int oy = y + i * ROW_HEIGHT;
-        uint16_t color = GxEPD_BLACK;
+
+        display.setTextColor(GxEPD_BLACK);
+
         if (i == _subSelectedIndex) {
-            display.fillRect(12, oy - 30, w - 24, ROW_HEIGHT - 8, GxEPD_BLACK);
-            color = GxEPD_WHITE;
+            // NEW AESTHETIC: Double-thickness outline box
+            display.drawRect(12, oy - 30, w - 24, ROW_HEIGHT - 8, GxEPD_BLACK);
+            display.drawRect(13, oy - 29, w - 26, ROW_HEIGHT - 10, GxEPD_BLACK);
         }
-        font.drawText(display, options[i], 26, oy, FONT_SIZE_BODY, color);
+
+        // Text is always black
+        font.drawText(display, options[i], 26, oy, FONT_SIZE_BODY, GxEPD_BLACK);
     }
 
     display.setTextColor(GxEPD_BLACK);
@@ -304,7 +324,7 @@ void AppSettings::drawJoyCalScreen() {
     if (_joyCalStep < 5) {
         drawFooter("KEY3: abort");
     } else {
-        drawFooter("KEY3 / Center: exit to menu");
+        drawFooter("Center: exit to menu");
     }
 }
 
@@ -325,6 +345,9 @@ void AppSettings::draw() {
         display.setFullWindow();
     }
     _selectionOnlyRedraw = false;
+    // NEW: Synchronize tracking with the physical display state
+    _previousSelectedIndex = _selectedIndex;
+    _previousSubSelectedIndex = _subSelectedIndex;
 
     display.firstPage();
     do {

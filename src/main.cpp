@@ -156,20 +156,31 @@ void setup() {
 void loop() {
     InputMgr::getInstance().update();
     AppMgr::getInstance().update();
-    AppMgr::getInstance().draw(); // Trigger app rendering
-    WebMgr::getInstance().update();
-    BatteryMgr::getInstance().update(); // Check charging state and critical battery
 
-    // Charging indicator (partial refresh, top-right). Apps that own the whole
-    // screen opt out — in the reader this used to land on top of the page text.
-    App* currentApp = AppMgr::getInstance().getCurrentApp();
-    if (!currentApp || currentApp->allowsSystemStatusIndicator()) {
-        BatteryMgr::getInstance().drawStatusIndicator();
+    // --- LAZY RENDERING (DEBOUNCED DRAWING) ---
+    static unsigned long lastPhysicalInputTime = 0;
+
+    // Ask InputManager if the user is currently interacting with the controls
+    if (InputMgr::getInstance().isInteracting()) {
+        lastPhysicalInputTime = millis();
     }
 
-    // Yield a tick: without it this loop never blocks, the idle task on this
-    // core is starved and the CPU stays pinned at 100% (which the battery
-    // pays for). Input arrives through its own task and its own queue, so
-    // this costs no responsiveness.
+    // Wait for 200ms of absolute silence before allowing the screen to update.
+    if (millis() - lastPhysicalInputTime > 200) {
+        AppMgr::getInstance().draw(); // Trigger app rendering
+    }
+    // ------------------------------------------
+
+    WebMgr::getInstance().update();
+    BatteryMgr::getInstance().update();
+
+    App* currentApp = AppMgr::getInstance().getCurrentApp();
+    if (!currentApp || currentApp->allowsSystemStatusIndicator()) {
+        // Ensure the battery indicator also respects the lazy rendering rule
+        if (millis() - lastPhysicalInputTime > 200) {
+            BatteryMgr::getInstance().drawStatusIndicator();
+        }
+    }
+
     delay(1);
 }
