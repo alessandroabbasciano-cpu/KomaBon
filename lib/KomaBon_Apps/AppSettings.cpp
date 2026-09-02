@@ -9,6 +9,7 @@
 #include "../../include/Config.h"
 #include <WiFi.h>
 #include <WiFiManager.h>
+#include <KomaBonFS.h>
 
 // Logic arrays
 static const int FONT_SIZES[] = {9, 12, 18};
@@ -413,15 +414,19 @@ void AppSettings::update() {
     if (_screen == SCREEN_JOYCAL && _joyCalStep < 5) {
 
         // HARDWARE EMERGENCY ABORT
-        // Read the physical button directly based on console PINDIAG logs (GPIO5 / PIN_BUTTON_BACK).
-        // This avoids logical conflicts with joystick movements.
         pinMode(PIN_BUTTON_BACK, INPUT_PULLUP);
         if (digitalRead(PIN_BUTTON_BACK) == LOW) {
             Serial.println("AppSettings: Calibration aborted via physical button.");
 
+            // NEW: Protect existing calibration.
+            // Check if the file exists before writing defaults to break the boot loop.
+            // If the user already has a custom calibration, we do not overwrite it.
+            if (!EbookFS.exists("/joy_cal.json")) {
+                Serial.println("AppSettings: No calibration found. Saving defaults.");
+                JoystickMgr::getInstance().saveCalibration(0, 3350, 1250, 2650, 1950);
+            }
+
             // Wait for button release BEFORE changing the screen state.
-            // This prevents InputMgr from catching the release event and dispatching
-            // an unwanted INPUT_PREV to the main menu.
             while (digitalRead(PIN_BUTTON_BACK) == LOW) {
                 delay(10);
             }
@@ -438,7 +443,7 @@ void AppSettings::update() {
         } else {
             if (raw < 3800) {
                 if (abs(raw - _joyCalLastRaw) < 150) {
-                    if (now - _joyCalHoldStart > 1200) {
+                    if (millis() - _joyCalHoldStart > 1200) {
                         _joyCalValues[_joyCalStep] = raw;
                         _joyCalStep++;
                         _joyCalWaitingRelease = true;
@@ -452,10 +457,10 @@ void AppSettings::update() {
                     }
                 } else {
                     _joyCalLastRaw = raw;
-                    _joyCalHoldStart = now;
+                    _joyCalHoldStart = millis();
                 }
             } else {
-                _joyCalHoldStart = now;
+                _joyCalHoldStart = millis();
                 _joyCalLastRaw = 4095;
             }
         }
