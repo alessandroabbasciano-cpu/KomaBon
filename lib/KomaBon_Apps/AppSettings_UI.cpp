@@ -334,9 +334,9 @@ void AppSettings::draw() {
 
     KomaBonDisplay& display = DisplayMgr::getInstance().getDisplay();
 
-    if (_selectionOnlyRedraw && (_screen == SCREEN_MAIN || _screen == SCREEN_FONT)) {
-        int prevIndex = (_screen == SCREEN_MAIN) ? _previousSelectedIndex : _previousSubSelectedIndex;
-        int currIndex = (_screen == SCREEN_MAIN) ? _selectedIndex : _subSelectedIndex;
+    if (_selectionOnlyRedraw && _screen == SCREEN_MAIN) {
+        int prevIndex = _previousSelectedIndex;
+        int currIndex = _selectedIndex;
         int screenW = display.width();
         SettingsDirtyRect dirty =
             unionRect(settingsRowRect(prevIndex, screenW), settingsRowRect(currIndex, screenW));
@@ -344,8 +344,9 @@ void AppSettings::draw() {
     } else {
         display.setFullWindow();
     }
+
     _selectionOnlyRedraw = false;
-    // NEW: Synchronize tracking with the physical display state
+
     _previousSelectedIndex = _selectedIndex;
     _previousSubSelectedIndex = _subSelectedIndex;
 
@@ -355,9 +356,6 @@ void AppSettings::draw() {
         display.setTextColor(GxEPD_BLACK);
 
         switch (_screen) {
-            case SCREEN_FONT:
-                drawFontScreen();
-                break;
             case SCREEN_NETWORK:
                 drawNetworkScreen();
                 break;

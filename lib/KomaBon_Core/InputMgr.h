@@ -12,6 +12,8 @@ enum InputAction {
     INPUT_SELECT,
     INPUT_BACK,
     INPUT_GO_TO_MAIN_MENU,
+    INPUT_LEFT,  // NEW: Horizontal navigation
+    INPUT_RIGHT, // NEW: Horizontal navigation
     INPUT_SLEEP,
     // Manual full display refresh (KEY2 short click). Appended rather than
     // inserted: these values are printed raw in the input logs, so reordering

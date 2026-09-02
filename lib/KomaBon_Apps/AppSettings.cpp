@@ -16,9 +16,16 @@ static const int FONT_SIZES[] = {9, 12, 18};
 static const int REFRESH_FREQS[] = {5, 10, 20, 50};
 static const int SLEEP_TIMEOUTS[] = {0, 5, 15, 30, 60};
 
-static int cycleInt(const int* values, int count, int current) {
+static int cycleIntForward(const int* values, int count, int current) {
     for (int i = 0; i < count; i++) {
         if (values[i] == current) return values[(i + 1) % count];
+    }
+    return values[0];
+}
+
+static int cycleIntBackward(const int* values, int count, int current) {
+    for (int i = 0; i < count; i++) {
+        if (values[i] == current) return values[(i - 1 + count) % count];
     }
     return values[0];
 }
@@ -125,19 +132,29 @@ void AppSettings::forgetNetwork() {
     ESP.restart();
 }
 
-void AppSettings::cycleValue(int index) {
+void AppSettings::cycleValue(int index, bool forward) {
     switch (index) {
         case ROW_FONT_SIZE:
-            _reader.fontSize = cycleInt(FONT_SIZES, 3, _reader.fontSize);
+            _reader.fontSize = forward ? cycleIntForward(FONT_SIZES, 3, _reader.fontSize)
+                                       : cycleIntBackward(FONT_SIZES, 3, _reader.fontSize);
+            break;
+        case ROW_FONT_FAMILY:
+            if (forward) {
+                _reader.fontFamily = (_reader.fontFamily + 1) % 6;
+            } else {
+                _reader.fontFamily = (_reader.fontFamily + 5) % 6;
+            }
             break;
         case ROW_ROTATION:
             _display.rotation = (_display.rotation == 3) ? 1 : 3;
             break;
         case ROW_REFRESH:
-            _reader.refreshFrequency = cycleInt(REFRESH_FREQS, 4, _reader.refreshFrequency);
+            _reader.refreshFrequency = forward ? cycleIntForward(REFRESH_FREQS, 4, _reader.refreshFrequency)
+                                               : cycleIntBackward(REFRESH_FREQS, 4, _reader.refreshFrequency);
             break;
         case ROW_SLEEP:
-            _sleep.timeout = cycleInt(SLEEP_TIMEOUTS, 5, _sleep.timeout);
+            _sleep.timeout = forward ? cycleIntForward(SLEEP_TIMEOUTS, 5, _sleep.timeout)
+                                     : cycleIntBackward(SLEEP_TIMEOUTS, 5, _sleep.timeout);
             break;
         case ROW_WIFI:
             toggleWifi();
@@ -151,10 +168,6 @@ void AppSettings::cycleValue(int index) {
 
 void AppSettings::activate(int index) {
     switch (index) {
-        case ROW_FONT_FAMILY:
-            _screen = SCREEN_FONT;
-            _subSelectedIndex = SettingsStore::clampFontFamily(_reader.fontFamily);
-            break;
         case ROW_NETWORK:
             _screen = SCREEN_NETWORK;
             break;
@@ -177,7 +190,7 @@ void AppSettings::activate(int index) {
             AppMgr::getInstance().switchTo(0);
             return;
         default:
-            cycleValue(index);
+            cycleValue(index, true); // Fallback to forward cycle
             return;
     }
     _needsRedraw = true;
@@ -212,29 +225,6 @@ void AppSettings::handleInput(InputAction action) {
                 _screen = SCREEN_MAIN;
                 _needsRedraw = true;
             }
-        }
-        return;
-    }
-
-    if (_screen == SCREEN_FONT) {
-        if (action == INPUT_NEXT) {
-            _selectionOnlyRedraw = true;
-            _subSelectedIndex = (_subSelectedIndex + 1) % 6;
-            _needsRedraw = true;
-        } else if (action == INPUT_PREV) {
-            _selectionOnlyRedraw = true;
-            _subSelectedIndex = (_subSelectedIndex + 5) % 6;
-            _needsRedraw = true;
-        } else if (action == INPUT_SELECT) {
-            _selectionOnlyRedraw = false;
-            _reader.fontFamily = _subSelectedIndex;
-            recomputeDirty();
-            _screen = SCREEN_MAIN;
-            _needsRedraw = true;
-        } else if (action == INPUT_BACK || action == INPUT_GO_TO_MAIN_MENU) {
-            _selectionOnlyRedraw = false;
-            _screen = SCREEN_MAIN;
-            _needsRedraw = true;
         }
         return;
     }
@@ -321,6 +311,12 @@ void AppSettings::handleInput(InputAction action) {
         _selectionOnlyRedraw = true;
         _selectedIndex = (_selectedIndex + ROW_COUNT - 1) % ROW_COUNT;
         _needsRedraw = true;
+    } else if (action == INPUT_RIGHT) {
+        _selectionOnlyRedraw = true;
+        cycleValue(_selectedIndex, true);
+    } else if (action == INPUT_LEFT) {
+        _selectionOnlyRedraw = true;
+        cycleValue(_selectedIndex, false);
     } else if (action == INPUT_SELECT) {
         _selectionOnlyRedraw = false;
         activate(_selectedIndex);
@@ -449,7 +445,14 @@ void AppSettings::update() {
                             JoystickMgr::getInstance().saveCalibration(_joyCalValues[0], _joyCalValues[1],
                                                                        _joyCalValues[2], _joyCalValues[3],
                                                                        _joyCalValues[4]);
+                            // NEW: Set a 1-second safety cooldown for the final screen
+                            _statusUntil = millis() + 1000;
                         }
+                        // NEW: Force an immediate physical screen update.
+                        // This bypasses the Lazy Rendering block in main.cpp,
+                        // providing instant visual feedback while the user is
+                        // still physically holding the joystick direction.
+                        draw();
                     }
                 } else {
                     _joyCalLastRaw = raw;

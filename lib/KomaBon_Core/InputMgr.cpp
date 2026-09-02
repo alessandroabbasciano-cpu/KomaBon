@@ -189,20 +189,20 @@ void InputMgr::inputTask(void* parameter) {
                     BatteryMgr::getInstance().resetIdleTimer();
                     // Logical mapping of directions for SHORT press.
                     switch (lastJoyDirection) {
-                        case JOY_RIGHT:
+                        case JOY_UP:
+                            self->enqueueAction(INPUT_PREV);
+                            break;
+                        case JOY_DOWN:
                             self->enqueueAction(INPUT_NEXT);
                             break;
                         case JOY_LEFT:
-                            self->enqueueAction(INPUT_PREV);
+                            self->enqueueAction(INPUT_LEFT); // Distinct from PREV
                             break;
-                        case JOY_UP:
-                            self->enqueueAction(INPUT_PREV); // Pan up / Scroll up
-                            break;
-                        case JOY_DOWN:
-                            self->enqueueAction(INPUT_NEXT); // Pan down / Scroll down
+                        case JOY_RIGHT:
+                            self->enqueueAction(INPUT_RIGHT); // Distinct from NEXT
                             break;
                         case JOY_CENTER:
-                            self->enqueueAction(INPUT_SELECT); // KEY1 or Joy Center
+                            self->enqueueAction(INPUT_SELECT);
                             break;
                         default:
                             break;

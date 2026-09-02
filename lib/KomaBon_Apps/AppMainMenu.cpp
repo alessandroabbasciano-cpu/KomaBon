@@ -237,21 +237,20 @@ void AppMainMenu::handleInput(InputAction action) {
     Serial.printf("AppMainMenu::handleInput - action: %d\n", action);
 
     // Max index is apps.size() - 1 + 1 (if update available)
-    int maxIndex = apps.size() - 1 +
-                   (_updateAvailable ? 1 : 0); // 0-based index? No selectedIndex is 1-based (starts at 1)
-    // Actually selectedIndex starts at 1. App 1 is index 1.
-    // apps[0] is MainMenu. apps[1]...apps[N-1] are apps.
-    // Update button would be index N (apps.size())
     int maxSelectable = apps.size() - 1 + (_updateAvailable ? 1 : 0);
 
-    if (action == INPUT_NEXT) {
+    // Group forward navigation commands (Down and Right)
+    if (action == INPUT_NEXT || action == INPUT_RIGHT) {
+        // Tracking update for partial refresh is intentionally omitted here
+        // and handled in the draw() method to prevent ghosting artifacts.
         selectedIndex++;
         if (selectedIndex > maxSelectable) selectedIndex = 1;
-        if (selectedIndex == 0) selectedIndex = 1; // Should not happen but safety
+        if (selectedIndex == 0) selectedIndex = 1; // Safety fallback
         _selectionOnlyRedraw = !_firstDraw;
         _needsRedraw = true;
-    } else if (action == INPUT_PREV) {
-        // NEW: Support for backward navigation with Joystick Left/Up
+    }
+    // Group backward navigation commands (Up and Left)
+    else if (action == INPUT_PREV || action == INPUT_LEFT) {
         selectedIndex--;
         if (selectedIndex < 1) selectedIndex = maxSelectable;
         _selectionOnlyRedraw = !_firstDraw;
@@ -266,9 +265,9 @@ void AppMainMenu::handleInput(InputAction action) {
                     vTaskDelete(NULL);
                 },
                 "OTA_Menu_Task",
-                16384, // 16KB stack space per la crittografia
+                16384, // 16KB stack space for cryptography
                 nullptr, 1, nullptr,
-                1 // Esegui sul Core 1 (App Core)
+                1 // Run on Core 1 (App Core)
             );
         } else if (selectedIndex > 0 && selectedIndex < (int)apps.size()) {
             appMgr.switchTo(selectedIndex);
@@ -278,7 +277,6 @@ void AppMainMenu::handleInput(InputAction action) {
         Serial.println("AppMainMenu: INPUT_GO_TO_MAIN_MENU - already at main menu");
     }
 }
-
 void AppMainMenu::update() {
     unsigned long now = millis();
 

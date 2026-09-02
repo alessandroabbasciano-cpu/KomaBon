@@ -7,7 +7,6 @@
 
 enum SettingsScreen {
     SCREEN_MAIN,
-    SCREEN_FONT,
     SCREEN_NETWORK,
     SCREEN_SYSTEM,
     SCREEN_CONFIRM,
@@ -75,7 +74,7 @@ class AppSettings : public App {
     unsigned long _statusUntil;
     unsigned long _lastNetworkPoll;
 
-    void cycleValue(int index);
+    void cycleValue(int index, bool forward);
     void activate(int index);
     bool applyAndSave();
     void discardChanges();
