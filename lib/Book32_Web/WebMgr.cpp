@@ -817,7 +817,21 @@ void WebMgr::setupEndpoints() {
                 }
 
                 size_t freeBytes = EbookFS_totalBytes() - EbookFS_usedBytes();
-                switch (checkUpload(safeName, request->contentLength(), freeBytes)) {
+
+                bool isKmb = hasExtensionCI(safeName, ".kmb");
+                UploadVerdict verdict = UploadVerdict::Ok;
+
+                if (isKmb) {
+                    if (request->contentLength() > freeBytes) {
+                        verdict = UploadVerdict::NoSpace;
+                    } else if (!isSafeBookName(safeName)) {
+                        verdict = UploadVerdict::UnsafeName;
+                    }
+                } else {
+                    verdict = checkUpload(safeName, request->contentLength(), freeBytes);
+                }
+
+                switch (verdict) {
                     case UploadVerdict::BadExtension:
                         g_uploadState.status = UploadStatus::BadExtension;
                         return;

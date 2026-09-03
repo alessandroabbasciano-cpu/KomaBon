@@ -1,4 +1,5 @@
 #include "KBReader.h"
+#include "KomaBonFS.h"
 
 KBReader::KBReader() {
     _width = 0;
@@ -18,8 +19,8 @@ void KBReader::close() {
 bool KBReader::open(const char* path) {
     close();
 
-    if (!LittleFS.exists(path)) return false;
-    _file = LittleFS.open(path, "r");
+    if (!EbookFS.exists(path)) return false;
+    _file = EbookFS.open(path, "r");
     if (!_file) return false;
 
     // 1. Header Verification (16 bytes)

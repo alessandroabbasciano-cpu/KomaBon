@@ -106,8 +106,8 @@ AppReader::AppReader() {
     _libraryScrollOffset = 0;
     _epubLoader = nullptr;
     _textRenderer = nullptr;
-    _kbReader = nullptr;  // NEW
-    _isComicMode = false; // NEW
+    _kbReader = nullptr;
+    _isComicMode = false;
     _currentChapter = 0;
     _needsRedraw = true;
     _totalPages = 0;
@@ -119,10 +119,14 @@ AppReader::AppReader() {
     _currentPageRender = {0, 0, false, 0, 0};
     _currentPageRenderValid = false;
     _pageTurnsSinceRefresh = 0;
-    _refreshEveryNPages = 10;       // Default to full refresh every 10 pages
-    _fontSizePt = 9;                // Default body size (small)
-    _fontFamily = READER_FONT_SANS; // Default family (system sans-serif)
+    _refreshEveryNPages = 10;
+    _fontSizePt = 9;
+    _fontFamily = READER_FONT_SANS;
     _readingFirstDraw = true;
+    _progressDirty = false;
+    _progressResumeOnBoot = false;
+    _lastProgressChangeMs = 0;
+
     loadSettings();
 }
 
@@ -399,7 +403,7 @@ bool AppReader::openBook(const String& path, bool restoreProgress) {
         _isComicMode = true;
         _kbReader = new KBReader();
 
-        if (!_kbReader->open(fullPath.c_str())) {
+        if (!_kbReader->open(path.c_str())) {
             delete _kbReader;
             _kbReader = nullptr;
             return false;

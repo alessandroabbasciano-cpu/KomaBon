@@ -739,3 +739,322 @@ function connectWifi() {
             status.style.color = 'var(--danger)';
         });
 }
+
+// === KomaBon Universal Converter Engine ===
+
+// Configure PDF.js worker
+pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+
+// Write logs to the virtual terminal
+function logMessage(msg, isError = false) {
+    const terminal = document.getElementById('terminal-log');
+    const status = document.getElementById('comic-status');
+
+    terminal.classList.remove('hidden');
+
+    status.innerText = msg;
+    status.style.color = isError ? "var(--danger)" : "var(--accent)";
+
+    const line = document.createElement('div');
+    const time = new Date().toLocaleTimeString();
+    line.innerText = `[${time}] ${msg}`;
+
+    if (isError) {
+        line.style.color = "var(--danger)";
+    }
+
+    terminal.appendChild(line);
+    terminal.scrollTop = terminal.scrollHeight;
+}
+
+// Router function triggered by the UI button
+async function processInputFile() {
+    const fileInput = document.getElementById('universal-file');
+    const terminal = document.getElementById('terminal-log');
+
+    terminal.innerHTML = '';
+
+    if (!fileInput.files.length) {
+        logMessage("Error: Select a file to process.", true);
+        return;
+    }
+
+    const file = fileInput.files[0];
+    const ext = file.name.split('.').pop().toLowerCase();
+
+    logMessage(`--- Starting processing for: ${file.name} ---`);
+
+    try {
+        if (ext === 'cbz' || ext === 'zip') {
+            await processArchive(file);
+        } else if (ext === 'pdf') {
+            await processPDF(file);
+        } else if (ext === 'epub') {
+            logMessage("EPUB processing logic pending implementation.", true);
+        } else if (['jpg', 'jpeg', 'png'].includes(ext)) {
+            logMessage("Single image processing logic pending implementation.", true);
+        } else {
+            logMessage(`Unsupported extension: ${ext}`, true);
+        }
+    } catch (err) {
+        logMessage("Converter Error: " + err.message, true);
+    }
+}
+
+// CBZ/ZIP Parser
+async function processArchive(file) {
+    const targetWidth = parseInt(document.getElementById('eink-width').value);
+    const targetHeight = parseInt(document.getElementById('eink-height').value);
+    const progressBar = document.getElementById('comic-progress-bar');
+    const progressContainer = document.getElementById('comic-progress');
+
+    progressContainer.classList.remove('hidden');
+    progressBar.style.width = '2%';
+
+    try {
+        logMessage("Unzipping archive in memory...");
+        const zip = await JSZip.loadAsync(file);
+
+        const imgFiles = Object.keys(zip.files).filter(name =>
+            name.match(/\.(jpg|jpeg|png)$/i) && !name.startsWith('__MACOSX')
+        ).sort((a, b) => a.localeCompare(b, undefined, { numeric: true }));
+
+        if (imgFiles.length === 0) {
+            throw new Error("No JPG/PNG images found in the archive.");
+        }
+
+        const pageCount = imgFiles.length;
+        logMessage(`Found ${pageCount} pages. Starting conversion...`);
+
+        const bytesPerRow = Math.ceil(targetWidth / 8);
+        const bytesPerPage = bytesPerRow * targetHeight;
+        const totalSize = 16 + (bytesPerPage * pageCount);
+
+        logMessage(`Allocating KMB binary buffer: ${Math.round(totalSize / 1024)} KB.`);
+        const kmbBuffer = new ArrayBuffer(totalSize);
+        const kmbView = new DataView(kmbBuffer);
+        const kmbBytes = new Uint8Array(kmbBuffer);
+
+        // Write KMB header
+        kmbView.setUint8(0, 'K'.charCodeAt(0));
+        kmbView.setUint8(1, 'M'.charCodeAt(0));
+        kmbView.setUint8(2, 'B'.charCodeAt(0));
+        kmbView.setUint8(3, '1'.charCodeAt(0));
+        kmbView.setUint16(4, 3, true);
+        kmbView.setUint16(6, targetWidth, true);
+        kmbView.setUint16(8, targetHeight, true);
+        kmbView.setUint16(10, pageCount, true);
+        kmbView.setUint32(12, 0, true);
+
+        let offset = 16;
+        const canvas = document.createElement('canvas');
+        canvas.width = targetWidth;
+        canvas.height = targetHeight;
+        const ctx = canvas.getContext('2d', { willReadFrequently: true });
+
+        for (let i = 0; i < pageCount; i++) {
+            progressBar.style.width = `${10 + (i / pageCount * 80)}%`;
+            logMessage(`Processing page ${i + 1}/${pageCount} (${imgFiles[i]})`);
+
+            const imgData = await zip.file(imgFiles[i]).async("blob");
+            const bitmap = await createImageBitmap(imgData);
+
+            ctx.fillStyle = '#FFFFFF';
+            ctx.fillRect(0, 0, targetWidth, targetHeight);
+
+            const scale = Math.min(targetWidth / bitmap.width, targetHeight / bitmap.height);
+            const w = bitmap.width * scale;
+            const h = bitmap.height * scale;
+            const x = (targetWidth - w) / 2;
+            const y = (targetHeight - h) / 2;
+
+            ctx.drawImage(bitmap, x, y, w, h);
+
+            applyDitheringAndPack(ctx, kmbBytes, offset, targetWidth, targetHeight, bytesPerRow);
+
+            offset += bytesPerPage;
+            bitmap.close();
+        }
+
+        progressBar.style.width = '95%';
+        logMessage("Conversion completed. Preparing upload...");
+
+        let rawName = file.name.replace(/\.(zip|cbz|pdf)$/i, '');
+
+        let safeName = rawName
+            .normalize("NFD").replace(/[\u0300-\u036f]/g, "")
+            .replace(/[^a-zA-Z0-9_\-]/g, "_")
+            + '.kmb';
+
+        const kmbBlob = new Blob([kmbBuffer], { type: 'application/octet-stream' });
+        await uploadKMB(kmbBlob, safeName, progressBar);
+
+    } catch (err) {
+        logMessage("Converter Error: " + err.message, true);
+    }
+}
+
+// PDF Parser
+async function processPDF(file) {
+    const targetWidth = parseInt(document.getElementById('eink-width').value);
+    const targetHeight = parseInt(document.getElementById('eink-height').value);
+    const progressBar = document.getElementById('comic-progress-bar');
+    const progressContainer = document.getElementById('comic-progress');
+
+    progressContainer.classList.remove('hidden');
+    progressBar.style.width = '5%';
+
+    try {
+        logMessage("Loading PDF document into memory...");
+        const arrayBuffer = await file.arrayBuffer();
+        const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
+
+        const pageCount = pdf.numPages;
+        logMessage(`PDF loaded. Found ${pageCount} pages.`);
+
+        const bytesPerRow = Math.ceil(targetWidth / 8);
+        const bytesPerPage = bytesPerRow * targetHeight;
+        const totalSize = 16 + (bytesPerPage * pageCount);
+
+        logMessage(`Allocating KMB binary buffer: ${Math.round(totalSize / 1024)} KB.`);
+        const kmbBuffer = new ArrayBuffer(totalSize);
+        const kmbView = new DataView(kmbBuffer);
+        const kmbBytes = new Uint8Array(kmbBuffer);
+
+        // Write KMB header
+        kmbView.setUint8(0, 'K'.charCodeAt(0));
+        kmbView.setUint8(1, 'M'.charCodeAt(0));
+        kmbView.setUint8(2, 'B'.charCodeAt(0));
+        kmbView.setUint8(3, '1'.charCodeAt(0));
+        kmbView.setUint16(4, 3, true);
+        kmbView.setUint16(6, targetWidth, true);
+        kmbView.setUint16(8, targetHeight, true);
+        kmbView.setUint16(10, pageCount, true);
+        kmbView.setUint32(12, 0, true);
+
+        let offset = 16;
+        const canvas = document.createElement('canvas');
+        canvas.width = targetWidth;
+        canvas.height = targetHeight;
+        const ctx = canvas.getContext('2d', { willReadFrequently: true });
+
+        for (let i = 1; i <= pageCount; i++) {
+            progressBar.style.width = `${10 + (i / pageCount * 80)}%`;
+            logMessage(`Rendering and dithering PDF page ${i}/${pageCount}...`);
+
+            const page = await pdf.getPage(i);
+
+            const viewport = page.getViewport({ scale: 1.0 });
+            const scale = Math.min(targetWidth / viewport.width, targetHeight / viewport.height);
+            const scaledViewport = page.getViewport({ scale: scale });
+
+            ctx.fillStyle = '#FFFFFF';
+            ctx.fillRect(0, 0, targetWidth, targetHeight);
+
+            const xOffset = (targetWidth - scaledViewport.width) / 2;
+            const yOffset = (targetHeight - scaledViewport.height) / 2;
+
+            const renderContext = {
+                canvasContext: ctx,
+                viewport: scaledViewport,
+                transform: [1, 0, 0, 1, xOffset, yOffset]
+            };
+            await page.render(renderContext).promise;
+
+            applyDitheringAndPack(ctx, kmbBytes, offset, targetWidth, targetHeight, bytesPerRow);
+
+            offset += bytesPerPage;
+        }
+
+        progressBar.style.width = '95%';
+        logMessage("PDF Conversion completed. Preparing upload...");
+
+        let rawName = file.name.replace(/\.pdf$/i, '');
+        let safeName = rawName
+            .normalize("NFD").replace(/[\u0300-\u036f]/g, "")
+            .replace(/[^a-zA-Z0-9_\-]/g, "_")
+            + '.kmb';
+
+        const kmbBlob = new Blob([kmbBuffer], { type: 'application/octet-stream' });
+        await uploadKMB(kmbBlob, safeName, progressBar);
+
+    } catch (err) {
+        logMessage("Converter Error: " + err.message, true);
+    }
+}
+
+// Core Rendering & Dithering Engine
+function applyDitheringAndPack(ctx, kmbBytes, offset, width, height, bytesPerRow) {
+    const imageData = ctx.getImageData(0, 0, width, height);
+    const pixels = imageData.data;
+
+    // Step 1: Grayscale conversion
+    for (let i = 0; i < pixels.length; i += 4) {
+        const luma = (pixels[i] * 0.299) + (pixels[i + 1] * 0.587) + (pixels[i + 2] * 0.114);
+        pixels[i] = pixels[i + 1] = pixels[i + 2] = luma;
+    }
+
+    // Step 2: Floyd-Steinberg Dithering & Bit packing
+    for (let py = 0; py < height; py++) {
+        for (let px = 0; px < width; px++) {
+            const pIdx = (py * width + px) * 4;
+            const oldPixel = pixels[pIdx];
+
+            const newPixel = oldPixel < 128 ? 0 : 255;
+            pixels[pIdx] = newPixel;
+
+            const quantError = oldPixel - newPixel;
+
+            if (newPixel === 0) {
+                const byteIdx = offset + (py * bytesPerRow) + Math.floor(px / 8);
+                const bitIdx = 7 - (px % 8);
+                kmbBytes[byteIdx] |= (1 << bitIdx);
+            }
+
+            if (px + 1 < width) pixels[pIdx + 4] += quantError * (7 / 16);
+            if (py + 1 < height) {
+                if (px - 1 >= 0) pixels[pIdx + (width * 4) - 4] += quantError * (3 / 16);
+                pixels[pIdx + (width * 4)] += quantError * (5 / 16);
+                if (px + 1 < width) pixels[pIdx + (width * 4) + 4] += quantError * (1 / 16);
+            }
+        }
+    }
+}
+
+// Upload engine
+function uploadKMB(blob, filename, bar) {
+    return new Promise((resolve, reject) => {
+        const xhr = new XMLHttpRequest();
+        const formData = new FormData();
+        formData.append('file', blob, filename);
+
+        logMessage(`Starting transmission of ${filename} to KomaBon...`);
+
+        xhr.upload.onprogress = e => {
+            if (e.lengthComputable) {
+                const pct = 95 + (e.loaded / e.total * 5);
+                bar.style.width = pct + '%';
+            }
+        };
+
+        xhr.onload = () => {
+            if (xhr.status === 200) {
+                bar.style.width = '100%';
+                logMessage(`Upload completed successfully!`);
+                if (typeof fetchBooks === "function") fetchBooks();
+                resolve();
+            } else {
+                logMessage(`Upload failed. Server status: ${xhr.status}`, true);
+                reject(new Error("Upload failed"));
+            }
+        };
+
+        xhr.onerror = () => {
+            logMessage(`Network error: KomaBon unreachable. (Running locally?)`, true);
+            reject(new Error("Network error"));
+        };
+
+        xhr.open('POST', '/api/books/upload');
+        xhr.send(formData);
+    });
+}

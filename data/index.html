@@ -6,7 +6,8 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>KomaBon OS</title>
     <link rel="stylesheet" href="style.css">
-    <!-- Using system sans-serif to match FreeSans on the e-reader -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
 </head>
 
 <body>
@@ -65,7 +66,8 @@
                             <option value="18">Large</option>
                         </select>
                     </div>
-                    <p class="hint">Applies to the book text. A larger size fits fewer words per page; pages reflow automatically.</p>
+                    <p class="hint">Applies to the book text. A larger size fits fewer words per page; pages reflow
+                        automatically.</p>
                     <div class="setting-row">
                         <label for="font-family">Reading Font</label>
                         <select id="font-family">
@@ -95,10 +97,13 @@
 
                 <div class="card">
                     <h3>Library State</h3>
-                    <p class="hint">Reading positions, book names and manual order. Does not include the .epub files.</p>
+                    <p class="hint">Reading positions, book names and manual order. Does not include the .epub files.
+                    </p>
                     <button class="btn secondary" onclick="exportLibraryState()">Export State</button>
-                    <input type="file" id="import-state-file" accept=".json,application/json" style="display:none" onchange="importLibraryState(this)">
-                    <button class="btn secondary" onclick="document.getElementById('import-state-file').click()">Import State</button>
+                    <input type="file" id="import-state-file" accept=".json,application/json" style="display:none"
+                        onchange="importLibraryState(this)">
+                    <button class="btn secondary" onclick="document.getElementById('import-state-file').click()">Import
+                        State</button>
                     <div id="library-state-status" class="status-msg"></div>
                 </div>
 
@@ -111,6 +116,28 @@
                         <div id="upload-progress-bar" class="progress-bar"></div>
                     </div>
                     <div id="upload-status"></div>
+                </div>
+
+                <div class="card update-card">
+                    <h3>Universal Converter (CBZ/ZIP/PDF/IMG)</h3>
+                    <p class="hint">Convert manga and documents locally in your browser.</p>
+
+                    <div class="setting-row">
+                        <label for="eink-width">Target Width</label>
+                        <input type="number" id="eink-width" value="800" class="input-narrow">
+                        <label for="eink-height">Target Height</label>
+                        <input type="number" id="eink-height" value="600" class="input-narrow">
+                    </div>
+
+                    <input type="file" id="universal-file" accept=".cbz,.zip,.pdf,.jpg,.jpeg,.png,.epub"
+                        style="margin-top: 1rem;" multiple>
+                    <button class="btn primary" onclick="processInputFile()">Convert & Upload</button>
+
+                    <div id="comic-progress" class="progress-container hidden">
+                        <div id="comic-progress-bar" class="progress-bar"></div>
+                    </div>
+                    <div id="comic-status" class="status-msg"></div>
+                    <div id="terminal-log" class="terminal-log hidden"></div>
                 </div>
 
                 <div class="card">
@@ -131,10 +158,12 @@
                         <label for="sleep-timeout">Idle Sleep Timeout (Minutes)</label>
                         <input type="number" id="sleep-timeout" min="0" max="60" value="5" class="input-narrow">
                     </div>
-                    <p class="hint">Set to 0 to disable auto-sleep. Device sleeps after this many minutes of inactivity.</p>
+                    <p class="hint">Set to 0 to disable auto-sleep. Device sleeps after this many minutes of inactivity.
+                    </p>
                     <div class="setting-row stacked spaced">
                         <label for="sleep-message">Sleep Message</label>
-                        <input type="text" id="sleep-message" maxlength="100" placeholder="Press button to wake" class="input-full">
+                        <input type="text" id="sleep-message" maxlength="100" placeholder="Press button to wake"
+                            class="input-full">
                     </div>
                     <p class="hint">Message displayed on screen when device enters sleep mode.</p>
                     <button class="btn secondary" onclick="saveSleepSettings()">Save Sleep Settings</button>
@@ -150,7 +179,8 @@
                             <option value="1">Right (rotate 180°)</option>
                         </select>
                     </div>
-                    <p class="hint">Flips the entire screen 180° so the button sits on your preferred side. Applies immediately.</p>
+                    <p class="hint">Flips the entire screen 180° so the button sits on your preferred side. Applies
+                        immediately.</p>
                     <button class="btn secondary" onclick="saveDisplaySettings()">Apply Orientation</button>
                     <div id="display-settings-status" class="status-msg"></div>
                 </div>
@@ -168,7 +198,8 @@
                         <label for="wifi-pass">Password</label>
                         <input type="password" id="wifi-pass" placeholder="(leave blank if open)" class="input-grow">
                     </div>
-                    <p class="hint">Connect KomaBon to a network, or manage it directly over the KomaBon hotspot when no network is available.</p>
+                    <p class="hint">Connect KomaBon to a network, or manage it directly over the KomaBon hotspot when no
+                        network is available.</p>
                     <div class="btn-row">
                         <button class="btn secondary" onclick="scanWifi()">Scan</button>
                         <button class="btn primary" onclick="connectWifi()">Connect</button>

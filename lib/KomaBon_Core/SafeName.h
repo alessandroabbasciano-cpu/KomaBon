@@ -42,6 +42,6 @@ template <typename S> bool isSafeBookName(const S& name) {
     // A lone "." is not a file.
     if (n == 1 && name[0] == '.') return false;
 
-    // Allow-list of extensions this device stores on EbookFS.
-    return hasExtensionCI(name, ".epub") || hasExtensionCI(name, ".ttf");
+    // Allow-list of extensions this device stores on EbookFS (updated to include .kmb).
+    return hasExtensionCI(name, ".epub") || hasExtensionCI(name, ".ttf") || hasExtensionCI(name, ".kmb");
 }
