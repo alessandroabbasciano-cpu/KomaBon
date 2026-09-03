@@ -826,6 +826,21 @@ std::vector<ContentNode> EpubLoader::getChapterContentRich(int index) {
 
 uint8_t* EpubLoader::getFileData(String path, size_t* outSize) {
     String fullPath = rootDir + path;
+
+    while (fullPath.indexOf("../") != -1) {
+        int dotdot = fullPath.indexOf("../");
+        if (dotdot == 0) {
+            fullPath = fullPath.substring(3);
+        } else {
+            int prevSlash = fullPath.lastIndexOf('/', dotdot - 2);
+            if (prevSlash == -1) {
+                fullPath = fullPath.substring(dotdot + 3);
+            } else {
+                fullPath = fullPath.substring(0, prevSlash + 1) + fullPath.substring(dotdot + 3);
+            }
+        }
+    }
+
     if (fullPath.startsWith("./")) fullPath = fullPath.substring(2);
     return getFontData(fullPath, outSize);
 }
