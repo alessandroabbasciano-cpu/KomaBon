@@ -414,66 +414,95 @@ RenderResult TextRenderer::renderRichPageDynamic(KomaBonDisplay& display,
                 y += 10;
             }
         } else if (node.type == CONTENT_IMAGE) {
-            int imgHeight = 200;
-
-            if (y + 50 > maxY) {
-                result.pageFull = true;
-                result.nextNodeIndex = currentNode;
-                result.nextCharOffset = 0;
-                _cachedResult = result;
-                _hasCachedResult = true;
-                return result;
-            }
-
-            if (draw && _epubLoader) {
+            if (_epubLoader) {
                 size_t imgSize = 0;
                 uint8_t* imgData = _epubLoader->getFileData(node.imageNode.imagePath, &imgSize);
 
                 if (imgData) {
-                    // NEW: Allocate this massive object on the HEAP, not the STACK!
                     JPEGDEC* jpeg = new JPEGDEC();
 
                     if (jpeg->openRAM(imgData, imgSize, drawJpegCallback)) {
+                        int imgW = jpeg->getWidth();
+                        int imgH = jpeg->getHeight();
+
+                        // If the image is tall (>30% of screen) and we are not at the top
+                        // of the page (y > 50), force a page break to give it a full page.
+                        if (imgH > (_height * 0.3) && y > 50) {
+                            jpeg->close();
+                            delete jpeg;
+                            free(imgData);
+
+                            result.pageFull = true;
+                            result.nextNodeIndex = currentNode;
+                            result.nextCharOffset = 0;
+                            _cachedResult = result;
+                            _hasCachedResult = true;
+                            return result;
+                        }
+
+                        int availableH = maxY - y;
                         jpeg->setPixelType(ONE_BIT_DITHERED);
 
                         int scale = 0;
-                        if (jpeg->getWidth() > _width || jpeg->getHeight() > (maxY - y)) {
-                            if (jpeg->getWidth() / 2 <= _width && jpeg->getHeight() / 2 <= (maxY - y))
+                        if (imgW > _width || imgH > availableH) {
+                            if (imgW / 2 <= _width && imgH / 2 <= availableH)
                                 scale = JPEG_SCALE_HALF;
-                            else if (jpeg->getWidth() / 4 <= _width && jpeg->getHeight() / 4 <= (maxY - y))
+                            else if (imgW / 4 <= _width && imgH / 4 <= availableH)
                                 scale = JPEG_SCALE_QUARTER;
                             else
                                 scale = JPEG_SCALE_EIGHTH;
                         }
 
-                        int ditherBufferSize = jpeg->getWidth() * 16;
+                        int actualW = imgW >> scale;
+                        int actualH = imgH >> scale;
+
+                        // Safety check: if even after scaling it doesn't fit, push to next page
+                        if (actualH > availableH && y > 50) {
+                            jpeg->close();
+                            delete jpeg;
+                            free(imgData);
+
+                            result.pageFull = true;
+                            result.nextNodeIndex = currentNode;
+                            result.nextCharOffset = 0;
+                            _cachedResult = result;
+                            _hasCachedResult = true;
+                            return result;
+                        }
+
+                        int ditherBufferSize = imgW * 16;
                         uint8_t* ditherBuffer = (uint8_t*)ps_malloc(ditherBufferSize);
                         if (!ditherBuffer) ditherBuffer = (uint8_t*)malloc(ditherBufferSize);
 
                         if (ditherBuffer) {
                             g_jpegDisplay = &display;
-                            g_jpegX = (_width - (jpeg->getWidth() >> scale)) / 2;
+                            g_jpegX = (_width - actualW) / 2;
                             if (g_jpegX < 0) g_jpegX = 0;
                             g_jpegY = y;
 
-                            jpeg->decodeDither(ditherBuffer, scale);
-                            imgHeight = (jpeg->getHeight() >> scale);
+                            // Only perform decoding and drawing if we are in drawing mode
+                            if (draw) {
+                                jpeg->decodeDither(ditherBuffer, scale);
+                            }
                             free(ditherBuffer);
                         }
+
+                        y += actualH + 20; // Advance Y cursor by image height + margin
                         jpeg->close();
                     } else {
-                        display.setCursor(currentX, y + 20);
-                        display.print("[PNG/Unsupported Image]");
-                        imgHeight = 40;
+                        if (draw) {
+                            display.setCursor(currentX, y + 20);
+                            display.print("[Unsupported Image]");
+                        }
+                        y += 40;
                     }
 
-                    // NEW: Free the heap memory to prevent memory leaks
                     delete jpeg;
                     free(imgData);
+                } else {
+                    y += 40; // Margin for missing image file
                 }
             }
-
-            y += imgHeight + 20;
             currentX = x_margin;
         }
 

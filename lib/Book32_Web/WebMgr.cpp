@@ -671,7 +671,7 @@ void WebMgr::setupEndpoints() {
             File file = root.openNextFile();
             while (file) {
                 String name = file.name();
-                if (hasExtensionCI(name, ".epub"))
+                if (hasExtensionCI(name, ".epub") || hasExtensionCI(name, ".kmb"))
                     epubs.push_back(name);
                 else if (hasExtensionCI(name, ".ttf"))
                     fonts.push_back(name);
@@ -883,19 +883,20 @@ void WebMgr::setupEndpoints() {
                 g_uploadState.status = UploadStatus::Ok;
             }
 
-            // Chunks de um pedido que não é o dono são descartados sem tocar
-            // no ficheiro. Um chunk depois de um erro também: nada foi aberto.
             if (g_uploadState.owner != request) return;
             if (g_uploadState.status != UploadStatus::Ok) return;
 
             if (g_uploadState.file && len) {
                 if (g_uploadState.file.write(data, len) != len) {
-                    Serial.println("Upload: write failed (disco cheio?)");
+                    Serial.println("Upload: write failed");
                     g_uploadState.file.close();
                     EbookFS.remove(g_uploadState.tempPath);
                     g_uploadState.status = UploadStatus::WriteFailed;
                     return;
                 }
+
+                vTaskDelay(pdMS_TO_TICKS(1));
+                yield();
             }
 
             if (final && g_uploadState.file) {

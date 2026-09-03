@@ -143,7 +143,7 @@ class EpubLoader {
     String readFileFromZip(const char* path);
 
     // Rich content parsing
-    std::vector<ContentNode> parseHtmlToRichContent(const String& html);
+    std::vector<ContentNode> parseHtmlToRichContent(const String& html, const String& chapterDir = "");
     Table parseTable(const String& tableHtml);
     TextStyle getStyleFromTag(String tag);
     TextAlign getAlignFromStyle(String styleAttr);

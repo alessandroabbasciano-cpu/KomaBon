@@ -573,7 +573,7 @@ static void decodeHtmlEntities(String& text) {
     text = out;
 }
 
-std::vector<ContentNode> EpubLoader::parseHtmlToRichContent(const String& html) {
+std::vector<ContentNode> EpubLoader::parseHtmlToRichContent(const String& html, const String& chapterDir) {
     std::vector<ContentNode> nodes;
     std::vector<TextStyle> styleStack;
     styleStack.push_back(STYLE_NORMAL);
@@ -680,23 +680,22 @@ std::vector<ContentNode> EpubLoader::parseHtmlToRichContent(const String& html) 
                     continue;
                 }
             } else if (tag == "script" || tag == "style" || tag == "head" || tag == "figure" ||
-                       tag == "svg" || tag == "figcaption") {
+                       tag == "figcaption" || tag == "title" || tag == "desc") {
                 int skipEnd = html.indexOf("</" + tag + ">", i);
                 if (skipEnd != -1) {
                     i = skipEnd + tag.length() + 3;
                     continue;
                 }
-            }
-            // Skip self-closing image tags
-            // Intercept image tags instead of skipping
-            else if (tag == "img" || tag == "image") {
+            } else if (tag == "img" || tag == "image") {
                 String src = extractAttribute(fullTag, tag, "src");
                 if (src.length() == 0) {
-                    src = extractAttribute(fullTag, tag, "href"); // Fallback for SVG <image>
+                    src = extractAttribute(fullTag, tag, "href");
+                }
+                if (src.length() == 0) {
+                    src = extractAttribute(fullTag, tag, "xlink:href");
                 }
 
                 if (src.length() > 0) {
-                    // Flush any pending text before inserting the image
                     if (currentText.length() > 0) {
                         ContentNode textNodeObj;
                         textNodeObj.type = CONTENT_TEXT;
@@ -713,10 +712,9 @@ std::vector<ContentNode> EpubLoader::parseHtmlToRichContent(const String& html) 
                         currentIndent = 0;
                     }
 
-                    // Create and push the image node
                     ContentNode imgNode;
                     imgNode.type = CONTENT_IMAGE;
-                    imgNode.imageNode.imagePath = src;
+                    imgNode.imageNode.imagePath = chapterDir + src;
 
                     String wAttr = extractAttribute(fullTag, tag, "width");
                     String hAttr = extractAttribute(fullTag, tag, "height");
@@ -724,8 +722,6 @@ std::vector<ContentNode> EpubLoader::parseHtmlToRichContent(const String& html) 
                     imgNode.imageNode.height = (hAttr.length() > 0) ? hAttr.toInt() : 0;
 
                     nodes.push_back(imgNode);
-
-                    // Force the next element to start a new block
                     nextIsBlockStart = true;
                 }
             }
@@ -820,7 +816,12 @@ std::vector<ContentNode> EpubLoader::getChapterContentRich(int index) {
     String fullPath = rootDir + href;
     if (fullPath.startsWith("./")) fullPath = fullPath.substring(2);
     String content = readFileFromZip(fullPath.c_str());
-    return parseHtmlToRichContent(content);
+
+    String chapterDir = "";
+    int slash = href.lastIndexOf('/');
+    if (slash != -1) chapterDir = href.substring(0, slash + 1);
+
+    return parseHtmlToRichContent(content, chapterDir);
 }
 
 uint8_t* EpubLoader::getFileData(String path, size_t* outSize) {

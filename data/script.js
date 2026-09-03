@@ -166,6 +166,7 @@ async function performUpdate() {
 // v1.2.2: case-insensitive extension checks (match firmware behavior)
 const isEpub = f => f.toLowerCase().endsWith('.epub');
 const isFont = f => f.toLowerCase().endsWith('.ttf');
+const isKmb = f => f.toLowerCase().endsWith('.kmb');
 
 let currentBooks = [];          // Server-provided order (books + fonts)
 let saveOrderTimer = null;      // Debounce: avoid hammering flash on rapid clicks
@@ -191,16 +192,18 @@ function renderBooks() {
         bookList.innerHTML = '<p class="hint">No books uploaded yet.</p>';
         return;
     }
+
+    // We keep this filter to ensure reordering only applies to EPUBs
     const epubs = currentBooks.filter(b => isEpub(b.filename));
-    // Filenames and titles come from uploaded EPUBs. Interpolating them into
-    // an onclick attribute broke the handler on the first title with a single quote
-    // and allowed a maliciously crafted name to execute code on this page; 
-    // now they travel in data-* (with attribute escaping) and clicks are handled via delegation.
+
     bookList.innerHTML = currentBooks.map(book => {
         const bookIsFont = isFont(book.filename);
+        const bookIsKmb = isKmb(book.filename);
         const nameAttr = escapeAttr(book.filename);
+
         let orderBtns = '';
-        if (!bookIsFont && epubs.length > 1) {
+        // Reordering is only enabled for EPUBs to prevent backend mismatch
+        if (isEpub(book.filename) && epubs.length > 1) {
             const idx = epubs.indexOf(book);
             orderBtns = `
                 <span class="order-btns">
@@ -208,14 +211,21 @@ function renderBooks() {
                     <button class="btn-order" ${idx === epubs.length - 1 ? 'disabled' : ''} data-action="move" data-dir="1" data-filename="${nameAttr}" title="Move down">▼</button>
                 </span>`;
         }
+
+        // Assign visual icons based on file type
+        let displayIcon = '📖 ';
+        if (bookIsFont) displayIcon = '📂 [Font] ';
+        if (bookIsKmb) displayIcon = '🖼️ [Comic] ';
+
         return `
         <div class="book-item">
             ${orderBtns}
-            <span class="book-title">${bookIsFont ? '📂 [Font] ' : '📖 '}${escapeHtml(book.name)}</span>
+            <span class="book-title">${displayIcon}${escapeHtml(book.name)}</span>
             <span class="book-size">${Math.round(book.size / 1024)} KB</span>
             <button class="btn-delete" data-action="delete" data-filename="${nameAttr}" data-name="${escapeAttr(book.name)}">Delete</button>
         </div>
     `}).join('');
+
     bindBookListActions();
 }
 
@@ -789,10 +799,8 @@ async function processInputFile() {
             await processArchive(file);
         } else if (ext === 'pdf') {
             await processPDF(file);
-        } else if (ext === 'epub') {
-            logMessage("EPUB processing logic pending implementation.", true);
-        } else if (['jpg', 'jpeg', 'png'].includes(ext)) {
-            logMessage("Single image processing logic pending implementation.", true);
+        } else if (ext === 'epub' || ext === 'odt' || ext === 'rtf') {
+            await processTextDocument(file, ext);
         } else {
             logMessage(`Unsupported extension: ${ext}`, true);
         }
@@ -801,96 +809,134 @@ async function processInputFile() {
     }
 }
 
-// CBZ/ZIP Parser
-async function processArchive(file) {
+// Text document processor routing
+async function processTextDocument(file, ext) {
+    if (ext === 'epub') {
+        await optimizeEPUB(file);
+    } else {
+        logMessage(`Conversion from ${ext.toUpperCase()} to EPUB pending implementation.`, true);
+    }
+}
+
+// EPUB Optimizer: preserves XML/HTML for text reflow, resizes and dithers images
+async function optimizeEPUB(file) {
     const targetWidth = parseInt(document.getElementById('eink-width').value);
     const targetHeight = parseInt(document.getElementById('eink-height').value);
     const progressBar = document.getElementById('comic-progress-bar');
     const progressContainer = document.getElementById('comic-progress');
 
     progressContainer.classList.remove('hidden');
-    progressBar.style.width = '2%';
+    progressBar.style.width = '5%';
+
+    logMessage(`Optimizing EPUB images: ${file.name}...`);
 
     try {
-        logMessage("Unzipping archive in memory...");
         const zip = await JSZip.loadAsync(file);
+        
+        // Find all image files within the EPUB container
+        const imageFiles = Object.keys(zip.files).filter(name => 
+            name.match(/\.(jpg|jpeg|png|gif|webp)$/i)
+        );
 
-        const imgFiles = Object.keys(zip.files).filter(name =>
-            name.match(/\.(jpg|jpeg|png)$/i) && !name.startsWith('__MACOSX')
-        ).sort((a, b) => a.localeCompare(b, undefined, { numeric: true }));
+        logMessage(`Found ${imageFiles.length} images. Processing...`);
 
-        if (imgFiles.length === 0) {
-            throw new Error("No JPG/PNG images found in the archive.");
-        }
-
-        const pageCount = imgFiles.length;
-        logMessage(`Found ${pageCount} pages. Starting conversion...`);
-
-        const bytesPerRow = Math.ceil(targetWidth / 8);
-        const bytesPerPage = bytesPerRow * targetHeight;
-        const totalSize = 16 + (bytesPerPage * pageCount);
-
-        logMessage(`Allocating KMB binary buffer: ${Math.round(totalSize / 1024)} KB.`);
-        const kmbBuffer = new ArrayBuffer(totalSize);
-        const kmbView = new DataView(kmbBuffer);
-        const kmbBytes = new Uint8Array(kmbBuffer);
-
-        // Write KMB header
-        kmbView.setUint8(0, 'K'.charCodeAt(0));
-        kmbView.setUint8(1, 'M'.charCodeAt(0));
-        kmbView.setUint8(2, 'B'.charCodeAt(0));
-        kmbView.setUint8(3, '1'.charCodeAt(0));
-        kmbView.setUint16(4, 3, true);
-        kmbView.setUint16(6, targetWidth, true);
-        kmbView.setUint16(8, targetHeight, true);
-        kmbView.setUint16(10, pageCount, true);
-        kmbView.setUint32(12, 0, true);
-
-        let offset = 16;
-        const canvas = document.createElement('canvas');
-        canvas.width = targetWidth;
-        canvas.height = targetHeight;
-        const ctx = canvas.getContext('2d', { willReadFrequently: true });
-
-        for (let i = 0; i < pageCount; i++) {
-            progressBar.style.width = `${10 + (i / pageCount * 80)}%`;
-            logMessage(`Processing page ${i + 1}/${pageCount} (${imgFiles[i]})`);
-
-            const imgData = await zip.file(imgFiles[i]).async("blob");
+        let processed = 0;
+        for (let imgPath of imageFiles) {
+            const imgData = await zip.file(imgPath).async("blob");
             const bitmap = await createImageBitmap(imgData);
 
+            // Scale to fit within display limits without upscaling
+            let scale = Math.min(targetWidth / bitmap.width, targetHeight / bitmap.height);
+            if (scale > 1.0) scale = 1.0; 
+
+            const finalWidth = Math.round(bitmap.width * scale);
+            const finalHeight = Math.round(bitmap.height * scale);
+
+            const canvas = document.createElement('canvas');
+            canvas.width = finalWidth;
+            canvas.height = finalHeight;
+            const ctx = canvas.getContext('2d', { willReadFrequently: true });
+            
+            // White background to clear transparent PNG artifacts
             ctx.fillStyle = '#FFFFFF';
-            ctx.fillRect(0, 0, targetWidth, targetHeight);
+            ctx.fillRect(0, 0, finalWidth, finalHeight);
+            ctx.drawImage(bitmap, 0, 0, finalWidth, finalHeight);
 
-            const scale = Math.min(targetWidth / bitmap.width, targetHeight / bitmap.height);
-            const w = bitmap.width * scale;
-            const h = bitmap.height * scale;
-            const x = (targetWidth - w) / 2;
-            const y = (targetHeight - h) / 2;
+            // Extract pixel data for Dithering
+            const imageData = ctx.getImageData(0, 0, finalWidth, finalHeight);
+            const data = imageData.data;
 
-            ctx.drawImage(bitmap, x, y, w, h);
+            // Step 1: Grayscale conversion
+            for (let i = 0; i < data.length; i += 4) {
+                const luma = (data[i] * 0.299) + (data[i + 1] * 0.587) + (data[i + 2] * 0.114);
+                data[i] = data[i+1] = data[i+2] = luma;
+            }
 
-            applyDitheringAndPack(ctx, kmbBytes, offset, targetWidth, targetHeight, bytesPerRow);
+            // Step 2: Floyd-Steinberg Dithering for 1-bit E-ink
+            for (let py = 0; py < finalHeight; py++) {
+                for (let px = 0; px < finalWidth; px++) {
+                    const pIdx = (py * finalWidth + px) * 4;
+                    const oldPixel = data[pIdx];
+                    
+                    const newPixel = oldPixel < 128 ? 0 : 255;
+                    data[pIdx] = data[pIdx + 1] = data[pIdx + 2] = newPixel;
+                    
+                    const quantError = oldPixel - newPixel;
 
-            offset += bytesPerPage;
+                    if (px + 1 < finalWidth) {
+                        data[pIdx + 4] += quantError * (7 / 16);
+                        data[pIdx + 5] += quantError * (7 / 16);
+                        data[pIdx + 6] += quantError * (7 / 16);
+                    }
+                    if (py + 1 < finalHeight) {
+                        if (px - 1 >= 0) {
+                            data[pIdx + (finalWidth * 4) - 4] += quantError * (3 / 16);
+                            data[pIdx + (finalWidth * 4) - 3] += quantError * (3 / 16);
+                            data[pIdx + (finalWidth * 4) - 2] += quantError * (3 / 16);
+                        }
+                        data[pIdx + (finalWidth * 4)] += quantError * (5 / 16);
+                        data[pIdx + (finalWidth * 4) + 1] += quantError * (5 / 16);
+                        data[pIdx + (finalWidth * 4) + 2] += quantError * (5 / 16);
+                        if (px + 1 < finalWidth) {
+                            data[pIdx + (finalWidth * 4) + 4] += quantError * (1 / 16);
+                            data[pIdx + (finalWidth * 4) + 5] += quantError * (1 / 16);
+                            data[pIdx + (finalWidth * 4) + 6] += quantError * (1 / 16);
+                        }
+                    }
+                }
+            }
+            ctx.putImageData(imageData, 0, 0);
+
+            // Compress back to high-quality JPEG to preserve dithering artifacts
+            const newImgBlob = await new Promise(resolve => canvas.toBlob(resolve, 'image/jpeg', 1.0));
+            zip.file(imgPath, newImgBlob);
+            
             bitmap.close();
+            processed++;
+            progressBar.style.width = `${5 + (processed / imageFiles.length * 80)}%`;
         }
 
+        logMessage(`Repackaging optimized EPUB...`);
+        const newEpubBlob = await zip.generateAsync({ 
+            type: "blob", 
+            compression: "DEFLATE", 
+            compressionOptions: { level: 6 } 
+        });
+
         progressBar.style.width = '95%';
-        logMessage("Conversion completed. Preparing upload...");
+        logMessage(`Uploading to KomaBon...`);
 
-        let rawName = file.name.replace(/\.(zip|cbz|pdf)$/i, '');
-
+        // Force strictly .epub extension
+        let rawName = file.name.replace(/\.epub$/i, '');
         let safeName = rawName
             .normalize("NFD").replace(/[\u0300-\u036f]/g, "")
             .replace(/[^a-zA-Z0-9_\-]/g, "_")
-            + '.kmb';
+            + '.epub';
 
-        const kmbBlob = new Blob([kmbBuffer], { type: 'application/octet-stream' });
-        await uploadKMB(kmbBlob, safeName, progressBar);
+        await uploadKMB(newEpubBlob, safeName, progressBar);
 
     } catch (err) {
-        logMessage("Converter Error: " + err.message, true);
+        logMessage("EPUB Processing Error: " + err.message, true);
     }
 }
 
@@ -944,9 +990,17 @@ async function processPDF(file) {
 
             const page = await pdf.getPage(i);
 
-            const viewport = page.getViewport({ scale: 1.0 });
-            const scale = Math.min(targetWidth / viewport.width, targetHeight / viewport.height);
-            const scaledViewport = page.getViewport({ scale: scale });
+            let baseViewport = page.getViewport({ scale: 1.0 });
+            let pageRotation = baseViewport.rotation;
+
+            if (baseViewport.width > baseViewport.height) {
+                pageRotation = (pageRotation + 270) % 360;
+            }
+
+            let rotatedViewport = page.getViewport({ scale: 1.0, rotation: pageRotation });
+            const scale = Math.min(targetWidth / rotatedViewport.width, targetHeight / rotatedViewport.height);
+
+            const scaledViewport = page.getViewport({ scale: scale, rotation: pageRotation });
 
             ctx.fillStyle = '#FFFFFF';
             ctx.fillRect(0, 0, targetWidth, targetHeight);
@@ -959,6 +1013,7 @@ async function processPDF(file) {
                 viewport: scaledViewport,
                 transform: [1, 0, 0, 1, xOffset, yOffset]
             };
+
             await page.render(renderContext).promise;
 
             applyDitheringAndPack(ctx, kmbBytes, offset, targetWidth, targetHeight, bytesPerRow);
