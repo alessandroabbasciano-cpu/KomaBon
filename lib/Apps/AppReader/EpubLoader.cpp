@@ -281,19 +281,36 @@ uint8_t* EpubLoader::getFontData(String path, size_t* outSize) {
     if (path.length() == 0) return nullptr;
     if (zip->locateFile(path.c_str()) != 0) return nullptr;
     if (zip->openCurrentFile() != 0) return nullptr;
+
     unz_file_info fileInfo;
     char szName[256];
     zip->getFileInfo(&fileInfo, szName, sizeof(szName), NULL, 0, NULL, 0);
     size_t size = fileInfo.uncompressed_size;
-    uint8_t* buffer = (uint8_t*)ps_malloc(size);
-    if (!buffer) buffer = (uint8_t*)malloc(size);
+
+    // Safety check against zero-size data descriptors
+    if (size == 0) {
+        zip->closeCurrentFile();
+        return nullptr;
+    }
+
+    // --- MASSIVE PADDING FIX ---
+    // Allocate 512 extra bytes to fully absorb any DEFLATE block overshoots
+    // from custom zip implementations (like JSZip).
+    size_t allocSize = size + 512;
+    uint8_t* buffer = (uint8_t*)ps_malloc(allocSize);
+    if (!buffer) buffer = (uint8_t*)malloc(allocSize);
     if (!buffer) {
         zip->closeCurrentFile();
         return nullptr;
     }
+
+    // Zero out the entire buffer to prevent garbage parsing and stabilize the heap
+    memset(buffer, 0, allocSize);
+
     zip->readCurrentFile(buffer, size);
     zip->closeCurrentFile();
-    *outSize = size;
+
+    *outSize = size; // Return exact original size for the JPEG decoder
     return buffer;
 }
 

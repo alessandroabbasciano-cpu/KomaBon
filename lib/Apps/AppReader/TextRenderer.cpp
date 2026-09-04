@@ -9,12 +9,17 @@ static int g_jpegY = 0;
 static int drawJpegCallback(JPEGDRAW* pDraw) {
     if (!g_jpegDisplay) return 0;
 
-    int bytesPerRow = pDraw->iWidth / 8;
-    uint8_t* invertedPixels = (uint8_t*)malloc(bytesPerRow * pDraw->iHeight);
-    if (!invertedPixels) return 0;
+    // FIX: Properly calculate bytes per row for 1-bit packed image data.
+    // Adds +7 before dividing to round up, preventing severe buffer underruns.
+    int bytesPerRow = (pDraw->iWidth + 7) / 8;
+    int bufferSize = bytesPerRow * pDraw->iHeight;
+
+    uint8_t* invertedPixels = (uint8_t*)malloc(bufferSize);
+    // Return 1 instead of 0 to allow decoder to safely continue even if memory fails
+    if (!invertedPixels) return 1;
 
     uint8_t* src = (uint8_t*)pDraw->pPixels;
-    for (int i = 0; i < bytesPerRow * pDraw->iHeight; i++) {
+    for (int i = 0; i < bufferSize; i++) {
         invertedPixels[i] = ~src[i];
     }
 
@@ -470,7 +475,10 @@ RenderResult TextRenderer::renderRichPageDynamic(KomaBonDisplay& display,
                             return result;
                         }
 
-                        int ditherBufferSize = imgW * 16;
+                        // --- FIX BUFFER OVERFLOW IN DITHERING ---
+                        int alignedW = (imgW + 15) & ~15;
+                        int ditherBufferSize = alignedW * 16;
+
                         uint8_t* ditherBuffer = (uint8_t*)ps_malloc(ditherBufferSize);
                         if (!ditherBuffer) ditherBuffer = (uint8_t*)malloc(ditherBufferSize);
 
