@@ -429,9 +429,7 @@ RenderResult TextRenderer::renderRichPageDynamic(KomaBonDisplay& display,
                     if (jpeg->openRAM(imgData, imgSize, drawJpegCallback)) {
                         int imgW = jpeg->getWidth();
                         int imgH = jpeg->getHeight();
-
-                        // If the image is tall (>30% of screen) and we are not at the top
-                        // of the page (y > 50), force a page break to give it a full page.
+                        // Force a page break if the image is tall (>30% of screen height)
                         if (imgH > (_height * 0.3) && y > 50) {
                             jpeg->close();
                             delete jpeg;
@@ -446,6 +444,7 @@ RenderResult TextRenderer::renderRichPageDynamic(KomaBonDisplay& display,
                         }
 
                         int availableH = maxY - y;
+                        // Keep high-quality dithering active for native EPUBs
                         jpeg->setPixelType(ONE_BIT_DITHERED);
 
                         int scale = 0;
@@ -461,7 +460,6 @@ RenderResult TextRenderer::renderRichPageDynamic(KomaBonDisplay& display,
                         int actualW = imgW >> scale;
                         int actualH = imgH >> scale;
 
-                        // Safety check: if even after scaling it doesn't fit, push to next page
                         if (actualH > availableH && y > 50) {
                             jpeg->close();
                             delete jpeg;
@@ -474,9 +472,11 @@ RenderResult TextRenderer::renderRichPageDynamic(KomaBonDisplay& display,
                             _hasCachedResult = true;
                             return result;
                         }
-
-                        // --- FIX BUFFER OVERFLOW IN DITHERING ---
-                        int alignedW = (imgW + 15) & ~15;
+                        // --- FIX CORRUPT HEAP (BAD TAIL) ---
+                        // JPEGDEC works in 16x16 MCU blocks. We must align the buffer width
+                        // to the next multiple of 16 to prevent the decoder from writing
+                        // out of bounds and destroying the heap guard.
+                        int alignedW = (actualW + 15) & ~15;
                         int ditherBufferSize = alignedW * 16;
 
                         uint8_t* ditherBuffer = (uint8_t*)ps_malloc(ditherBufferSize);
@@ -488,14 +488,13 @@ RenderResult TextRenderer::renderRichPageDynamic(KomaBonDisplay& display,
                             if (g_jpegX < 0) g_jpegX = 0;
                             g_jpegY = y;
 
-                            // Only perform decoding and drawing if we are in drawing mode
                             if (draw) {
                                 jpeg->decodeDither(ditherBuffer, scale);
                             }
                             free(ditherBuffer);
                         }
 
-                        y += actualH + 20; // Advance Y cursor by image height + margin
+                        y += actualH + 20;
                         jpeg->close();
                     } else {
                         if (draw) {
@@ -508,12 +507,11 @@ RenderResult TextRenderer::renderRichPageDynamic(KomaBonDisplay& display,
                     delete jpeg;
                     free(imgData);
                 } else {
-                    y += 40; // Margin for missing image file
+                    y += 40;
                 }
             }
             currentX = x_margin;
         }
-
         currentNode++;
         currentOffset = 0;
         result.nodesConsumed++;

@@ -24,14 +24,14 @@ function showTab(tabId) {
     document.querySelectorAll('.nav-links li').forEach(el => el.classList.remove('active'));
 
     document.getElementById(tabId).classList.add('active');
-    const navItems = ['dashboard', 'ereader', 'settings'];
+
+    const navItems = ['library', 'settings'];
     document.querySelectorAll('.nav-links li')[navItems.indexOf(tabId)].classList.add('active');
 
-    // Load contextual data when entering specific tabs
-    if (tabId === 'ereader') {
+    if (tabId === 'library') {
         if (typeof fetchBooks === 'function') fetchBooks();
-        getReaderProgress();
     } else if (tabId === 'settings') {
+        getReaderProgress();
         getWifiStatus();
         getDisplaySettings();
     }
@@ -54,7 +54,8 @@ async function fetchStatus() {
     try {
         const res = await fetch('/api/status');
         const data = await res.json();
-        document.getElementById('battery-val').innerText = data.battery + '%' + (data.charging ? ' (Charging)' : '');
+
+        document.getElementById('battery-val').innerText = data.battery + '%' + (data.charging ? ' ⚡' : '');
         document.getElementById('uptime-val').innerText = data.uptime;
 
         if (data.version) {
@@ -62,14 +63,14 @@ async function fetchStatus() {
             document.getElementById('version-display').innerText = data.version;
         }
 
-        const freeKB = Math.round(data.freeSpace / 1024);
-        const totalKB = Math.round(data.totalSpace / 1024);
-        document.getElementById('freespace-val').innerText = freeKB + ' / ' + totalKB + ' KB';
+        // Convert KB to MB for a cleaner UI
+        const freeMB = (data.freeSpace / (1024 * 1024)).toFixed(1);
+        const totalMB = (data.totalSpace / (1024 * 1024)).toFixed(1);
+        document.getElementById('freespace-val').innerText = freeMB + ' / ' + totalMB + ' MB';
 
         let voltageText = data.voltage.toFixed(2) + 'V';
         if (data.charging) {
-            voltageText += ' ⚡';
-            document.getElementById('header-voltage').style.color = '#00ff00';
+            document.getElementById('header-voltage').style.color = 'var(--success)';
         } else {
             document.getElementById('header-voltage').style.color = '';
         }

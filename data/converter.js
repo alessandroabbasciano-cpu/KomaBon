@@ -24,40 +24,95 @@ function logMessage(msg, isError = false) {
     terminal.scrollTop = terminal.scrollHeight;
 }
 
-// Router for Universal Converter inputs
-async function processInputFile() {
+// --- Drag and Drop Handlers ---
+document.addEventListener('DOMContentLoaded', () => {
+    const setupDropzone = (zoneId, callback) => {
+        const zone = document.getElementById(zoneId);
+        if (!zone) return;
+
+        ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => {
+            zone.addEventListener(eventName, preventDefaults, false);
+        });
+
+        function preventDefaults(e) {
+            e.preventDefault();
+            e.stopPropagation();
+        }
+
+        ['dragenter', 'dragover'].forEach(eventName => {
+            zone.addEventListener(eventName, () => zone.classList.add('dragover'), false);
+        });
+
+        ['dragleave', 'drop'].forEach(eventName => {
+            zone.addEventListener(eventName, () => zone.classList.remove('dragover'), false);
+        });
+
+        zone.addEventListener('drop', (e) => {
+            const files = e.dataTransfer.files;
+            if (files.length > 0) callback(files);
+        }, false);
+    };
+
+    // Bind Universal Converter Dropzone
+    setupDropzone('converter-dropzone', (files) => {
+        processInputFiles(files);
+    });
+
+    // Bind Font Dropzone
+    setupDropzone('font-dropzone', (files) => {
+        const fileInput = document.getElementById('book-file');
+        // Manually assign files to the input element (requires DataTransfer workaround in JS)
+        const dataTransfer = new DataTransfer();
+        for (let i = 0; i < files.length; i++) dataTransfer.items.add(files[i]);
+        fileInput.files = dataTransfer.files;
+        uploadBook();
+    });
+});
+
+// Router for Universal Converter inputs (Batch Processing)
+async function processInputFiles(droppedFiles = null) {
     const fileInput = document.getElementById('universal-file');
     const terminal = document.getElementById('terminal-log');
 
+    // Use dropped files if available, otherwise use clicked input files
+    const fileList = droppedFiles || fileInput.files;
+
     terminal.innerHTML = '';
 
-    if (!fileInput.files.length) {
-        logMessage("Error: Select a file to process.", true);
+    if (!fileList || fileList.length === 0) {
+        logMessage("Error: Select or drop files to process.", true);
         return;
     }
 
-    const file = fileInput.files[0];
-    const ext = file.name.split('.').pop().toLowerCase();
+    // Process files sequentially in a batch loop
+    for (let i = 0; i < fileList.length; i++) {
+        const file = fileList[i];
+        const ext = file.name.split('.').pop().toLowerCase();
 
-    logMessage(`--- Starting processing for: ${file.name} ---`);
+        logMessage(`--- Starting file ${i + 1} of ${fileList.length}: ${file.name} ---`);
 
-    try {
-        if (ext === 'cbz' || ext === 'zip') {
-            await processArchive(file);
-        } else if (ext === 'pdf') {
-            await processPDF(file);
-        } else if (ext === 'epub' || ext === 'odt' || ext === 'rtf') {
-            await processTextDocument(file, ext);
-        } else if (['jpg', 'jpeg', 'png'].includes(ext)) {
-            logMessage("Single image processing logic pending implementation.", true);
-        } else {
-            logMessage(`Unsupported extension: ${ext}`, true);
+        try {
+            if (ext === 'cbz' || ext === 'zip') {
+                await processArchive(file);
+            } else if (ext === 'pdf') {
+                await processPDF(file);
+            } else if (ext === 'epub' || ext === 'odt' || ext === 'rtf') {
+                await processTextDocument(file, ext);
+            } else if (['jpg', 'jpeg', 'png'].includes(ext)) {
+                logMessage("Single image processing logic pending implementation.", true);
+            } else {
+                logMessage(`Unsupported extension: ${ext}`, true);
+            }
+        } catch (err) {
+            logMessage(`Error on ${file.name}: ${err.message}`, true);
         }
-    } catch (err) {
-        logMessage("Converter Error: " + err.message, true);
-    }
-}
 
+        logMessage(`--- Finished ${file.name} ---`);
+    }
+
+    // Clear input after processing
+    fileInput.value = '';
+}
 // Text document routing
 async function processTextDocument(file, ext) {
     if (ext === 'epub') {

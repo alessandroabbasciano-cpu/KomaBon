@@ -283,34 +283,38 @@ uint8_t* EpubLoader::getFontData(String path, size_t* outSize) {
     if (zip->openCurrentFile() != 0) return nullptr;
 
     unz_file_info fileInfo;
-    char szName[256];
-    zip->getFileInfo(&fileInfo, szName, sizeof(szName), NULL, 0, NULL, 0);
+    zip->getFileInfo(&fileInfo, nullptr, 0, NULL, 0, NULL, 0);
     size_t size = fileInfo.uncompressed_size;
 
-    // Safety check against zero-size data descriptors
     if (size == 0) {
         zip->closeCurrentFile();
         return nullptr;
     }
 
-    // --- MASSIVE PADDING FIX ---
-    // Allocate 512 extra bytes to fully absorb any DEFLATE block overshoots
-    // from custom zip implementations (like JSZip).
-    size_t allocSize = size + 512;
-    uint8_t* buffer = (uint8_t*)ps_malloc(allocSize);
-    if (!buffer) buffer = (uint8_t*)malloc(allocSize);
+    // Allocate memory with a small safety margin
+    uint8_t* buffer = (uint8_t*)ps_malloc(size + 32);
+    if (!buffer) buffer = (uint8_t*)malloc(size + 32);
     if (!buffer) {
         zip->closeCurrentFile();
         return nullptr;
     }
 
-    // Zero out the entire buffer to prevent garbage parsing and stabilize the heap
-    memset(buffer, 0, allocSize);
+    memset(buffer, 0, size + 32);
 
-    zip->readCurrentFile(buffer, size);
+    // FIX: Read in chunks to prevent unzipLIB from overshooting the buffer
+    // during a single massive decompression call.
+    size_t totalRead = 0;
+    while (totalRead < size) {
+        int toRead = (size - totalRead > 1024) ? 1024 : (size - totalRead);
+        int bytesRead = zip->readCurrentFile(buffer + totalRead, toRead);
+        if (bytesRead <= 0) break;
+        totalRead += bytesRead;
+        yield(); // Feed the watchdog timer
+    }
+
     zip->closeCurrentFile();
 
-    *outSize = size; // Return exact original size for the JPEG decoder
+    *outSize = totalRead;
     return buffer;
 }
 

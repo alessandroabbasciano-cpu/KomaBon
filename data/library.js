@@ -284,3 +284,17 @@ function importLibraryState(input) {
             status.style.color = 'red';
         });
 }
+// Filter books based on search input
+function filterBooks() {
+    const query = document.getElementById('book-search').value.toLowerCase();
+    const items = document.querySelectorAll('.book-item');
+
+    items.forEach(item => {
+        const title = item.querySelector('.book-title').textContent.toLowerCase();
+        if (title.includes(query)) {
+            item.style.display = 'flex';
+        } else {
+            item.style.display = 'none';
+        }
+    });
+}
