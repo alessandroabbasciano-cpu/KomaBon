@@ -15,14 +15,13 @@ jobs:
     name: Host Tests
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
       - name: Run host tests
         run: |
           set -e
           for t in tools/tests/test_*.cpp; do
             echo "=== $t ==="
-            # Aggiornato il riferimento alla cartella KomaBon_Core
             g++ -std=c++17 -Wall -Werror -I lib/KomaBon_Core "$t" -o "/tmp/$(basename "$t" .cpp)"
             "/tmp/$(basename "$t" .cpp)"
           done
@@ -31,15 +30,15 @@ jobs:
     name: Build Firmware
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
       - name: Set up Python
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v6
         with:
           python-version: '3.11'
 
       - name: Cache PlatformIO
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         with:
           path: |
             ~/.platformio
@@ -59,9 +58,9 @@ jobs:
     name: Web UI Syntax
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v5
         with:
           node-version: '22'
 
@@ -72,7 +71,7 @@ jobs:
     name: Formatting (clang-format)
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
         with:
           fetch-depth: 0
 
