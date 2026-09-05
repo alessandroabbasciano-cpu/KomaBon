@@ -30,7 +30,7 @@ static MenuDirtyRect menuItemRect(int index, int screenW) {
     int row = idx / COLS;
     int x = col * colWidth + (colWidth - ICON_SIZE) / 2;
     int y = START_Y + row * ROW_HEIGHT;
-    return {x - 14, y - 14, ICON_SIZE + 28, ICON_SIZE + 70};
+    return {x - 14, y - 14, ICON_SIZE + 15, ICON_SIZE + 40};
 }
 
 static MenuDirtyRect unionRect(MenuDirtyRect a, MenuDirtyRect b) {
@@ -424,8 +424,7 @@ void AppMainMenu::draw() {
             int y = START_Y + row * ROW_HEIGHT;
 
             if ((int)i == selectedIndex) {
-                // Elegant thick underline indicator positioned exactly between the icon and the text
-                display.fillRect(x, y + ICON_SIZE + 8, ICON_SIZE, 6, GxEPD_BLACK);
+                display.fillRect(x, y + ICON_SIZE + 20, ICON_SIZE, 6, GxEPD_BLACK);
             }
 
             const uint8_t* icon = app->getIconImage();
@@ -438,7 +437,7 @@ void AppMainMenu::draw() {
             const char* name = app->getName();
             int nameWidth = fontMgr.getTextWidth(name, FONT_SIZE_MENU);
             int nameX = x + (ICON_SIZE - nameWidth) / 2;
-            fontMgr.drawText(display, name, nameX, y + ICON_SIZE + 25, FONT_SIZE_MENU, GxEPD_BLACK);
+            fontMgr.drawText(display, name, nameX, y + ICON_SIZE + 15, FONT_SIZE_MENU, GxEPD_BLACK);
         }
 
         // Render Update Icon if available
@@ -452,8 +451,7 @@ void AppMainMenu::draw() {
             int y = START_Y + row * ROW_HEIGHT;
 
             if ((int)i == selectedIndex) {
-                // Elegant thick underline indicator positioned exactly between the icon and the text
-                display.fillRect(x, y + ICON_SIZE + 8, ICON_SIZE, 6, GxEPD_BLACK);
+                display.fillRect(x, y + ICON_SIZE + 20, ICON_SIZE, 6, GxEPD_BLACK);
             }
 
             display.drawBitmap(x, y, icon_update_160x160, ICON_SIZE, ICON_SIZE, GxEPD_BLACK);
@@ -461,7 +459,7 @@ void AppMainMenu::draw() {
             String updateText = "Update " + updateVersion;
             int nameWidth = fontMgr.getTextWidth(updateText.c_str(), FONT_SIZE_MENU);
             int nameX = x + (ICON_SIZE - nameWidth) / 2;
-            fontMgr.drawText(display, updateText.c_str(), nameX, y + ICON_SIZE + 25, FONT_SIZE_MENU,
+            fontMgr.drawText(display, updateText.c_str(), nameX, y + ICON_SIZE + 15, FONT_SIZE_MENU,
                              GxEPD_BLACK);
         }
 
