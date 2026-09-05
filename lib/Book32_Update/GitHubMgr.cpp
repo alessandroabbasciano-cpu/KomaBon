@@ -428,14 +428,12 @@ bool GitHubMgr::performFilesystemUpdate(const char* url, bool restartAfter, int 
 }
 
 void GitHubMgr::triggerUpdate(const char* currentVersion) {
-    Serial.println("Triggering Update Check...");
-    UpdateInfo info = checkUpdate(currentVersion);
-    if (info.available && info.hasFirmware) {
-        Serial.printf("Update Available: %s. Starting firmware download.\n", info.version.c_str());
-        performFirmwareUpdate(info.firmwareUrl.c_str(), true, 1, 1, info.firmwareSha256.c_str(),
-                              info.firmwareEd25519Sig.c_str());
-    } else {
-        Serial.println("No firmware update available.");
+    Serial.println("Triggering Full Update (Firmware + Filesystem)...");
+    
+    bool success = performFullUpdate(currentVersion);
+    
+    if (!success) {
+        Serial.println("Full update process did not complete successfully.");
     }
 }
 
