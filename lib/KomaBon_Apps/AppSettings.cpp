@@ -146,7 +146,13 @@ void AppSettings::cycleValue(int index, bool forward) {
             }
             break;
         case ROW_ROTATION:
-            _display.rotation = (_display.rotation == 3) ? 1 : 3;
+            if (forward) {
+                // Cycle forward: 0 -> 1 -> 2 -> 3 -> 0
+                _display.rotation = (_display.rotation + 1) % 4;
+            } else {
+                // Cycle backward using modulo arithmetic (+3 is equivalent to -1 mod 4)
+                _display.rotation = (_display.rotation + 3) % 4;
+            }
             break;
         case ROW_REFRESH:
             _reader.refreshFrequency = forward ? cycleIntForward(REFRESH_FREQS, 4, _reader.refreshFrequency)

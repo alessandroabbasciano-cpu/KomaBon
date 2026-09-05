@@ -239,9 +239,9 @@ void WebMgr::stop() {
 void WebMgr::update() {
     // Apply a pending display rotation from the main loop (never draw on the
     // async server task). Repaints whatever app is currently on screen.
-    if (_pendingRotation != 0) {
+    if (_pendingRotation != -1) {
         int rot = _pendingRotation;
-        _pendingRotation = 0;
+        _pendingRotation = -1;
         DisplayMgr::getInstance().setRotation(rot);
         App* current = AppMgr::getInstance().getCurrentApp();
         if (current) current->forceRedraw();

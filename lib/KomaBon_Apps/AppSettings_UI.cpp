@@ -42,8 +42,14 @@ String AppSettings::valueForRow(int index) const {
             return String(_reader.fontSize) + " pt";
         case ROW_FONT_FAMILY:
             return String(FONT_FAMILY_NAMES[SettingsStore::clampFontFamily(_reader.fontFamily)]);
-        case ROW_ROTATION:
-            return _display.rotation == 3 ? "Button on left" : "Button on right";
+        case ROW_ROTATION: {
+            // Using "deg" instead of "°" to prevent missing glyph artifacts in FreeSans
+            const char* rotNames[] = {"0 deg", "90 deg", "180 deg", "270 deg"};
+            int rot = _display.rotation;
+            // Safety clamp
+            if (rot < 0 || rot > 3) rot = 3;
+            return String(rotNames[rot]);
+        }
         case ROW_REFRESH:
             return String(_reader.refreshFrequency) + " pages";
         case ROW_SLEEP:
