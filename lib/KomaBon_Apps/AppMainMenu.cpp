@@ -424,8 +424,8 @@ void AppMainMenu::draw() {
             int y = START_Y + row * ROW_HEIGHT;
 
             if ((int)i == selectedIndex) {
-                display.drawRect(x - 8, y - 8, ICON_SIZE + 16, ICON_SIZE + 16, GxEPD_BLACK);
-                display.drawRect(x - 7, y - 7, ICON_SIZE + 14, ICON_SIZE + 14, GxEPD_BLACK);
+                // Elegant thick underline indicator positioned exactly between the icon and the text
+                display.fillRect(x, y + ICON_SIZE + 8, ICON_SIZE, 6, GxEPD_BLACK);
             }
 
             const uint8_t* icon = app->getIconImage();
@@ -452,9 +452,8 @@ void AppMainMenu::draw() {
             int y = START_Y + row * ROW_HEIGHT;
 
             if ((int)i == selectedIndex) {
-                // Selection Box
-                display.drawRect(x - 8, y - 8, ICON_SIZE + 16, ICON_SIZE + 16, GxEPD_BLACK);
-                display.drawRect(x - 7, y - 7, ICON_SIZE + 14, ICON_SIZE + 14, GxEPD_BLACK);
+                // Elegant thick underline indicator positioned exactly between the icon and the text
+                display.fillRect(x, y + ICON_SIZE + 8, ICON_SIZE, 6, GxEPD_BLACK);
             }
 
             display.drawBitmap(x, y, icon_update_160x160, ICON_SIZE, ICON_SIZE, GxEPD_BLACK);
