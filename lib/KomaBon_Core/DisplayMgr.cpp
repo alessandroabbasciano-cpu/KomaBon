@@ -74,20 +74,22 @@ void DisplayMgr::init() {
 }
 
 void DisplayMgr::setRotation(int rotation) {
-    // Constrain to the two portrait orientations so layouts never break.
-    if (rotation != 1 && rotation != 3) rotation = 3;
+    // Allow all 4 orientations. Fallback to default portrait (3) if out of bounds.
+    if (rotation < 0 || rotation > 3) rotation = 3;
+
     bool changed = (rotation != _rotation);
     _rotation = rotation;
     display.setRotation(_rotation);
-    // Only invalidate the boot screen when the orientation actually changes, so
-    // a no-op load at boot doesn't trigger a full refresh mid-sequence. Live
-    // (post-boot) rotation changes repaint via the active app's forceRedraw().
+
+    // Only invalidate the boot screen when the orientation actually changes.
+    // Post-boot rotation changes repaint via the active app's forceRedraw().
     if (changed) _bootScreenActive = false;
+
     Serial.printf("Display rotation set to %d (changed=%d)\n", _rotation, changed);
 }
 
 void DisplayMgr::loadDisplaySettings() {
-    int rotation = 3; // Default: button on the left
+    int rotation = 3;
     if (EbookFS.exists("/display_config.json")) {
         File file = EbookFS.open("/display_config.json", "r");
         if (file) {

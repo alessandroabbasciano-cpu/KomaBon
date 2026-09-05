@@ -23,9 +23,8 @@ class DisplayMgr {
     void fullRefresh();
     void showBootScreen(uint8_t progress, const char* status);
 
-    // Display orientation. Only the two portrait orientations are supported so
-    // that every screen layout (480x800) stays valid: 3 = button on the left
-    // (default), 1 = rotated 180 (button on the right). Applies OS-wide.
+    // Display orientation (0, 1, 2, 3) for full 360-degree support.
+    // Note: for this specific 7.5" panel, 0/2 are landscape and 1/3 are portrait.
     void setRotation(int rotation);
     int getRotation() const {
         return _rotation;

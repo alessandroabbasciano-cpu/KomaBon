@@ -429,9 +429,9 @@ bool GitHubMgr::performFilesystemUpdate(const char* url, bool restartAfter, int 
 
 void GitHubMgr::triggerUpdate(const char* currentVersion) {
     Serial.println("Triggering Full Update (Firmware + Filesystem)...");
-    
+
     bool success = performFullUpdate(currentVersion);
-    
+
     if (!success) {
         Serial.println("Full update process did not complete successfully.");
     }

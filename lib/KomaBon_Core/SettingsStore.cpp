@@ -35,9 +35,10 @@ int SettingsStore::clampFontFamily(int family) {
     return family;
 }
 
-// Only the two portrait orientations keep the 480x800 layouts valid.
+// Allow all 4 orientations (0, 1, 2, 3) for full 360-degree support
 int SettingsStore::clampRotation(int rotation) {
-    return (rotation == 1) ? 1 : 3;
+    if (rotation < 0 || rotation > 3) return 3; // Default to standard portrait (3)
+    return rotation;
 }
 
 int SettingsStore::clampRefreshFrequency(int n) {

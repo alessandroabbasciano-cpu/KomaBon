@@ -26,7 +26,7 @@ struct ReaderSettings {
 };
 
 struct DisplaySettings {
-    int rotation = 3; // 3 = button on the left (default), 1 = rotated 180
+    int rotation = 3; // 0..3 for 360-degree display rotation support
 };
 
 struct SleepSettings {
@@ -53,7 +53,7 @@ class SettingsStore {
     // one while cycling rather than duplicating the allowed sets.
     static int clampFontSize(int pt);       // -> 9, 12 or 18
     static int clampFontFamily(int family); // -> 0..5
-    static int clampRotation(int rotation); // -> 1 or 3
+    static int clampRotation(int rotation); // -> 0..3
     static int clampRefreshFrequency(int n);
     static int clampSleepTimeout(int minutes);
 
