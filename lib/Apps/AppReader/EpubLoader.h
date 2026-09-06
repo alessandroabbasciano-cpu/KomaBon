@@ -98,6 +98,8 @@ class EpubLoader {
     String getChapterContent(int index);                       // Legacy plain text
     std::vector<ContentNode> getChapterContentRich(int index); // Rich formatted content
 
+    uint8_t* getCoverImageData(size_t* outSize); // Fetch cover image bytes
+
     // Font support
     std::vector<FontInfo> getFonts();
     uint8_t* getFontData(String path, size_t* outSize);
@@ -116,7 +118,8 @@ class EpubLoader {
     // Paths
     String epubPath;
     String opfPath;
-    String rootDir; // Directory of the OPF file
+    String rootDir;   // Directory of the OPF file
+    String coverHref; // <-- NEW: Path to the cover image inside the ZIP
 
     // Fonts
     std::vector<FontInfo> fonts;

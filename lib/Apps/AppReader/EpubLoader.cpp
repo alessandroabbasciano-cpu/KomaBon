@@ -88,6 +88,7 @@ void EpubLoader::close() {
     spine.clear();
     manifest.clear();
     fonts.clear();
+    coverHref = "";
 }
 
 String EpubLoader::getTitle() {
@@ -203,6 +204,24 @@ bool EpubLoader::parseOpf() {
     if (xml.length() == 0) return false;
     bookTitle = extractMetadata(xml, "dc:title");
     if (bookTitle.length() == 0) bookTitle = extractMetadata(xml, "title");
+
+    // --- NEW: Find the cover ID for EPUB2 ---
+    String epub2CoverId = "";
+    int metaPos = 0;
+    while (true) {
+        int metaStart = xml.indexOf("<meta ", metaPos);
+        if (metaStart == -1) break;
+        int metaEnd = xml.indexOf(">", metaStart);
+        if (metaEnd == -1) break;
+        String metaTag = xml.substring(metaStart, metaEnd + 1);
+        if (extractAttribute(metaTag, "meta", "name") == "cover") {
+            epub2CoverId = extractAttribute(metaTag, "meta", "content");
+            break;
+        }
+        metaPos = metaEnd + 1;
+    }
+    // ----------------------------------------
+
     int manifestStart = xml.indexOf("<manifest");
     int manifestEnd = xml.indexOf("</manifest>");
     if (manifestStart == -1 || manifestEnd == -1) return false;
@@ -213,20 +232,35 @@ bool EpubLoader::parseOpf() {
         int itemStart = manifestBlock.indexOf("<item", pos);
         if (itemStart == -1) break;
         int itemEnd = manifestBlock.indexOf(">", itemStart);
-        // An '<item' without '>' (truncated or malformed OPF) returned -1 here:
-        // substring(itemStart, 0) swapped the boundaries and, above all, pos became
-        // -1, which caused the next indexOf to read out of bounds and the loop
-        // to never terminate. The file comes from a user EPUB, so it
-        // must fail silently and not crash the reader.
         if (itemEnd == -1) break;
+
         String itemTag = manifestBlock.substring(itemStart, itemEnd + 1);
         String id = extractAttribute(itemTag, "item", "id");
         String href = extractAttribute(itemTag, "item", "href");
         String mediaType = extractAttribute(itemTag, "item", "media-type");
+        String properties = extractAttribute(itemTag, "item", "properties"); // NEW
+
         if (id.length() > 0 && href.length() > 0) {
             manifest[id] = href;
             String hrefLower = href;
             hrefLower.toLowerCase();
+            String idLower = id;
+            idLower.toLowerCase();
+
+            // --- NEW: Identify the cover image ---
+            if (properties.indexOf("cover-image") != -1) {
+                coverHref = href; // EPUB3 standard
+            } else if (epub2CoverId.length() > 0 && id == epub2CoverId) {
+                coverHref = href; // EPUB2 standard
+            } else if (coverHref.length() == 0 &&
+                       (hrefLower.indexOf("cover") != -1 || idLower.indexOf("cover") != -1)) {
+                // Fallback heuristic: file or ID contains "cover"
+                if (hrefLower.endsWith(".jpg") || hrefLower.endsWith(".jpeg") || hrefLower.endsWith(".png")) {
+                    coverHref = href;
+                }
+            }
+            // -------------------------------------
+
             if (hrefLower.endsWith(".ttf") || hrefLower.endsWith(".otf") || mediaType.indexOf("font") != -1) {
                 FontInfo font;
                 font.path = rootDir + href;
@@ -234,11 +268,14 @@ bool EpubLoader::parseOpf() {
                     font.format = "ttf";
                 else if (hrefLower.endsWith(".otf"))
                     font.format = "otf";
-                int lastSlash = href.lastIndexOf('/'), lastDot = href.lastIndexOf('.');
+
+                int lastSlash = href.lastIndexOf('/');
+                int lastDot = href.lastIndexOf('.');
                 if (lastSlash != -1 && lastDot != -1)
                     font.family = href.substring(lastSlash + 1, lastDot);
                 else if (lastDot != -1)
                     font.family = href.substring(0, lastDot);
+
                 String fLower = font.family;
                 fLower.toLowerCase();
                 if (fLower.indexOf("bolditalic") != -1)
@@ -254,6 +291,7 @@ bool EpubLoader::parseOpf() {
         }
         pos = itemEnd + 1;
     }
+
     int spineStart = xml.indexOf("<spine"), spineEnd = xml.indexOf("</spine>");
     if (spineStart == -1 || spineEnd == -1) return false;
     String spineBlock = xml.substring(spineStart, spineEnd);
@@ -262,7 +300,7 @@ bool EpubLoader::parseOpf() {
         int itemRefStart = spineBlock.indexOf("<itemref", pos);
         if (itemRefStart == -1) break;
         int itemRefEnd = spineBlock.indexOf(">", itemRefStart);
-        if (itemRefEnd == -1) break; // Same reason as the manifest loop
+        if (itemRefEnd == -1) break;
         String itemRefTag = spineBlock.substring(itemRefStart, itemRefEnd + 1);
         String idref = extractAttribute(itemRefTag, "itemref", "idref");
         if (idref.length() > 0 && manifest.count(idref)) {
@@ -864,4 +902,9 @@ uint8_t* EpubLoader::getFileData(String path, size_t* outSize) {
 
     if (fullPath.startsWith("./")) fullPath = fullPath.substring(2);
     return getFontData(fullPath, outSize);
+}
+// --- NEW: Method to retrieve the cover image bytes ---
+uint8_t* EpubLoader::getCoverImageData(size_t* outSize) {
+    if (coverHref.length() == 0) return nullptr;
+    return getFileData(coverHref, outSize);
 }

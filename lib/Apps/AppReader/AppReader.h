@@ -4,22 +4,36 @@
 #include "BaseApp.h"
 #include "EpubLoader.h"
 #include "TextRenderer.h"
+#include "KBReader.h"
 #include "../../KomaBon_Core/InputMgr.h"
 #include <vector>
 #include <map>
-#include "KBReader.h"
 
 enum ReaderState { VIEW_LIBRARY, VIEW_READING };
+
+// Utility function to extract the bare filename from a path (handling both / and \)
+inline String normalizedBookName(const String& path) {
+    String name = path;
+    int slash = name.lastIndexOf('/');
+    if (slash >= 0) name = name.substring(slash + 1);
+    slash = name.lastIndexOf('\\');
+    if (slash >= 0) name = name.substring(slash + 1);
+    return name;
+}
 
 struct BookEntry {
     String path;         // Full path to file
     String title;        // Display title
-    String originalName; // v1.8.0: key used by ProgressStore (original filename)
-    bool hasProgress;    // v1.8.0: true when a saved position exists
-    int globalPage;      // v1.8.0: saved page, shown in the library list
-    int totalPages;      // Cached total page count; 0 when not yet known
+    String originalName; // Key used by ProgressStore (original filename)
+    String baseName;     // Base filename without extension for thumbnail caching
+    bool hasProgress;    // True when a saved position exists
+    int globalPage;      // Current saved page, shown in library list
+    int totalPages;      // Cached total page count (0 when unknown)
+    bool hasCoverThumb;  // True if thumbnail already exists on storage
+    bool coverAttempted; // True if the extraction engine already evaluated this book
 
-    BookEntry() : hasProgress(false), globalPage(1), totalPages(0) {}
+    BookEntry()
+        : hasProgress(false), globalPage(1), totalPages(0), hasCoverThumb(false), coverAttempted(false) {}
 };
 
 class AppReader : public App {
@@ -27,20 +41,17 @@ class AppReader : public App {
     AppReader();
     virtual ~AppReader();
 
-    // App Interface
+    // App Interface Lifecycle
     void start() override;
     void stop() override;
-    void update() override; // Main loop: Input handling
-    void draw() override;   // Display handling
+    void update() override;
+    void draw() override;
 
-    // Icon
     const uint8_t* getIconImage() override;
     const char* getName() override {
         return "Bookshelf";
     }
 
-    // The reader page occupies the whole screen: the system battery indicator
-    // would overlay the text. In the library view, there is no conflict.
     bool allowsSystemStatusIndicator() override {
         return _state != VIEW_READING;
     }
@@ -50,56 +61,47 @@ class AppReader : public App {
     void handleInput(InputAction action);
     void forceRedraw() override;
 
-    // Apply a new reading font size (9/12/18pt) live. Safe to call from the
-    // main loop; re-paginates the current page from the saved position.
     void applyFontSize(int pt) override;
-
-    // Apply a new reading font family (see ReaderFontFamily) live. Safe to
-    // call from the main loop; re-paginates the current page.
     void applyFontFamily(int family) override;
 
   private:
     ReaderState _state;
 
-    // Library
+    // Library State and Navigation
     std::vector<BookEntry> _books;
     int _selectedBookIndex;
     bool _booksScanned;
     bool _librarySelectionOnlyRedraw;
     bool _resumeSavedBookOnStart;
     int _previousBookIndex;
-    // Index of the first book drawn in the list. The list only shows as many
-    // items as fit on screen, so moving selection past the visible window
-    // scrolls it (see updateLibraryScroll()).
     int _libraryScrollOffset;
+
     void scanBooks();
     void drawLibrary();
     void updateLibraryScroll();
-    void drawBookTile(KomaBonDisplay& display, int x, int y, int w, int h, bool selected);
+    void drawBookTile(KomaBonDisplay& display, const BookEntry& book, int x, int y, int w, int h,
+                      bool selected);
 
     // Settings
     int _refreshEveryNPages;
     int _pageTurnsSinceRefresh;
-    int _fontSizePt;        // Reading body font size in points (9/12/18)
-    int _fontFamily;        // Reading font family (see ReaderFontFamily)
-    bool _readingFirstDraw; // Forces a full refresh on the next reading draw
+    int _fontSizePt;
+    int _fontFamily;
+    bool _readingFirstDraw;
     void loadSettings();
 
-    // Reading
-    bool _isComicMode;   // NEW: Determines which engine is active
-    KBReader* _kbReader; // NEW: Comic engine instance
+    // Reading Engine
+    bool _isComicMode;
+    KBReader* _kbReader;
     EpubLoader* _epubLoader;
     TextRenderer* _textRenderer;
     String _currentBookPath;
     int _currentChapter;
-    int _globalPageNumber; // Runtime tracking of global page (1-indexed)
+    int _globalPageNumber;
     bool _needsRedraw;
 
-    // Total page count, for the reading footer and the library list. Paginating
-    // a whole book up front would stall opening a large one, so it's counted a
-    // little at a time from update() instead, using a renderer of its own so it
-    // never disturbs the page actually on screen. See startTotalPagesCounting().
-    int _totalPages; // 0 until known for the currently open book
+    // Asynchronous Total Page Counting
+    int _totalPages;
     bool _countingActive;
     TextRenderer* _countRenderer;
     int _countChapter;
@@ -113,20 +115,14 @@ class AppReader : public App {
     // Dynamic Pagination
     std::vector<ContentNode> _currentRichContent;
     PagePointer _currentPagePointer;
-    std::vector<PagePointer> _pageHistory; // Stores start of each page for current chapter
+    std::vector<PagePointer> _pageHistory;
     RenderResult _currentPageRender;
     bool _currentPageRenderValid;
 
     bool openBook(const String& path, bool restoreProgress = true);
     bool openSavedProgress();
-    // v1.8.0: keyed by original filename via ProgressStore, not by path.
     bool loadBookProgress(const String& originalName, int& chapter, PagePointer& pointer, int& globalPage);
 
-    // Marks the current position as dirty (to be saved). The actual writing
-    // to flash happens in flushProgress(), which is called by update() when
-    // the reader is idle and whenever the book is closed (including standby).
-    // Saving on every page turn would rewrite the entire reader_progress.json
-    // hundreds of times per reading session, wearing out the flash memory.
     void saveReadingProgress(bool resumeOnBoot);
     void flushProgress();
     bool _progressDirty = false;
@@ -144,4 +140,4 @@ class AppReader : public App {
     void drawReading();
 };
 
-#endif
+#endif // APP_READER_H
