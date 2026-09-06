@@ -524,10 +524,39 @@ void AppReader::prevPage() {
         _needsRedraw = true;
     } else {
         if (_currentChapter > 0) {
-            if (_globalPageNumber > 1) _globalPageNumber--;
-            _currentPageRenderValid = false;
-            prevChapter();
-            saveReadingProgress(true);
+            int prevChap = _currentChapter - 1;
+
+            while (prevChap >= 0) {
+                if (!_epubLoader->getChapterContentRich(prevChap).empty()) break;
+                prevChap--;
+            }
+
+            if (prevChap >= 0) {
+                if (_globalPageNumber > 1) _globalPageNumber--;
+
+                loadChapter(prevChap);
+                DisplayMgr& dispMgr = DisplayMgr::getInstance();
+                KomaBonDisplay& display = dispMgr.getDisplay();
+
+                while (true) {
+                    RenderResult r = _textRenderer->renderRichPageDynamic(
+                        display, _currentRichContent, _currentPagePointer.nodeIndex,
+                        _currentPagePointer.charOffset, _pageHistory.size(), 0, false);
+
+                    if (r.pageFull) {
+                        _pageHistory.push_back(_currentPagePointer);
+                        _currentPagePointer.nodeIndex = r.nextNodeIndex;
+                        _currentPagePointer.charOffset = r.nextCharOffset;
+                    } else {
+                        break;
+                    }
+                }
+
+                if (_textRenderer) _textRenderer->clearCache();
+                _currentPageRenderValid = false;
+                saveReadingProgress(true);
+                _needsRedraw = true;
+            }
         }
     }
 }

@@ -22,6 +22,7 @@
             <ul class="nav-links">
                 <li class="active" onclick="showTab('library')">Dashboard</li>
                 <li onclick="showTab('settings')">Settings</li>
+                <li onclick="showTab('console')">Console</li>
             </ul>
             <div class="version">v<span id="version-display">1.0</span></div>
         </nav>
@@ -236,6 +237,15 @@
                     </div>
                 </div>
     </div>
+    </section>
+    <!-- Live Console Tab -->
+    <section id="console" class="tab-content">
+        <div class="card converter-card">
+            <h3>Live System Console</h3>
+            <p class="hint">Real-time serial logs from KomaBon via WebSocket.</p>
+            <div id="live-log" class="terminal-log"
+                style="display:block; height:450px; overflow-y:auto; font-family: monospace;"></div>
+        </div>
     </section>
     </main>
     </div>

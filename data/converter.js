@@ -433,7 +433,7 @@ async function optimizeEPUB(file) {
     }
 }
 
-// Convert OpenDocument Text (.odt) to valid standard .epub handling nested sections
+// Convert OpenDocument Text (.odt) to valid standard .epub handling nested sections and images
 async function convertODTtoEPUB(file) {
     const targetWidth = parseInt(document.getElementById('eink-width').value);
     const targetHeight = parseInt(document.getElementById('eink-height').value);
@@ -470,26 +470,30 @@ async function convertODTtoEPUB(file) {
 
         const oebps = epub.folder("OEBPS");
         const textFolder = oebps.folder("Text");
+        const imagesFolder = oebps.folder("Images");
         const stylesFolder = oebps.folder("Styles");
 
         stylesFolder.file("style.css", `
 body { margin: 5%; text-align: justify; font-family: sans-serif; }
 h1, h2, h3 { text-align: center; margin: 1em 0; }
 p { margin: 0.5em 0; text-indent: 1.5em; }
+img { max-width: 100%; height: auto; display: block; margin: 1em auto; }
 `);
 
         const chaptersHtml = [];
+        const manifestImages = [];
         let currentXhtml = "";
         let paragraphCount = 0;
+        let imageCounter = 1;
 
         const bodyNode = xmlDoc.getElementsByTagNameNS("*", "body")[0]?.getElementsByTagNameNS("*", "text")[0];
         if (!bodyNode) throw new Error("Unable to locate document body in ODT.");
 
-        // Recursive tree walker that explores nested sections and tags
-        function extractTextRecursive(node) {
+        // Async recursive tree walker that explores nested sections, headings, paragraphs, and images
+        async function extractTextRecursive(node) {
             if (!node || node.nodeType !== 1) return;
 
-            const name = node.localName ? node.localName.toLowerCase() : "";
+            const name = node.localName ? node.localName.toLowerCase() : node.nodeName.toLowerCase().replace(/^.*:/, '');
 
             if (name === "h") {
                 const level = node.getAttributeNS("*", "outline-level") || node.getAttribute("text:outline-level") || "1";
@@ -506,6 +510,86 @@ p { margin: 0.5em 0; text-indent: 1.5em; }
                     paragraphCount++;
                 }
             } else if (name === "p") {
+                // Extract and dither any images embedded in this paragraph FIRST
+                const drawImages = node.getElementsByTagNameNS("*", "image");
+                for (let i = 0; i < drawImages.length; i++) {
+                    const imgEl = drawImages[i];
+                    const rawHref = imgEl.getAttributeNS("*", "href") || imgEl.getAttribute("xlink:href");
+
+                    if (rawHref && odtZip.file(rawHref)) {
+                        logMessage(`Dithering ODT image: ${rawHref}`);
+                        const imgBlob = await odtZip.file(rawHref).async("blob");
+                        const bitmap = await createImageBitmap(imgBlob);
+
+                        let scale = Math.min(targetWidth / bitmap.width, targetHeight / bitmap.height);
+                        if (scale > 1.0) scale = 1.0;
+
+                        const finalWidth = Math.round(bitmap.width * scale);
+                        const finalHeight = Math.round(bitmap.height * scale);
+
+                        const canvas = document.createElement("canvas");
+                        canvas.width = finalWidth;
+                        canvas.height = finalHeight;
+                        const ctx = canvas.getContext("2d", { willReadFrequently: true });
+
+                        ctx.fillStyle = "#FFFFFF";
+                        ctx.fillRect(0, 0, finalWidth, finalHeight);
+                        ctx.drawImage(bitmap, 0, 0, finalWidth, finalHeight);
+
+                        const imgData = ctx.getImageData(0, 0, finalWidth, finalHeight);
+                        const data = imgData.data;
+
+                        // Floyd-Steinberg Dithering
+                        for (let p = 0; p < data.length; p += 4) {
+                            const luma = (data[p] * 0.299) + (data[p + 1] * 0.587) + (data[p + 2] * 0.114);
+                            data[p] = data[p + 1] = data[p + 2] = luma;
+                        }
+
+                        for (let py = 0; py < finalHeight; py++) {
+                            for (let px = 0; px < finalWidth; px++) {
+                                const pIdx = (py * finalWidth + px) * 4;
+                                const oldPixel = data[pIdx];
+                                const newPixel = oldPixel < 128 ? 0 : 255;
+                                data[pIdx] = data[pIdx + 1] = data[pIdx + 2] = newPixel;
+                                const err = oldPixel - newPixel;
+
+                                if (px + 1 < finalWidth) {
+                                    data[pIdx + 4] += err * (7 / 16);
+                                    data[pIdx + 5] += err * (7 / 16);
+                                    data[pIdx + 6] += err * (7 / 16);
+                                }
+                                if (py + 1 < finalHeight) {
+                                    if (px - 1 >= 0) {
+                                        data[pIdx + (finalWidth * 4) - 4] += err * (3 / 16);
+                                        data[pIdx + (finalWidth * 4) - 3] += err * (3 / 16);
+                                        data[pIdx + (finalWidth * 4) - 2] += err * (3 / 16);
+                                    }
+                                    data[pIdx + (finalWidth * 4)] += err * (5 / 16);
+                                    data[pIdx + (finalWidth * 4) + 1] += err * (5 / 16);
+                                    data[pIdx + (finalWidth * 4) + 2] += err * (5 / 16);
+                                    if (px + 1 < finalWidth) {
+                                        data[pIdx + (finalWidth * 4) + 4] += err * (1 / 16);
+                                        data[pIdx + (finalWidth * 4) + 5] += err * (1 / 16);
+                                        data[pIdx + (finalWidth * 4) + 6] += err * (1 / 16);
+                                    }
+                                }
+                            }
+                        }
+                        ctx.putImageData(imgData, 0, 0);
+
+                        const newJpgBlob = await new Promise(res => canvas.toBlob(res, "image/jpeg", 0.9));
+                        const imgFilename = `image_${imageCounter}.jpg`;
+                        imagesFolder.file(imgFilename, newJpgBlob);
+
+                        manifestImages.push({ id: `img${imageCounter}`, filename: imgFilename });
+                        currentXhtml += `<div class="img-wrapper"><img src="../Images/${imgFilename}" alt="Image" /></div>\n`;
+
+                        imageCounter++;
+                        bitmap.close();
+                    }
+                }
+
+                // Add the paragraph text
                 const text = node.textContent.trim();
                 if (text.length > 0) {
                     currentXhtml += `<p>${escapeHtml(text)}</p>\n`;
@@ -518,14 +602,13 @@ p { margin: 0.5em 0; text-indent: 1.5em; }
                     paragraphCount = 0;
                 }
             } else {
-                // Enter nested containers such as text:section, table:table, or custom divisions
                 for (let i = 0; i < node.children.length; i++) {
-                    extractTextRecursive(node.children[i]);
+                    await extractTextRecursive(node.children[i]);
                 }
             }
         }
 
-        extractTextRecursive(bodyNode);
+        await extractTextRecursive(bodyNode);
 
         if (currentXhtml.length > 0) {
             chaptersHtml.push(currentXhtml);
@@ -535,7 +618,7 @@ p { margin: 0.5em 0; text-indent: 1.5em; }
             chaptersHtml.push("<p>Document contains no readable text.</p>");
         }
 
-        logMessage(`Extracted ${chaptersHtml.length} chapters from ODT structure.`);
+        logMessage(`Extracted ${chaptersHtml.length} chapters and ${manifestImages.length} images from ODT structure.`);
 
         const bookTitle = file.name.replace(/\.odt$/i, "").replace(/[_-]/g, " ");
         let manifestItems = "";
@@ -565,6 +648,10 @@ ${chaptersHtml[i]}
       <navLabel><text>Part ${i + 1}</text></navLabel>
       <content src="Text/${chapFilename}"/>
     </navPoint>\n`;
+        }
+
+        for (let img of manifestImages) {
+            manifestItems += `    <item id="${img.id}" href="Images/${img.filename}" media-type="image/jpeg"/>\n`;
         }
 
         oebps.file("content.opf",

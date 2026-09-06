@@ -415,9 +415,34 @@ function connectWifi() {
         });
 }
 
+// WebSocket Console logic
+let ws;
+function initWebSocket() {
+    const host = window.location.hostname || '192.168.1.21';
+    ws = new WebSocket(`ws://${host}/ws`);
+    ws.onmessage = function (event) {
+        const terminal = document.getElementById('live-log');
+        if (!terminal) return;
+        const line = document.createElement('div');
+        const time = new Date().toLocaleTimeString();
+        line.style.color = "var(--success)";
+        line.innerText = `[${time}] ${event.data}`;
+        terminal.appendChild(line);
+        terminal.scrollTop = terminal.scrollHeight;
+    };
+    ws.onclose = function () {
+        setTimeout(initWebSocket, 3000); // Auto-reconnect if ESP32 sleeps
+    };
+}
+
 // Initialization on load
+initWebSocket();
 setInterval(fetchStatus, 5000);
 fetchStatus();
+
+// FIX: Force library update immediately on load
+if (typeof fetchBooks === 'function') fetchBooks();
+
 getReaderSettings();
 getReaderProgress();
 getSleepSettings();

@@ -248,20 +248,15 @@ bool EpubLoader::parseOpf() {
             idLower.toLowerCase();
 
             // --- Multilingual Cover Identification ---
-            // Ensure target is a supported image extension before matching
             bool isImageFile =
                 hrefLower.endsWith(".jpg") || hrefLower.endsWith(".jpeg") || hrefLower.endsWith(".png");
 
-            // Standard EPUB3 manifest property
             if (properties.indexOf("cover-image") != -1 && isImageFile) {
                 coverHref = href;
-            }
-            // Standard EPUB2 metadata reference
-            else if (epub2CoverId.length() > 0 && id == epub2CoverId && isImageFile) {
+            } else if (epub2CoverId.length() > 0 && id == epub2CoverId && isImageFile) {
                 coverHref = href;
-            }
-            // Fallback heuristic: match filename or ID against international keywords
-            else if (coverHref.length() == 0 && isImageFile) {
+            } else if (coverHref.length() == 0 && isImageFile) {
+                // Dictionary of international cover keywords
                 static const char* const COVER_KEYWORDS[] = {
                     "cover",      // English
                     "copertina",  // Italian
