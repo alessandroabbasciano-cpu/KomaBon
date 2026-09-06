@@ -382,34 +382,15 @@ void AppMainMenu::draw() {
         display.setTextColor(GxEPD_BLACK);
 
         // === Title (only on full draw, persists on partial) ===
-        // Replaced title string with KomaBon
         fontMgr.drawText(display, "KomaBon", 15, 35, FONT_SIZE_SUBTITLE, GxEPD_BLACK);
         int komaBonWidth = fontMgr.getTextWidth("KomaBon", FONT_SIZE_SUBTITLE);
         char versionStr[16];
         snprintf(versionStr, sizeof(versionStr), " v%s", SYSTEM_VERSION);
         fontMgr.drawText(display, versionStr, 15 + komaBonWidth, 35, FONT_SIZE_SMALL, GxEPD_BLACK);
 
-        // === Battery Status (single cached read) ===
-        BatteryStatus bat = BatteryMgr::getInstance().getStatus();
-        int batX = screenW - 60;
-        int batY = 10;
-
-        display.drawRect(batX, batY, 40, 20, GxEPD_BLACK);
-        display.fillRect(batX + 40, batY + 5, 3, 10, GxEPD_BLACK);
-
-        int fillWidth = (bat.percentage * 36) / 100;
-        if (fillWidth > 36) fillWidth = 36;
-        if (fillWidth < 0) fillWidth = 0;
-        if (bat.percentage > 0) {
-            display.fillRect(batX + 2, batY + 2, fillWidth, 16, GxEPD_BLACK);
-        }
-        // Draw lightning bolt if charging
-        if (bat.charging) {
-            display.drawLine(batX + 20, batY + 2, batX + 14, batY + 10, GxEPD_WHITE);
-            display.drawLine(batX + 14, batY + 10, batX + 24, batY + 10, GxEPD_WHITE);
-            display.drawLine(batX + 24, batY + 10, batX + 18, batY + 18, GxEPD_WHITE);
-        }
-
+        // === Unified System Status Bar (Wi-Fi, SD, Battery) ===
+        // Positioned 105 pixels from the right border to fit all three icons cleanly
+        BatteryMgr::getInstance().drawStatusBar(display, screenW - 105, 10);
         // === App Icons Grid ===
         int colWidth = screenW / COLS;
 

@@ -1,6 +1,7 @@
 #pragma once
 #include <Arduino.h>
 #include "Lock.h"
+#include "DisplayMgr.h"
 
 // Combined battery status to avoid multiple ADC reads
 struct BatteryStatus {
@@ -39,7 +40,10 @@ class BatteryMgr {
     void enterIdleSleep(const char* reason = "unspecified");
 
     // Status indicator on e-ink display (partial update)
-    void drawStatusIndicator(); // Draw charging indicator if state changed
+    void drawStatusIndicator();
+
+    // Draws the complete status bar icons (Wi-Fi, SD, Battery) into the provided display buffer
+    void drawStatusBar(KomaBonDisplay& display, int startX, int startY);
 
   private:
     BatteryMgr();

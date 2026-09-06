@@ -11,6 +11,8 @@
 #include "ProgressStore.h"
 #include "PageCountStore.h"
 #include "WebMgr.h"
+#include "BatteryMgr.h"
+#include "SDMgr.h"
 #include <WiFi.h>
 #include <LittleFS.h>
 #include <ArduinoJson.h>
@@ -85,11 +87,8 @@ AppReader::~AppReader() {
 }
 
 bool AppReader::hasBootResume() {
-    ProgressStore& store = ProgressStore::getInstance();
-    if (!store.resumeOnBoot()) return false;
-    String last = store.lastBook();
-    if (last.length() == 0) return false;
-    return findFilenameForOriginal(last).length() > 0;
+    // Disabled automatic resume on startup to ensure bus and voltage stability at boot
+    return false;
 }
 
 void AppReader::resumeSavedBookOnStart() {
@@ -107,6 +106,10 @@ void AppReader::start() {
             delay(50);
             WiFi.disconnect(false);
             WiFi.mode(WIFI_OFF);
+
+            // Hardware stabilization delay: allows 3.3V rail to settle after RF module power down
+            delay(400);
+
             WebMgr::getInstance().sendLog("AppReader: WiFi powered down");
         }
     }
@@ -194,6 +197,12 @@ void AppReader::handleInput(InputAction action) {
 }
 
 bool AppReader::openBook(const String& path, bool restoreProgress) {
+    // Hardware verification: prevent operations if SD card is not mounted
+    if (!SDMgr::getInstance().isMounted()) {
+        WebMgr::getInstance().sendLog("AppReader: Cannot open book, SD card is not mounted.");
+        return false;
+    }
+
     String fullPath = "/ebooks" + path;
     closeBook(false);
     _currentBookPath = path;
@@ -669,6 +678,9 @@ void AppReader::drawReading() {
 
         display.setCursor(cursorX, cursorY);
         display.print(footerText);
+
+        // Overlay status bar on top of the reading page
+        BatteryMgr::getInstance().drawStatusBar(display, display.width() - 105, 10);
 
     } while (display.nextPage());
 }

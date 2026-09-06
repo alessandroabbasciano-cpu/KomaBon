@@ -7,6 +7,8 @@
 #include "ProgressStore.h"
 #include "PageCountStore.h"
 #include "Fonts/FreeSans.h"
+#include "BatteryMgr.h"
+#include "SDMgr.h"
 #include <LittleFS.h>
 #include <ArduinoJson.h>
 #include <map>
@@ -80,6 +82,13 @@ static LibraryDirtyRect unionLibraryRect(LibraryDirtyRect a, LibraryDirtyRect b)
 
 void AppReader::scanBooks() {
     _books.clear();
+
+    // Hardware safety check: do not access filesystem if SD card is not mounted
+    if (!SDMgr::getInstance().isMounted()) {
+        WebMgr::getInstance().sendLog("AppReader: Cannot scan books, SD card not mounted.");
+        return;
+    }
+
     std::map<String, String> metadata;
     loadBookMetadata(metadata);
 
@@ -249,10 +258,14 @@ void AppReader::drawLibrary() {
     do {
         display.fillScreen(GxEPD_WHITE);
 
+        // Header Title
         drawTextWithFont(display, "Library", 20, 40, &FreeSansBold12pt8b, GxEPD_BLACK);
+
+        // Book counter placed below the status bar area to avoid visual collisions
         char countText[24];
         snprintf(countText, sizeof(countText), "%d books", (int)_books.size());
-        fontMgr.drawTextRight(display, countText, display.width() - 20, 38, FONT_SIZE_SMALL, GxEPD_BLACK);
+        fontMgr.drawTextRight(display, countText, display.width() - 20, 48, FONT_SIZE_SMALL, GxEPD_BLACK);
+
         display.drawFastHLine(20, 56, display.width() - 40, GxEPD_BLACK);
         display.drawFastHLine(20, 58, 72, GxEPD_BLACK);
 
@@ -355,6 +368,9 @@ void AppReader::drawLibrary() {
 
         fontMgr.drawTextRight(display, pageStr, display.width() - 20, display.height() - 18, FONT_SIZE_SMALL,
                               GxEPD_BLACK);
+
+        // Render system status bar on top right of library view
+        BatteryMgr::getInstance().drawStatusBar(display, display.width() - 105, 10);
 
     } while (display.nextPage());
 }

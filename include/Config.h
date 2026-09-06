@@ -45,8 +45,8 @@
 #define SD_MOSI_PIN 42
 #define SD_MISO_PIN 8
 
-#define SD_INIT_FREQ 400000   // 400 kHz for the initial security handshake
-#define SD_FAST_FREQ 16000000 // 16 MHz for data transfer
+#define SD_INIT_FREQ 400000  // 400 kHz for initial card identification
+#define SD_FAST_FREQ 8000000 // 8 MHz for fast data transfer
 
 // Display Settings (Portrait 7.5")
 #define SCREEN_WIDTH 480

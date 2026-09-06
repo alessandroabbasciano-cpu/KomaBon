@@ -518,3 +518,54 @@ void BatteryMgr::drawStatusIndicator() {
                                    currentWifi ? "Connected" : "Disconnected",
                                    currentSd ? "Present" : "Absent", currentCharging ? "Yes" : "No");
 }
+
+void BatteryMgr::drawStatusBar(KomaBonDisplay& display, int startX, int startY) {
+    bool wifiConnected = (WiFi.status() == WL_CONNECTED);
+    bool sdMounted = SDMgr::getInstance().isMounted();
+    BatteryStatus bat = getStatus();
+
+    int currentX = startX;
+    int iconY = startY + 2;
+
+    // 1. Wi-Fi Status Icon
+    if (wifiConnected) {
+        display.fillRect(currentX, iconY + 8, 2, 4, GxEPD_BLACK);
+        display.fillRect(currentX + 4, iconY + 4, 2, 8, GxEPD_BLACK);
+        display.fillRect(currentX + 8, iconY, 2, 12, GxEPD_BLACK);
+    } else {
+        display.drawLine(currentX, iconY + 12, currentX + 10, iconY + 2, GxEPD_BLACK);
+    }
+
+    currentX += 16;
+
+    // 2. SD Card Status Icon
+    if (sdMounted) {
+        display.drawRect(currentX, iconY, 10, 14, GxEPD_BLACK);
+        display.drawFastHLine(currentX + 2, iconY, 2, GxEPD_WHITE);
+        display.fillRect(currentX + 2, iconY + 4, 6, 4, GxEPD_BLACK);
+    }
+
+    currentX += 16;
+
+    // 3. Battery Status Icon
+    int batW = 40;
+    int batH = 20;
+    display.drawRect(currentX, startY, batW, batH, GxEPD_BLACK);
+    display.fillRect(currentX + batW, startY + 5, 3, 10, GxEPD_BLACK);
+
+    int fillWidth = (bat.percentage * 36) / 100;
+    if (fillWidth > 36) fillWidth = 36;
+    if (fillWidth < 0) fillWidth = 0;
+
+    if (bat.percentage > 0) {
+        display.fillRect(currentX + 2, startY + 2, fillWidth, 16, GxEPD_BLACK);
+    }
+
+    if (bat.charging) {
+        int boltX = currentX + batW / 2;
+        int boltY = startY + 2;
+        display.drawLine(boltX, boltY, boltX - 4, startY + batH / 2, GxEPD_WHITE);
+        display.drawLine(boltX - 4, startY + batH / 2, boltX + 2, startY + batH / 2, GxEPD_WHITE);
+        display.drawLine(boltX + 2, startY + batH / 2, boltX - 2, startY + batH - 2, GxEPD_WHITE);
+    }
+}

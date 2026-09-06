@@ -13,7 +13,7 @@ class SDMgr {
         return instance;
     }
 
-    // Mounts the SD card using the dedicated SPI2 bus
+    // Mounts the SD card using the dedicated SPI2/HSPI bus
     bool init();
 
     // Returns true if the SD card is currently mounted and accessible
