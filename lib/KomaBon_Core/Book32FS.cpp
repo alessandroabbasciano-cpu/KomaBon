@@ -1,4 +1,5 @@
 #include "KomaBonFS.h"
+#include "WebMgr.h"
 
 // The physical instance of the internal memory (Fallback)
 fs::LittleFSFS InternalEbookFS;
@@ -12,15 +13,15 @@ bool EbookFS_begin() {
     // If EbookFSPtr points to SD, SDMgr has already mounted it at boot.
     // We don't need to do anything, the "/ebooks" mount point is already acquired.
     if (EbookFSPtr == &SD) {
-        Serial.println("EbookFS: Using external MicroSD storage.");
+        WebMgr::getInstance().sendLog("EbookFS: Using external MicroSD storage.");
         return true;
     }
 
     // Otherwise, initialize the internal partition (Fallback)
-    Serial.println("EbookFS: MicroSD absent. Starting internal partition...");
+    WebMgr::getInstance().sendLog("EbookFS: MicroSD absent. Starting internal partition...");
     bool ok = InternalEbookFS.begin(false, "/ebooks", 10, "ebooks");
     if (!ok) {
-        Serial.println("EbookFS: Formatting internal partition...");
+        WebMgr::getInstance().sendLog("EbookFS: Formatting internal partition...");
         ok = InternalEbookFS.begin(true, "/ebooks", 10, "ebooks");
     }
     return ok;

@@ -7,6 +7,7 @@
 #include <unistd.h>
 #include <errno.h>
 #include <algorithm>
+#include <WebMgr.h>
 
 #ifndef ZIP_SUCCESS
 #define ZIP_SUCCESS 0
@@ -412,8 +413,8 @@ String EpubLoader::readFileFromZip(const char* path) {
     zip->getFileInfo(&fileInfo, szName, sizeof(szName), NULL, 0, NULL, 0);
     int size = fileInfo.uncompressed_size;
     if (size > KOMABON_MAX_ZIP_TEXT_BYTES) {
-        Serial.printf("EpubLoader: %s has %d bytes; truncating to %d\n", path, size,
-                      KOMABON_MAX_ZIP_TEXT_BYTES);
+        WebMgr::getInstance().sendLogf("EpubLoader: %s has %d bytes; truncating to %d\n", path, size,
+                                       KOMABON_MAX_ZIP_TEXT_BYTES);
         size = KOMABON_MAX_ZIP_TEXT_BYTES;
     }
 

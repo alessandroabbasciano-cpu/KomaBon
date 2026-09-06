@@ -1,6 +1,7 @@
 #include "SettingsStore.h"
 #include "KomaBonFS.h"
 #include <ArduinoJson.h>
+#include "WebMgr.h"
 
 static const char* READER_CONFIG_PATH = "/reader_config.json";
 static const char* DISPLAY_CONFIG_PATH = "/display_config.json";
@@ -127,14 +128,15 @@ bool SettingsStore::saveReader(const ReaderSettings& s) {
 
     File file = EbookFS.open(READER_CONFIG_PATH, FILE_WRITE);
     if (!file) {
-        Serial.println("SettingsStore: failed to open reader_config.json for write");
+        WebMgr::getInstance().sendLog("SettingsStore: failed to open reader_config.json for write");
         return false;
     }
     serializeJson(doc, file);
     file.close();
 
-    Serial.printf("SettingsStore: saved reader refreshFrequency=%d fontSize=%d fontFamily=%d\n",
-                  doc["refreshFrequency"].as<int>(), doc["fontSize"].as<int>(), doc["fontFamily"].as<int>());
+    WebMgr::getInstance().sendLogf(
+        "SettingsStore: saved reader refreshFrequency=%d fontSize=%d fontFamily=%d\n",
+        doc["refreshFrequency"].as<int>(), doc["fontSize"].as<int>(), doc["fontFamily"].as<int>());
     return true;
 }
 
@@ -145,13 +147,13 @@ bool SettingsStore::saveDisplay(const DisplaySettings& s) {
 
     File file = EbookFS.open(DISPLAY_CONFIG_PATH, FILE_WRITE);
     if (!file) {
-        Serial.println("SettingsStore: failed to open display_config.json for write");
+        WebMgr::getInstance().sendLog("SettingsStore: failed to open display_config.json for write");
         return false;
     }
     serializeJson(doc, file);
     file.close();
 
-    Serial.printf("SettingsStore: saved display rotation=%d\n", doc["rotation"].as<int>());
+    WebMgr::getInstance().sendLogf("SettingsStore: saved display rotation=%d\n", doc["rotation"].as<int>());
     return true;
 }
 
@@ -163,13 +165,13 @@ bool SettingsStore::saveSleep(const SleepSettings& s) {
 
     File file = EbookFS.open(SLEEP_CONFIG_PATH, FILE_WRITE);
     if (!file) {
-        Serial.println("SettingsStore: failed to open sleep_config.json for write");
+        WebMgr::getInstance().sendLog("SettingsStore: failed to open sleep_config.json for write");
         return false;
     }
     serializeJson(doc, file);
     file.close();
 
-    Serial.printf("SettingsStore: saved sleep timeout=%d message=%s\n", doc["sleepTimeout"].as<int>(),
-                  doc["sleepMessage"].as<String>().c_str());
+    WebMgr::getInstance().sendLogf("SettingsStore: saved sleep timeout=%d message=%s\n",
+                                   doc["sleepTimeout"].as<int>(), doc["sleepMessage"].as<String>().c_str());
     return true;
 }

@@ -1,6 +1,7 @@
 #include "BookMeta.h"
 #include "KomaBonFS.h"
 #include "Lock.h"
+#include "WebMgr.h"
 #include <ArduinoJson.h>
 
 static const char* BOOKS_META_PATH = "/books_meta.json";
@@ -114,7 +115,7 @@ static bool loadMetaDoc(DynamicJsonDocument& doc) {
     DeserializationError error = deserializeJson(doc, metaFile);
     metaFile.close();
     if (error) {
-        Serial.println("Failed to parse metadata, creating new");
+        WebMgr::getInstance().sendLog("Failed to parse metadata, creating new");
         doc.clear();
         return false;
     }
@@ -126,13 +127,13 @@ static bool writeMetaDoc(const DynamicJsonDocument& doc) {
     // replace a good file with a truncated one, which would erase the entries of
     // all other books.
     if (doc.overflowed()) {
-        Serial.println("BookMeta: document exceeded capacity — write refused");
+        WebMgr::getInstance().sendLog("BookMeta: document exceeded capacity — write refused");
         return false;
     }
 
     File metaFile = SystemFS.open(BOOKS_META_PATH, FILE_WRITE);
     if (!metaFile) {
-        Serial.println("Failed to save metadata");
+        WebMgr::getInstance().sendLog("Failed to save metadata");
         return false;
     }
     serializeJson(doc, metaFile);
@@ -149,7 +150,8 @@ void saveBookMetadata(const String& truncatedName, const String& originalName) {
     doc[truncatedName] = originalName;
 
     if (writeMetaDoc(doc)) {
-        Serial.printf("Saved metadata: %s -> %s\n", truncatedName.c_str(), originalName.c_str());
+        WebMgr::getInstance().sendLogf("Saved metadata: %s -> %s\n", truncatedName.c_str(),
+                                       originalName.c_str());
     }
 }
 

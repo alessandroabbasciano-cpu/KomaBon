@@ -97,12 +97,18 @@ void AppReader::resumeSavedBookOnStart() {
 }
 
 void AppReader::start() {
-    if (WiFi.getMode() != WIFI_OFF) {
-        WebMgr::getInstance().stop();
-        delay(50);
-        WiFi.disconnect(false);
-        WiFi.mode(WIFI_OFF);
-        Serial.println("AppReader: WiFi powered down");
+    // Keep Wi-Fi active if an operator is monitoring via the Web Console
+    if (WebMgr::getInstance().isConsoleActive()) {
+        WebMgr::getInstance().sendLog(
+            "DEBUG MODE: AppReader started. Wi-Fi shutdown canceled by active Web Console.");
+    } else {
+        if (WiFi.getMode() != WIFI_OFF) {
+            WebMgr::getInstance().stop();
+            delay(50);
+            WiFi.disconnect(false);
+            WiFi.mode(WIFI_OFF);
+            WebMgr::getInstance().sendLog("AppReader: WiFi powered down");
+        }
     }
 
     loadSettings();
@@ -136,7 +142,7 @@ const uint8_t* AppReader::getIconImage() {
 
 void AppReader::handleInput(InputAction action) {
     if (action == INPUT_NONE) return;
-    Serial.printf("AppReader::handleInput - action: %d, state: %d\n", action, _state);
+    WebMgr::getInstance().sendLogf("AppReader::handleInput - action: %d, state: %d\n", action, _state);
     if (_state == VIEW_LIBRARY) {
         int maxIndex = (int)_books.size() - 1;
         if (action == INPUT_NEXT) {
@@ -195,8 +201,10 @@ bool AppReader::openBook(const String& path, bool restoreProgress) {
     String pathLower = path;
     pathLower.toLowerCase();
 
+    WebMgr::getInstance().sendLog("System: Opening book -> " + path);
+
     if (pathLower.endsWith(".kmb")) {
-        Serial.println("AppReader: KMB detected, starting COMIC engine.");
+        WebMgr::getInstance().sendLog("System: KMB format detected, starting COMIC engine.");
         _isComicMode = true;
         _kbReader = new KBReader();
 
@@ -210,7 +218,7 @@ bool AppReader::openBook(const String& path, bool restoreProgress) {
         _currentPageRenderValid = false;
 
     } else {
-        Serial.println("AppReader: EPUB detected, starting TEXT engine.");
+        WebMgr::getInstance().sendLog("AppReader: EPUB detected, starting TEXT engine.");
         _isComicMode = false;
         _epubLoader = new EpubLoader();
 

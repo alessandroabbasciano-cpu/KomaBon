@@ -5,6 +5,7 @@
 #include "ButtonPressLogic.h"
 #include "StandbyGuard.h"
 #include "JoystickMgr.h"
+#include "WebMgr.h"
 
 InputMgr::InputMgr()
     : btn(255, true, true), btnBack(PIN_BUTTON_BACK, true, true), // 255 disables OneButton su GPIO2
@@ -56,7 +57,7 @@ void InputMgr::init() {
         BaseType_t result = xTaskCreatePinnedToCore(inputTask, "InputPoll", 3072, this, 2, &_taskHandle, 1);
         _taskRunning = (result == pdPASS);
         if (!_taskRunning) {
-            Serial.println("Input task failed to start; falling back to loop polling");
+            WebMgr::getInstance().sendLog("Input task failed to start; falling back to loop polling");
             _taskHandle = nullptr;
         }
     }
@@ -85,12 +86,12 @@ void InputMgr::update() {
         // the repaint itself happens in the next AppMgr::draw(), which keeps
         // the ~2s e-ink refresh off this code path.[cite: 61]
         if (action == INPUT_REFRESH) {
-            Serial.println("INPUT: KEY2 Click -> FULL REFRESH");
+            WebMgr::getInstance().sendLog("INPUT: KEY2 Click -> FULL REFRESH");
             App* current = AppMgr::getInstance().getCurrentApp();
             if (current) current->forceRedraw();
             continue;
         }
-        Serial.printf("InputMgr::update() - dispatching action %d to callback\n", action);
+        WebMgr::getInstance().sendLogf("InputMgr::update() - dispatching action %d to callback\n", action);
         if (callback) callback(action);
     }
 }
@@ -132,9 +133,10 @@ void InputMgr::inputTask(void* parameter) {
                 (uint8_t)((key1Pressed ? 0 : 0x01) | (key2Pressed ? 0 : 0x02) | (key3Pressed ? 0 : 0x04));
             if (snapshot != self->_lastPinSnapshot) {
                 self->_lastPinSnapshot = snapshot;
-                Serial.printf("PINDIAG: KEY1/GPIO%d=%d  KEY2/GPIO%d=%d  KEY3/GPIO%d=%d\n", PIN_BUTTON_BACK,
-                              (snapshot & 0x01) ? 1 : 0, PIN_BUTTON_SLEEP, (snapshot & 0x02) ? 1 : 0,
-                              JOY_ADC_PIN, (snapshot & 0x04) ? 1 : 0);
+                WebMgr::getInstance().sendLogf("PINDIAG: KEY1/GPIO%d=%d  KEY2/GPIO%d=%d  KEY3/GPIO%d=%d\n",
+                                               PIN_BUTTON_BACK, (snapshot & 0x01) ? 1 : 0, PIN_BUTTON_SLEEP,
+                                               (snapshot & 0x02) ? 1 : 0, JOY_ADC_PIN,
+                                               (snapshot & 0x04) ? 1 : 0);
             }
         }
 
@@ -165,13 +167,14 @@ void InputMgr::inputTask(void* parameter) {
                 } else if (heldTime >= BUTTON_LONG_PRESS_MS) {
                     // Long press threshold reached. Check which direction is being held.
                     if (currentJoyDir == JOY_CENTER) {
-                        Serial.println("INPUT: JOY Center / KEY1 Long Press -> GO TO MAIN MENU");
+                        WebMgr::getInstance().sendLog(
+                            "INPUT: JOY Center / KEY1 Long Press -> GO TO MAIN MENU");
                         BatteryMgr::getInstance().resetIdleTimer();
                         self->enqueueAction(INPUT_GO_TO_MAIN_MENU);
                         joyLongPressSent = true;
                     } else if (currentJoyDir == JOY_LEFT) {
                         // Long press LEFT to go back/abort without reaching for KEY3
-                        Serial.println("INPUT: JOY Left Long Press -> BACK");
+                        WebMgr::getInstance().sendLog("INPUT: JOY Left Long Press -> BACK");
                         BatteryMgr::getInstance().resetIdleTimer();
                         self->enqueueAction(INPUT_BACK);
                         joyLongPressSent = true;
@@ -224,11 +227,11 @@ void InputMgr::inputTask(void* parameter) {
                 // Just pressed
                 self->_btnBackPressTime = now;
                 self->_btnBackLongPressSent = false;
-                Serial.println("KEY1: Button pressed");
+                WebMgr::getInstance().sendLog("KEY1: Button pressed");
             } else if (!self->_btnBackLongPressSent &&
                        (now - self->_btnBackPressTime) >= BUTTON_LONG_PRESS_MS) {
                 // Long press threshold
-                Serial.println("INPUT: KEY1 Long Press -> GO TO MAIN MENU");
+                WebMgr::getInstance().sendLog("INPUT: KEY1 Long Press -> GO TO MAIN MENU");
                 BatteryMgr::getInstance().resetIdleTimer();
                 self->enqueueAction(INPUT_GO_TO_MAIN_MENU);
                 self->_btnBackLongPressSent = true;
@@ -237,7 +240,7 @@ void InputMgr::inputTask(void* parameter) {
             // Button released
             if (self->_btnBackPressTime != 0) {
                 unsigned long pressDuration = now - self->_btnBackPressTime;
-                Serial.printf("KEY1: Button released after %lu ms\n", pressDuration);
+                WebMgr::getInstance().sendLogf("KEY1: Button released after %lu ms\n", pressDuration);
 
                 // Shared classifier: rejects contact bounce below the debounce
                 // floor, and releases where the long press already fired.
@@ -245,7 +248,7 @@ void InputMgr::inputTask(void* parameter) {
                 // reader went back two pages on one press.[cite: 61]
                 if (classifyButtonRelease(pressDuration, self->_btnBackLongPressSent) ==
                     BUTTON_RELEASE_CLICK) {
-                    Serial.println("INPUT: KEY1 Click -> PREV");
+                    WebMgr::getInstance().sendLog("INPUT: KEY1 Click -> PREV");
                     BatteryMgr::getInstance().resetIdleTimer();
                     self->enqueueAction(INPUT_PREV);
                 }
@@ -266,7 +269,7 @@ void InputMgr::inputTask(void* parameter) {
                 self->_btnSleepPressTime = now;
                 self->_btnSleepLongPressSent = false;
                 self->_btnSleepAborted = false;
-                Serial.println("KEY2: Button pressed");
+                WebMgr::getInstance().sendLog("KEY2: Button pressed");
             } else if (!self->_btnSleepLongPressSent && !self->_btnSleepAborted &&
                        (now - self->_btnSleepPressTime) >= STANDBY_HOLD_MS) {
 #if BOOK32_KEY2_STANDBY_ENABLED
@@ -282,7 +285,7 @@ void InputMgr::inputTask(void* parameter) {
                                                                   joyActive, now - self->_btnSleepPressTime);
 
                 if (decision == STANDBY_ALLOW) {
-                    Serial.println("INPUT: KEY2 Long Press -> STANDBY requested");
+                    WebMgr::getInstance().sendLog("INPUT: KEY2 Long Press -> STANDBY requested");
                     self->_btnSleepLongPressSent = true;
                     // Mark only: the main loop puts the device to sleep in update().
                     // Drawing to the e-ink screen is forbidden here (see enterStandby).[cite: 61]
@@ -293,8 +296,9 @@ void InputMgr::inputTask(void* parameter) {
                     // other buttons released would let a spurious standby through.
                     // The press only counts again after KEY2 is released.[cite: 61]
                     self->_btnSleepAborted = true;
-                    Serial.printf("SLEEPDIAG: standby denied  reason=%s  held=%lums\n",
-                                  standbyDecisionName(decision), now - self->_btnSleepPressTime);
+                    WebMgr::getInstance().sendLogf("SLEEPDIAG: standby denied  reason=%s  held=%lums\n",
+                                                   standbyDecisionName(decision),
+                                                   now - self->_btnSleepPressTime);
                 }
 #else
                 // Manual standby disabled (BOOK32_KEY2_STANDBY_ENABLED=0,
@@ -324,7 +328,8 @@ void InputMgr::inputTask(void* parameter) {
                 if (classifyButtonRelease(pressDuration,
                                           self->_btnSleepLongPressSent || self->_btnSleepAborted) ==
                     BUTTON_RELEASE_CLICK) {
-                    Serial.printf("KEY2: Button released after %lu ms -> REFRESH\n", pressDuration);
+                    WebMgr::getInstance().sendLogf("KEY2: Button released after %lu ms -> REFRESH\n",
+                                                   pressDuration);
                     BatteryMgr::getInstance().resetIdleTimer();
                     self->enqueueAction(INPUT_REFRESH);
                 }
@@ -344,10 +349,10 @@ void InputMgr::enterStandby() {
     // v1.9.1 diagnostics: record which pins were actually held at the moment
     // standby was decided. If KEY2/GPIO3 reads 1 (released) here, the LOW that
     // triggered the long press was transient or came from another pin.[cite: 61]
-    Serial.printf("SLEEPDIAG: path=KEY2_LONG_PRESS  KEY1/GPIO%d=%d  KEY2/GPIO%d=%d  JOY_ACTIVE=%d\n",
-                  PIN_BUTTON_BACK, digitalRead(PIN_BUTTON_BACK), PIN_BUTTON_SLEEP,
-                  digitalRead(PIN_BUTTON_SLEEP),
-                  (JoystickMgr::getInstance().getDirection() != JOY_NONE ? 1 : 0));
+    WebMgr::getInstance().sendLogf(
+        "SLEEPDIAG: path=KEY2_LONG_PRESS  KEY1/GPIO%d=%d  KEY2/GPIO%d=%d  JOY_ACTIVE=%d\n", PIN_BUTTON_BACK,
+        digitalRead(PIN_BUTTON_BACK), PIN_BUTTON_SLEEP, digitalRead(PIN_BUTTON_SLEEP),
+        (JoystickMgr::getInstance().getDirection() != JOY_NONE ? 1 : 0));
     Serial.flush();
 
     // Give the active app a chance to persist state first. The reader already
@@ -402,20 +407,20 @@ void InputMgr::staticLongPress(void* ptr) {
 
 // Handlers -> Dispatch to App
 void InputMgr::onClick() {
-    Serial.println("INPUT: Click -> NEXT");
+    WebMgr::getInstance().sendLog("INPUT: Click -> NEXT");
     BatteryMgr::getInstance().resetIdleTimer(); // Reset idle timer on user interaction
     enqueueAction(INPUT_NEXT);
 }
 
 void InputMgr::onDoubleClick() {
     // Disabled for faster single-click response
-    Serial.println("INPUT: Double-Click -> PREV");
+    WebMgr::getInstance().sendLog("INPUT: Double-Click -> PREV");
     BatteryMgr::getInstance().resetIdleTimer(); // Reset idle timer on user interaction
     enqueueAction(INPUT_PREV);
 }
 
 void InputMgr::onLongPress() {
-    Serial.println("INPUT: Long Press -> SELECT");
+    WebMgr::getInstance().sendLog("INPUT: Long Press -> SELECT");
     BatteryMgr::getInstance().resetIdleTimer(); // Reset idle timer on user interaction
     enqueueAction(INPUT_SELECT);
 }

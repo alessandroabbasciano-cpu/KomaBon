@@ -420,18 +420,18 @@ let ws;
 function initWebSocket() {
     const host = window.location.hostname || '192.168.1.21';
     ws = new WebSocket(`ws://${host}/ws`);
+
     ws.onmessage = function (event) {
         const terminal = document.getElementById('live-log');
         if (!terminal) return;
-        const line = document.createElement('div');
-        const time = new Date().toLocaleTimeString();
-        line.style.color = "var(--success)";
-        line.innerText = `[${time}] ${event.data}`;
-        terminal.appendChild(line);
+
+        // Append raw serial text
+        terminal.textContent += event.data;
         terminal.scrollTop = terminal.scrollHeight;
     };
+
     ws.onclose = function () {
-        setTimeout(initWebSocket, 3000); // Auto-reconnect if ESP32 sleeps
+        setTimeout(initWebSocket, 3000);
     };
 }
 
@@ -440,8 +440,10 @@ initWebSocket();
 setInterval(fetchStatus, 5000);
 fetchStatus();
 
-// FIX: Force library update immediately on load
-if (typeof fetchBooks === 'function') fetchBooks();
+// Automatically trigger library list load immediately on page start
+if (typeof fetchBooks === 'function') {
+    fetchBooks();
+}
 
 getReaderSettings();
 getReaderProgress();

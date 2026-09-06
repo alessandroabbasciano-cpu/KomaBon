@@ -10,6 +10,7 @@
 #include <LittleFS.h>
 #include <ArduinoJson.h>
 #include <map>
+#include <WebMgr.h>
 
 static int textWidthForFont(KomaBonDisplay& display, const char* text, const GFXfont* font) {
     int16_t x1, y1;
@@ -85,7 +86,7 @@ void AppReader::scanBooks() {
     // Ensure /covers directory exists on FATFS/SD storage before write attempts
     if (!EbookFS.exists("/covers")) {
         EbookFS.mkdir("/covers");
-        Serial.println("AppReader: Directory /covers created on EbookFS.");
+        WebMgr::getInstance().sendLog("AppReader: Directory /covers created on EbookFS.");
     }
 
     File root = EbookFS.open("/");

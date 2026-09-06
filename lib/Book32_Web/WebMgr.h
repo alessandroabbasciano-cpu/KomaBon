@@ -21,7 +21,17 @@ class WebMgr {
 
     static const char* devicePassword();
 
+    // Sends a message to the Web UI Live Console and serial
     void sendLog(const String& msg);
+
+    // Formatted logging supporting printf style arguments
+    void sendLogf(const char* format, ...) __attribute__((format(printf, 2, 3)));
+
+    // Broadcasts raw serial buffer bytes to connected WebSockets
+    void broadcastSerial(const uint8_t* buffer, size_t size);
+
+    // Checks if any client is currently viewing the console
+    bool isConsoleActive() const;
 
     volatile bool _otaPending = false;
     volatile int _pendingRotation = -1;

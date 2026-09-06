@@ -1,6 +1,7 @@
 #include "SDMgr.h"
 #include "../../include/Config.h"
 #include "KomaBonFS.h" // NEW: Required to access the global EbookFSPtr
+#include "WebMgr.h"
 
 SDMgr::SDMgr() : _spi(nullptr), _mounted(false) {}
 
@@ -25,21 +26,21 @@ bool SDMgr::init() {
     // This forces low-level C libraries (like unzipLIB) to transparently hit
     // the external SD card instead of the internal LittleFS partition.
     if (!SD.begin(SD_CS_PIN, *_spi, SD_FAST_FREQ, "/ebooks")) {
-        Serial.println("SDMgr: Mount failed or no SD card present.");
+        WebMgr::getInstance().sendLog("SDMgr: Mount failed or no SD card present.");
         _mounted = false;
         return false;
     }
 
     uint8_t cardType = SD.cardType();
     if (cardType == CARD_NONE) {
-        Serial.println("SDMgr: No SD card attached.");
+        WebMgr::getInstance().sendLog("SDMgr: No SD card attached.");
         _mounted = false;
         return false;
     }
 
-    Serial.println("SDMgr: SD Card mounted successfully at /ebooks.");
-    Serial.printf("SDMgr: SD Card Type: %d\n", cardType);
-    Serial.printf("SDMgr: SD Card Size: %llu MB\n", SD.cardSize() / (1024 * 1024));
+    WebMgr::getInstance().sendLog("SDMgr: SD Card mounted successfully at /ebooks.");
+    WebMgr::getInstance().sendLogf("SDMgr: SD Card Type: %d\n", cardType);
+    WebMgr::getInstance().sendLogf("SDMgr: SD Card Size: %llu MB\n", SD.cardSize() / (1024 * 1024));
 
     // 5. Redirect the global Arduino filesystem abstraction pointer
     // From now on, any C++ call to EbookFS.open() will route directly to the SD.

@@ -1,6 +1,7 @@
 #include "AppMainMenu.h"
 #include "DisplayMgr.h"
 #include "AppMgr.h"
+#include "WebMgr.h"
 #include "../KomaBon_Core/BatteryMgr.h"
 #include "../KomaBon_Core/InputMgr.h"
 #include "../KomaBon_Core/FontMgr.h"
@@ -74,7 +75,7 @@ void AppMainMenu::updateCheckTask(void* parameter) {
 
 void AppMainMenu::wifiWakeTask(void* parameter) {
     AppMainMenu* self = (AppMainMenu*)parameter;
-    Serial.println("Main menu WiFi wake task started");
+    WebMgr::getInstance().sendLog("Main menu WiFi wake task started");
 
     if (isReaderActive()) {
         self->_wifiStarting = false;
@@ -96,7 +97,7 @@ void AppMainMenu::wifiWakeTask(void* parameter) {
             self->_footerOnlyRedraw = true;
             self->_needsRedraw = true;
             self->_wifiTaskHandle = nullptr;
-            Serial.println("Main menu WiFi wake cancelled; eReader is active");
+            WebMgr::getInstance().sendLog("Main menu WiFi wake cancelled; eReader is active");
             vTaskDelete(NULL);
             return;
         }
@@ -105,11 +106,11 @@ void AppMainMenu::wifiWakeTask(void* parameter) {
     }
 
     if (WiFi.status() == WL_CONNECTED && !isReaderActive()) {
-        Serial.println("Main menu WiFi connected");
-        Serial.println(WiFi.localIP());
+        WebMgr::getInstance().sendLog("Main menu WiFi connected");
+        WebMgr::getInstance().sendLog(WiFi.localIP().toString());
         WebMgr::getInstance().init();
     } else {
-        Serial.println("Main menu WiFi wake did not connect; bringing up hotspot");
+        WebMgr::getInstance().sendLog("Main menu WiFi wake did not connect; bringing up hotspot");
         self->_wifiTaskHandle = nullptr; // Clear before starting the hotspot
         if (!isReaderActive()) self->startHotspot();
         self->_wifiStarting = false;
@@ -146,7 +147,7 @@ void AppMainMenu::startHotspot() {
     if (_hotspotActive) return;
     if (isReaderActive()) return;
 
-    Serial.println("Main menu: starting KomaBon management hotspot (offline)");
+    WebMgr::getInstance().sendLog("Main menu: starting KomaBon management hotspot (offline)");
     WiFi.mode(WIFI_AP_STA); // AP serves the web UI; STA stays available for joining a network
     // v1.5.0 (security): the hotspot was previously open, giving anyone in
     // radio range full access to the API. WPA2 needs >= 8 characters; the
@@ -158,7 +159,7 @@ void AppMainMenu::startHotspot() {
     _hotspotActive = true;
 
     Serial.print("Hotspot ready at ");
-    Serial.println(WiFi.softAPIP());
+    WebMgr::getInstance().sendLog(WiFi.softAPIP().toString());
 
     _selectionOnlyRedraw = false;
     _batteryOnlyRedraw = false;
@@ -169,7 +170,7 @@ void AppMainMenu::startHotspot() {
 void AppMainMenu::stopHotspot() {
     if (!_hotspotActive) return;
 
-    Serial.println("Main menu: stopping management hotspot");
+    WebMgr::getInstance().sendLog("Main menu: stopping management hotspot");
     WiFi.softAPdisconnect(true);
     // Drop back to station-only; preserves an active connection if one exists.
     WiFi.mode(WIFI_STA);
@@ -234,7 +235,7 @@ void AppMainMenu::handleInput(InputAction action) {
     AppMgr& appMgr = AppMgr::getInstance();
     std::vector<App*>& apps = appMgr.getApps();
 
-    Serial.printf("AppMainMenu::handleInput - action: %d\n", action);
+    WebMgr::getInstance().sendLogf("AppMainMenu::handleInput - action: %d\n", action);
 
     // Max index is apps.size() - 1 + 1 (if update available)
     int maxSelectable = apps.size() - 1 + (_updateAvailable ? 1 : 0);
@@ -258,7 +259,7 @@ void AppMainMenu::handleInput(InputAction action) {
     } else if (action == INPUT_SELECT) {
         if (_updateAvailable && selectedIndex == (int)apps.size()) {
             // Update selected: launch in a dedicated high-memory task
-            Serial.println("AppMainMenu: Launching OTA task...");
+            WebMgr::getInstance().sendLog("AppMainMenu: Launching OTA task...");
             xTaskCreatePinnedToCore(
                 [](void* param) {
                     GitHubMgr::getInstance().triggerUpdate(SYSTEM_VERSION);
@@ -274,7 +275,7 @@ void AppMainMenu::handleInput(InputAction action) {
         }
     } else if (action == INPUT_GO_TO_MAIN_MENU) {
         // Already at main menu, no action needed
-        Serial.println("AppMainMenu: INPUT_GO_TO_MAIN_MENU - already at main menu");
+        WebMgr::getInstance().sendLog("AppMainMenu: INPUT_GO_TO_MAIN_MENU - already at main menu");
     }
 }
 void AppMainMenu::update() {

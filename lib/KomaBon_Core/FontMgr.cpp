@@ -1,4 +1,5 @@
 #include "FontMgr.h"
+#include "WebMgr.h"
 
 FontMgr::FontMgr() {
     memset(_charWidths, 0, sizeof(_charWidths));
@@ -12,7 +13,7 @@ FontMgr& FontMgr::getInstance() {
 }
 
 bool FontMgr::init() {
-    Serial.println("FontMgr: Initialized with Adafruit GFX FreeSans fonts");
+    WebMgr::getInstance().sendLog("FontMgr: Initialized with Adafruit GFX FreeSans fonts");
     return true;
 }
 

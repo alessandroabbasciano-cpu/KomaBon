@@ -83,3 +83,6 @@
 // against a repo that this firmware does not track.
 #define GITHUB_REPO "alessandroabbasciano-cpu/KomaBon"
 #define GITHUB_USER "alessandroabbasciano-cpu"
+
+// Convenient macro for formatted logging
+#define logf(...) WebMgr::getInstance().sendLogf(__VA_ARGS__)

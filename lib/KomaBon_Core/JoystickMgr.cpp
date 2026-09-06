@@ -2,6 +2,7 @@
 #include "Config.h"      // Assumes JOY_ADC_PIN is defined here as 2
 #include "KomaBonFS.h"   // NEW: Required for file operations
 #include <ArduinoJson.h> // NEW: Required to parse/build the config file
+#include "WebMgr.h"
 
 JoystickMgr::JoystickMgr() {
     // Safe fallback defaults in case calibration is missing
@@ -66,7 +67,7 @@ bool JoystickMgr::loadCalibration() {
     _cal.left = doc["left"] | 2650;
     _cal.right = doc["right"] | 1950;
 
-    Serial.println("JoystickMgr: Calibration v2 loaded.");
+    WebMgr::getInstance().sendLog("JoystickMgr: Calibration v2 loaded.");
     return true;
 }
 
@@ -89,7 +90,7 @@ bool JoystickMgr::saveCalibration(int center, int up, int down, int left, int ri
     serializeJson(doc, file);
     file.close();
 
-    Serial.println("JoystickMgr: Calibration saved to /joy_cal.json");
+    WebMgr::getInstance().sendLog("JoystickMgr: Calibration saved to /joy_cal.json");
     return true;
 }
 
@@ -118,10 +119,11 @@ void JoystickMgr::init() {
 
     analogSetPinAttenuation(JOY_ADC_PIN, ADC_11db);
     analogReadResolution(12);
-    Serial.println("JoystickMgr: ADC1 initialized safely on JOY_ADC_PIN with internal pull-up");
+    WebMgr::getInstance().sendLog(
+        "JoystickMgr: ADC1 initialized safely on JOY_ADC_PIN with internal pull-up");
 
     // Try to load saved calibration, otherwise retain hardcoded defaults
     if (!loadCalibration()) {
-        Serial.println("JoystickMgr: No calibration file found, using defaults");
+        WebMgr::getInstance().sendLog("JoystickMgr: No calibration file found, using defaults");
     }
 }

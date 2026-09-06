@@ -260,7 +260,7 @@ void AppSettings::handleInput(InputAction action) {
                     UpdateInfo info = GitHubMgr::getInstance().checkUpdate(SYSTEM_VERSION);
                     if (info.available) {
                         saveDraftIfDirty();
-                        Serial.println("AppSettings: Launching OTA task...");
+                        WebMgr::getInstance().sendLog("AppSettings: Launching OTA task...");
                         xTaskCreatePinnedToCore(
                             [](void* param) {
                                 GitHubMgr::getInstance().triggerUpdate(SYSTEM_VERSION);
@@ -389,7 +389,7 @@ void AppSettings::discardChanges() {
 
 void AppSettings::saveDraftIfDirty() {
     if (!_dirty) return;
-    Serial.println("AppSettings: flushing unsaved draft before sleep/exit");
+    WebMgr::getInstance().sendLog("AppSettings: flushing unsaved draft before sleep/exit");
     applyAndSave();
 }
 
@@ -414,13 +414,13 @@ void AppSettings::update() {
         // HARDWARE EMERGENCY ABORT
         pinMode(PIN_BUTTON_BACK, INPUT_PULLUP);
         if (digitalRead(PIN_BUTTON_BACK) == LOW) {
-            Serial.println("AppSettings: Calibration aborted via physical button.");
+            WebMgr::getInstance().sendLog("AppSettings: Calibration aborted via physical button.");
 
             // NEW: Protect existing calibration.
             // Check if the file exists before writing defaults to break the boot loop.
             // If the user already has a custom calibration, we do not overwrite it.
             if (!EbookFS.exists("/joy_cal.json")) {
-                Serial.println("AppSettings: No calibration found. Saving defaults.");
+                WebMgr::getInstance().sendLog("AppSettings: No calibration found. Saving defaults.");
                 JoystickMgr::getInstance().saveCalibration(0, 3350, 1250, 2650, 1950);
             }
 

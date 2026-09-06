@@ -7,6 +7,7 @@
 #include "../KomaBon_Core/AppMgr.h"
 #include "../KomaBon_Core/BatteryMgr.h"
 #include "../Book32_Update/GitHubMgr.h"
+#include <SD.h>
 
 // Helper function to stream entire FS tree dynamically
 static void streamFsTree(AsyncResponseStream* out, fs::FS& fs, const String& dir, uint8_t depth, bool& first,

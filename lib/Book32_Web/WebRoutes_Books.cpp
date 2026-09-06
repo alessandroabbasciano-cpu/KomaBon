@@ -9,6 +9,7 @@
 #include "../KomaBon_Core/BookOrderLogic.h"
 #include "../KomaBon_Core/BookMeta.h"
 #include "../KomaBon_Core/ProgressStore.h"
+#include <SD.h>
 
 // --- Helper Functions & State ---
 

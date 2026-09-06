@@ -3,6 +3,7 @@
 #include "KomaBonFS.h"
 #include <ArduinoJson.h>
 #include "Fonts/FreeSans.h"
+#include <WebMgr.h>
 
 // NEW: FreeRTOS Yield Callback.
 // While the e-ink panel is physically refreshing (taking ~1.5s),
@@ -69,8 +70,9 @@ void DisplayMgr::init() {
     display.setTextColor(GxEPD_BLACK);
     display.setFont(NULL);
 
-    Serial.printf("Display initialized: %dx%d (rotation %d) | IC: UC8179 | 20MHz SPI (Non-Blocking)\n",
-                  display.width(), display.height(), _rotation);
+    WebMgr::getInstance().sendLogf(
+        "Display initialized: %dx%d (rotation %d) | IC: UC8179 | 20MHz SPI (Non-Blocking)\n", display.width(),
+        display.height(), _rotation);
 }
 
 void DisplayMgr::setRotation(int rotation) {
@@ -85,7 +87,7 @@ void DisplayMgr::setRotation(int rotation) {
     // Post-boot rotation changes repaint via the active app's forceRedraw().
     if (changed) _bootScreenActive = false;
 
-    Serial.printf("Display rotation set to %d (changed=%d)\n", _rotation, changed);
+    WebMgr::getInstance().sendLogf("Display rotation set to %d (changed=%d)\n", _rotation, changed);
 }
 
 void DisplayMgr::loadDisplaySettings() {
@@ -101,7 +103,7 @@ void DisplayMgr::loadDisplaySettings() {
         }
     }
     setRotation(rotation);
-    Serial.printf("Loaded display settings: rotation=%d\n", _rotation);
+    WebMgr::getInstance().sendLogf("Loaded display settings: rotation=%d\n", _rotation);
 }
 
 void DisplayMgr::clear() {

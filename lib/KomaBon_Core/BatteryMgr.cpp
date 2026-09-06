@@ -7,6 +7,9 @@
 #include <ArduinoJson.h>
 // Local FreeSans with Latin-1 Supplement (0x20-0xFF).
 #include "Fonts/FreeSans.h"
+#include "SDMgr.h"
+#include "WebMgr.h"
+#include <WiFi.h>
 
 // Static constants
 const float BatteryMgr::CHARGE_THRESHOLD =
@@ -63,7 +66,8 @@ void BatteryMgr::init() {
     }
     _lastHistoryUpdate = millis();
 
-    Serial.printf("Battery: Initial voltage %.2fV (%d%%)\n", _cachedStatus.voltage, _cachedStatus.percentage);
+    WebMgr::getInstance().sendLogf("Battery: Initial voltage %.2fV (%d%%)\n", _cachedStatus.voltage,
+                                   _cachedStatus.percentage);
 
     // Load sleep settings from EbookFS
     loadSleepSettings();
@@ -106,8 +110,9 @@ void BatteryMgr::update() {
                 if (voltageChange > CHARGE_THRESHOLD) {
                     if (!_cachedStatus.charging) {
                         _cachedStatus.charging = true;
-                        Serial.printf("Battery: Charging detected via trend (%.3fV -> %.3fV, +%.3fV)\n",
-                                      oldestVoltage, _cachedStatus.voltage, voltageChange);
+                        WebMgr::getInstance().sendLogf(
+                            "Battery: Charging detected via trend (%.3fV -> %.3fV, +%.3fV)\n", oldestVoltage,
+                            _cachedStatus.voltage, voltageChange);
                     }
                     _lastChargingTime = now; // Track when charging was last seen
                 } else if (_cachedStatus.voltage < HIGH_VOLTAGE_THRESHOLD &&
@@ -115,8 +120,9 @@ void BatteryMgr::update() {
                     // Voltage is dropping and below high threshold = not charging
                     if (_cachedStatus.charging) {
                         _cachedStatus.charging = false;
-                        Serial.printf("Battery: Discharging detected (%.3fV -> %.3fV, %.3fV)\n",
-                                      oldestVoltage, _cachedStatus.voltage, voltageChange);
+                        WebMgr::getInstance().sendLogf(
+                            "Battery: Discharging detected (%.3fV -> %.3fV, %.3fV)\n", oldestVoltage,
+                            _cachedStatus.voltage, voltageChange);
                     }
                 }
             }
@@ -125,7 +131,7 @@ void BatteryMgr::update() {
 
     // Check for critical low battery
     if (isCriticallyLow()) {
-        Serial.println("CRITICAL: Battery voltage too low! Shutting down...");
+        WebMgr::getInstance().sendLog("CRITICAL: Battery voltage too low! Shutting down...");
         shutdownLowBattery();
     }
 
@@ -158,8 +164,10 @@ void BatteryMgr::update() {
         if (idleTime >= timeoutMs) {
             // v1.9.1 diagnostics: distinguishes this path from the KEY2
             // long press in the serial log.
-            Serial.printf("SLEEPDIAG: path=IDLE_TIMEOUT  idle=%lums  timeout=%lums\n", idleTime, timeoutMs);
-            Serial.printf("Idle timeout reached (%d minutes). Entering sleep...\n", sleepTimeoutMinutes);
+            WebMgr::getInstance().sendLogf("SLEEPDIAG: path=IDLE_TIMEOUT  idle=%lums  timeout=%lums\n",
+                                           idleTime, timeoutMs);
+            WebMgr::getInstance().sendLogf("Idle timeout reached (%d minutes). Entering sleep...\n",
+                                           sleepTimeoutMinutes);
             enterIdleSleep("idle_timeout");
         }
     }
@@ -201,8 +209,9 @@ void BatteryMgr::updateCache(bool clearStaleCharging) {
     // Spike rejection: discard readings that jump too far from last valid reading
     // This protects against ADC noise during heavy WiFi activity
     if (_lastValidVoltage > 0.0f && fabsf(voltage - _lastValidVoltage) > SPIKE_REJECT_THRESHOLD) {
-        Serial.printf("Battery: SPIKE REJECTED (%.3fV -> %.3fV, delta=%.3fV) - keeping %.3fV\n",
-                      _lastValidVoltage, voltage, voltage - _lastValidVoltage, _lastValidVoltage);
+        WebMgr::getInstance().sendLogf(
+            "Battery: SPIKE REJECTED (%.3fV -> %.3fV, delta=%.3fV) - keeping %.3fV\n", _lastValidVoltage,
+            voltage, voltage - _lastValidVoltage, _lastValidVoltage);
         voltage = _lastValidVoltage; // Keep previous valid reading
     } else {
         _lastValidVoltage = voltage; // Accept as valid
@@ -232,16 +241,16 @@ void BatteryMgr::updateCache(bool clearStaleCharging) {
         // Massive jump (>100mV) - Cable was just plugged in
         if (!currentCharging) {
             currentCharging = true;
-            Serial.printf("Battery: Hard USB plug detected (%.3fV -> %.3fV, +%.3fV)\n", previousVoltage,
-                          voltage, voltage - previousVoltage);
+            WebMgr::getInstance().sendLogf("Battery: Hard USB plug detected (%.3fV -> %.3fV, +%.3fV)\n",
+                                           previousVoltage, voltage, voltage - previousVoltage);
         }
         _lastChargingTime = millis();
     } else if (previousVoltage > 0 && voltage < previousVoltage - 0.08f) {
         // Massive drop (>80mV) - Cable was just unplugged
         if (currentCharging) {
             currentCharging = false;
-            Serial.printf("Battery: Hard USB unplug detected (%.3fV -> %.3fV, %.3fV)\n", previousVoltage,
-                          voltage, voltage - previousVoltage);
+            WebMgr::getInstance().sendLogf("Battery: Hard USB unplug detected (%.3fV -> %.3fV, %.3fV)\n",
+                                           previousVoltage, voltage, voltage - previousVoltage);
         }
     }
 
@@ -276,14 +285,15 @@ bool BatteryMgr::isCriticallyLow() {
     // Require consecutive critical readings to prevent single-spike shutdown
     if (_cachedStatus.voltage <= CRITICAL_VOLTAGE && !_cachedStatus.charging) {
         _criticalCount++;
-        Serial.printf("Battery: Critical reading #%d (%.2fV)\n", _criticalCount, _cachedStatus.voltage);
+        WebMgr::getInstance().sendLogf("Battery: Critical reading #%d (%.2fV)\n", _criticalCount,
+                                       _cachedStatus.voltage);
         if (_criticalCount >= CRITICAL_CONFIRM_COUNT) {
             return true; // Confirmed critically low
         }
     } else {
         if (_criticalCount > 0) {
-            Serial.printf("Battery: Critical counter reset (voltage=%.2fV, charging=%s)\n",
-                          _cachedStatus.voltage, _cachedStatus.charging ? "yes" : "no");
+            WebMgr::getInstance().sendLogf("Battery: Critical counter reset (voltage=%.2fV, charging=%s)\n",
+                                           _cachedStatus.voltage, _cachedStatus.charging ? "yes" : "no");
         }
         _criticalCount = 0; // Reset counter on any normal reading
     }
@@ -291,8 +301,8 @@ bool BatteryMgr::isCriticallyLow() {
 }
 
 void BatteryMgr::shutdownLowBattery() {
-    Serial.println("Battery critically low - entering deep sleep");
-    Serial.printf("Voltage: %.2fV\n", _cachedStatus.voltage);
+    WebMgr::getInstance().sendLog("Battery critically low - entering deep sleep");
+    WebMgr::getInstance().sendLogf("Voltage: %.2fV\n", _cachedStatus.voltage);
     Serial.flush();
 
     // Small delay to let serial finish
@@ -340,8 +350,8 @@ void BatteryMgr::loadSleepSettings() {
             if (!deserializeJson(doc, file)) {
                 _sleepTimeoutMinutes = doc.containsKey("sleepTimeout") ? doc["sleepTimeout"].as<int>() : 0;
                 _sleepMessage = doc["sleepMessage"] | "Press button to wake";
-                Serial.printf("Loaded sleep settings: timeout=%d min, message=%s\n", _sleepTimeoutMinutes,
-                              _sleepMessage.c_str());
+                WebMgr::getInstance().sendLogf("Loaded sleep settings: timeout=%d min, message=%s\n",
+                                               _sleepTimeoutMinutes, _sleepMessage.c_str());
             }
             file.close();
         }
@@ -349,7 +359,7 @@ void BatteryMgr::loadSleepSettings() {
         // Use defaults (sleep disabled)
         _sleepTimeoutMinutes = 0;
         _sleepMessage = "Press button to wake";
-        Serial.println("Using default sleep settings (sleep disabled)");
+        WebMgr::getInstance().sendLog("Using default sleep settings (sleep disabled)");
     }
 }
 
@@ -370,9 +380,10 @@ void BatteryMgr::enterIdleSleep(const char* reason) {
 
     // v1.9.1 diagnostics: single funnel for both sleep paths. The reason
     // string identifies which caller decided to sleep.
-    Serial.printf("SLEEPDIAG: enterIdleSleep() reached  reason=%s\n", reason ? reason : "null");
-    Serial.println("Entering idle sleep...");
-    Serial.printf("Sleep message: %s\n", sleepMessage.c_str());
+    WebMgr::getInstance().sendLogf("SLEEPDIAG: enterIdleSleep() reached  reason=%s\n",
+                                   reason ? reason : "null");
+    WebMgr::getInstance().sendLog("Entering idle sleep...");
+    WebMgr::getInstance().sendLogf("Sleep message: %s\n", sleepMessage.c_str());
     Serial.flush();
 
     // Display sleep message on e-ink
@@ -407,66 +418,88 @@ void BatteryMgr::enterIdleSleep(const char* reason) {
     esp_sleep_enable_ext0_wakeup((gpio_num_t)PIN_BUTTON_BACK, 0); // 0 = wake on LOW
 
     // Enter deep sleep
-    Serial.println("Going to deep sleep...");
+    WebMgr::getInstance().sendLog("Going to deep sleep...");
     Serial.flush();
     delay(50);
     esp_deep_sleep_start();
 }
 
 void BatteryMgr::drawStatusIndicator() {
-    // State copied under lock; the partial refresh that follows takes time and
-    // cannot hold it (the web server task also reads this state).
     bool currentCharging;
     int percentage;
+    bool currentWifi = (WiFi.status() == WL_CONNECTED);
+    bool currentSd = SDMgr::getInstance().isMounted();
+
     {
         Book32Guard guard(_mutex);
         currentCharging = _cachedStatus.charging;
         percentage = _cachedStatus.percentage;
 
-        // Only refresh display when charging state changes (plugged in or unplugged)
-        if (currentCharging == _lastDisplayedCharging) {
-            return; // No change, no update needed
+        // Only refresh display if any hardware status has changed
+        if (currentCharging == _lastDisplayedCharging && currentWifi == _lastDisplayedWifi &&
+            currentSd == _lastDisplayedSd) {
+            return;
         }
     }
 
-    // Get display reference
     KomaBonDisplay& display = DisplayMgr::getInstance().getDisplay();
 
-    // Indicator position (top-right corner)
-    // Small 50x25 area for a battery icon with charging indicator
-    const int INDICATOR_WIDTH = 55;
+    // Expanded width to fit Wi-Fi, SD and Battery icons nicely
+    const int INDICATOR_WIDTH = 95;
     const int INDICATOR_HEIGHT = 30;
     const int INDICATOR_X = display.width() - INDICATOR_WIDTH - 5;
     const int INDICATOR_Y = 5;
 
-    // Use partial window for just the indicator area
     display.setPartialWindow(INDICATOR_X, INDICATOR_Y, INDICATOR_WIDTH, INDICATOR_HEIGHT);
 
     display.firstPage();
     do {
         display.fillScreen(GxEPD_WHITE);
+        display.setTextColor(GxEPD_BLACK);
 
-        // Battery outline
-        int batX = INDICATOR_X + 5;
+        int currentX = INDICATOR_X + 2;
+        int iconY = INDICATOR_Y + 7;
+
+        // 1. Draw Wi-Fi Icon (simple signal bars or dot if connected)
+        if (currentWifi) {
+            // Draw connected Wi-Fi indicator (small waves / dots)
+            display.fillRect(currentX, iconY + 10, 2, 4, GxEPD_BLACK);
+            display.fillRect(currentX + 4, iconY + 6, 2, 8, GxEPD_BLACK);
+            display.fillRect(currentX + 8, iconY + 2, 2, 12, GxEPD_BLACK);
+        } else {
+            // Draw disconnected Wi-Fi (small X or muted symbol)
+            display.drawLine(currentX, iconY + 12, currentX + 10, iconY + 2, GxEPD_BLACK);
+        }
+
+        currentX += 14;
+
+        // 2. Draw SD Card Icon if mounted
+        if (currentSd) {
+            // Draw small SD card shape outline
+            display.drawRect(currentX, iconY + 2, 10, 12, GxEPD_BLACK);
+            display.drawFastHLine(currentX + 2, iconY + 2, 2, GxEPD_WHITE); // notch
+            display.fillRect(currentX + 2, iconY + 6, 6, 4, GxEPD_BLACK);   // label area
+        }
+
+        currentX += 14;
+
+        // 3. Draw Battery Icon & Percentage/Bars
+        int batX = currentX;
         int batY = INDICATOR_Y + 5;
         int batW = 40;
         int batH = 20;
 
         display.drawRect(batX, batY, batW, batH, GxEPD_BLACK);
-        display.fillRect(batX + batW, batY + 5, 3, 10, GxEPD_BLACK); // Battery tip
+        display.fillRect(batX + batW, batY + 5, 3, 10, GxEPD_BLACK);
 
-        // Battery fill based on percentage
         int fillWidth = (percentage * (batW - 4)) / 100;
         if (fillWidth > 0) {
             display.fillRect(batX + 2, batY + 2, fillWidth, batH - 4, GxEPD_BLACK);
         }
 
-        // Draw lightning bolt if charging
         if (currentCharging) {
-            // Draw white lightning bolt on the black fill
             int boltX = batX + batW / 2;
             int boltY = batY + 2;
-            // Simple lightning bolt shape
             display.drawLine(boltX, boltY, boltX - 4, batY + batH / 2, GxEPD_WHITE);
             display.drawLine(boltX - 4, batY + batH / 2, boltX + 2, batY + batH / 2, GxEPD_WHITE);
             display.drawLine(boltX + 2, batY + batH / 2, boltX - 2, batY + batH - 2, GxEPD_WHITE);
@@ -474,11 +507,14 @@ void BatteryMgr::drawStatusIndicator() {
 
     } while (display.nextPage());
 
-    // Update tracking
     {
         Book32Guard guard(_mutex);
         _lastDisplayedCharging = currentCharging;
+        _lastDisplayedWifi = currentWifi;
+        _lastDisplayedSd = currentSd;
     }
 
-    Serial.printf("Battery indicator updated: %s\n", currentCharging ? "Charging" : "Not charging");
+    WebMgr::getInstance().sendLogf("Status indicators updated: WiFi=%s, SD=%s, Charging=%s\n",
+                                   currentWifi ? "Connected" : "Disconnected",
+                                   currentSd ? "Present" : "Absent", currentCharging ? "Yes" : "No");
 }

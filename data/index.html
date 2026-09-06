@@ -198,7 +198,6 @@
                         <div class="card-main-row">
                             <div class="card-info">
                                 <h3>Library State</h3>
-                                <!-- This text is a placeholder. JavaScript overwrites it with actual reading progress. -->
                                 <p id="reader-progress-status" class="hint">Loading saved position...</p>
                                 <div id="library-state-status" class="status-msg"></div>
                                 <div id="reader-progress-reset-status" class="status-msg"></div>
@@ -236,21 +235,23 @@
                         </div>
                     </div>
                 </div>
+            </section>
+
+            <!-- Live Console Tab -->
+            <section id="console" class="tab-content">
+                <div class="card full-width-card">
+                    <div class="section-heading" style="margin-bottom: 1rem;">
+                        <h3>Live System Console</h3>
+                        <p class="hint">Real-time serial stream from KomaBon via WebSocket.</p>
+                    </div>
+                    <div id="live-log" class="console-terminal"></div>
+                </div>
+            </section>
+        </main>
     </div>
-    </section>
-    <!-- Live Console Tab -->
-    <section id="console" class="tab-content">
-        <div class="card converter-card">
-            <h3>Live System Console</h3>
-            <p class="hint">Real-time serial logs from KomaBon via WebSocket.</p>
-            <div id="live-log" class="terminal-log"
-                style="display:block; height:450px; overflow-y:auto; font-family: monospace;"></div>
-        </div>
-    </section>
-    </main>
-    </div>
-    <script src="script.js"></script>
+
     <script src="library.js"></script>
+    <script src="script.js"></script>
     <script src="converter.js"></script>
 </body>
 

@@ -17,6 +17,42 @@
 #include "../Apps/AppReader/AppReader.h"
 #include "../KomaBon_Apps/AppSettings.h"
 #include <WiFiManager.h>
+#include <stdarg.h>
+
+// Global custom vprintf hook to mirror all system logs to WebSocket with clean line breaks
+static int webLogVprintf(const char* fmt, va_list args) {
+    char loc_buf[256];
+    int len = vsnprintf(loc_buf, sizeof(loc_buf), fmt, args);
+    if (len > 0) {
+        String msg = String(loc_buf);
+        Serial.print(msg);
+
+        // Ensure every log chunk ends with a newline for proper console formatting
+        if (!msg.endsWith("\n")) {
+            msg += "\n";
+        }
+        WebMgr::getInstance().broadcastSerial((const uint8_t*)msg.c_str(), msg.length());
+    }
+    return len;
+}
+
+// Bridge class that duplicates all print calls to Hardware Serial and Web Console
+class SerialWebBridge : public Print {
+  public:
+    size_t write(uint8_t c) override {
+        Serial.write(c);
+        WebMgr::getInstance().broadcastSerial(&c, 1);
+        return 1;
+    }
+
+    size_t write(const uint8_t* buffer, size_t size) override {
+        Serial.write(buffer, size);
+        WebMgr::getInstance().broadcastSerial(buffer, size);
+        return size;
+    }
+};
+
+static SerialWebBridge LogBridge;
 
 volatile bool gNetworkStartupInProgress = false;
 static WiFiManager* gWifiManager = nullptr;
@@ -24,7 +60,7 @@ static WiFiManager* gWifiManager = nullptr;
 static void networkStartupTask(void* parameter) {
     (void)parameter;
 
-    Serial.println("Network startup task started");
+    WebMgr::getInstance().sendLog("Network startup task started");
     if (!gWifiManager) {
         gWifiManager = new WiFiManager();
     }
@@ -35,18 +71,18 @@ static void networkStartupTask(void* parameter) {
     bool connected = gWifiManager->autoConnect("KomaBon-Setup");
 
     if (!connected) {
-        Serial.println("WiFi setup did not connect; continuing offline");
+        WebMgr::getInstance().sendLog("WiFi setup did not connect; continuing offline");
         gNetworkStartupInProgress = false;
         vTaskDelete(nullptr);
         return;
     }
 
-    Serial.println("WiFi connected");
-    Serial.println(WiFi.localIP());
+    WebMgr::getInstance().sendLog("WiFi connected");
+    WebMgr::getInstance().sendLog(WiFi.localIP().toString());
 
     App* currentApp = AppMgr::getInstance().getCurrentApp();
     if (currentApp && strcmp(currentApp->getName(), "eReader") == 0) {
-        Serial.println("Network startup skipped services; eReader is active");
+        WebMgr::getInstance().sendLog("Network startup skipped services; eReader is active");
         WebMgr::getInstance().stop();
         WiFi.disconnect(false);
         WiFi.mode(WIFI_OFF);
@@ -60,34 +96,32 @@ static void networkStartupTask(void* parameter) {
     vTaskDelay(pdMS_TO_TICKS(250));
 
     WebMgr::getInstance().init();
+    LogBridge.println("\n[SYS] Web Console Stream Connected.");
 
-    Serial.println("Network services ready");
+    WebMgr::getInstance().sendLog("Network services ready");
     gNetworkStartupInProgress = false;
     vTaskDelete(nullptr);
 }
 
 void setup() {
-    // v1.11.0: confirm to the bootloader that this image booted far enough to
-    // be trusted, cancelling any pending auto-rollback to the previous OTA
-    // slot. Safe to call even where the running build's bootloader has no
-    // anti-rollback support compiled in (see
-    // docs/plans/2026-08-23-post-ota-rollback-design.md for the current
-    // limits of what this actually buys us) — it is then a no-op.
     esp_ota_mark_app_valid_cancel_rollback();
 
     Serial.begin(115200);
     delay(250);
+
+    // Register system-wide log interceptor for the Web Console
+    esp_log_set_vprintf(webLogVprintf);
 
     // Bring the E-ink panel up before the slower startup work begins.
     DisplayMgr& displayMgr = DisplayMgr::getInstance();
     displayMgr.init();
     displayMgr.showBootScreen(8, "Display ready");
 
-    Serial.println("\n\n");
-    Serial.println("╔═══════════════════════════════════════╗");
-    Serial.println("║        KomaBon OS Starting...         ║");
-    Serial.printf("║  Build: %s %s  ║\n", __DATE__, __TIME__);
-    Serial.println("╚═══════════════════════════════════════╝");
+    WebMgr::getInstance().sendLog("\n\n");
+    WebMgr::getInstance().sendLog("╔═══════════════════════════════════════╗");
+    WebMgr::getInstance().sendLog("║        KomaBon OS Starting...         ║");
+    WebMgr::getInstance().sendLogf("║  Build: %s %s  ║\n", __DATE__, __TIME__);
+    WebMgr::getInstance().sendLog("╚═══════════════════════════════════════╝");
 
     // Get singleton instances (must be done after Arduino init, not at global scope)
     InputMgr& inputMgr = InputMgr::getInstance();
@@ -131,7 +165,7 @@ void setup() {
         xTaskCreatePinnedToCore(networkStartupTask, "NetworkStart", 12288, nullptr, 1, nullptr, 0);
     if (networkTaskStarted != pdPASS) {
         gNetworkStartupInProgress = false;
-        Serial.println("Failed to start network task; continuing offline");
+        WebMgr::getInstance().sendLog("Failed to start network task; continuing offline");
     }
 
     // --- BOOT ROUTING LOGIC ---
@@ -150,7 +184,7 @@ void setup() {
         appMgr.switchTo(0);
     }
 
-    Serial.println("Setup Complete");
+    WebMgr::getInstance().sendLog("Setup Complete");
 } // End of setup()
 
 void loop() {
