@@ -56,8 +56,6 @@ AppReader::AppReader() {
 void AppReader::loadSettings() {
     File file;
     if (EbookFS.exists("/reader_config.json")) {
-        file = EbookFS.open("/reader_config.json", "r");
-    } else if (SystemFS.exists("/reader_config.json")) {
         file = SystemFS.open("/reader_config.json", "r");
     }
 

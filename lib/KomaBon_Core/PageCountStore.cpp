@@ -31,8 +31,8 @@ void PageCountStore::load() {
     if (_loaded) return;
     _loaded = true;
 
-    if (!EbookFS.exists(PAGE_TOTALS_PATH)) return;
-    File file = EbookFS.open(PAGE_TOTALS_PATH, "r");
+    if (!SystemFS.exists(PAGE_TOTALS_PATH)) return;
+    File file = SystemFS.open(PAGE_TOTALS_PATH, "r");
     if (!file) return;
 
     DynamicJsonDocument doc(readCapacityFor(file.size()));
@@ -80,7 +80,7 @@ bool PageCountStore::save() {
 
     if (doc.overflowed()) return false;
 
-    File file = EbookFS.open(PAGE_TOTALS_PATH, FILE_WRITE);
+    File file = SystemFS.open(PAGE_TOTALS_PATH, FILE_WRITE);
     if (!file) return false;
     serializeJson(doc, file);
     file.close();

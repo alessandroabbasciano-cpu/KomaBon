@@ -80,7 +80,7 @@ class AppReader : public App {
     void drawLibrary();
     void updateLibraryScroll();
     void drawBookTile(KomaBonDisplay& display, const BookEntry& book, int x, int y, int w, int h,
-                      bool selected);
+                      bool selected, const uint8_t* thumbData = nullptr);
 
     // Settings
     int _refreshEveryNPages;

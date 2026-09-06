@@ -62,8 +62,8 @@ ReaderSettings SettingsStore::loadReader() {
     // EbookFS is primary. SystemFS is a legacy fallback kept so devices
     // upgraded from older firmware don't silently lose their settings.
     File file;
-    if (EbookFS.exists(READER_CONFIG_PATH)) {
-        file = EbookFS.open(READER_CONFIG_PATH, "r");
+    if (SystemFS.exists(READER_CONFIG_PATH)) {
+        file = SystemFS.open(READER_CONFIG_PATH, "r");
     } else if (SystemFS.exists(READER_CONFIG_PATH)) {
         file = SystemFS.open(READER_CONFIG_PATH, "r");
     }
@@ -85,8 +85,8 @@ DisplaySettings SettingsStore::loadDisplay() {
     Book32Guard guard(_mutex);
     DisplaySettings s;
 
-    if (EbookFS.exists(DISPLAY_CONFIG_PATH)) {
-        File file = EbookFS.open(DISPLAY_CONFIG_PATH, "r");
+    if (SystemFS.exists(DISPLAY_CONFIG_PATH)) {
+        File file = SystemFS.open(DISPLAY_CONFIG_PATH, "r");
         if (file) {
             DynamicJsonDocument doc(128);
             if (!deserializeJson(doc, file)) {
@@ -103,8 +103,8 @@ SleepSettings SettingsStore::loadSleep() {
     Book32Guard guard(_mutex);
     SleepSettings s;
 
-    if (EbookFS.exists(SLEEP_CONFIG_PATH)) {
-        File file = EbookFS.open(SLEEP_CONFIG_PATH, "r");
+    if (SystemFS.exists(SLEEP_CONFIG_PATH)) {
+        File file = SystemFS.open(SLEEP_CONFIG_PATH, "r");
         if (file) {
             DynamicJsonDocument doc(512);
             if (!deserializeJson(doc, file)) {
@@ -126,7 +126,7 @@ bool SettingsStore::saveReader(const ReaderSettings& s) {
     doc["fontSize"] = clampFontSize(s.fontSize);
     doc["fontFamily"] = clampFontFamily(s.fontFamily);
 
-    File file = EbookFS.open(READER_CONFIG_PATH, FILE_WRITE);
+    File file = SystemFS.open(READER_CONFIG_PATH, FILE_WRITE);
     if (!file) {
         WebMgr::getInstance().sendLog("SettingsStore: failed to open reader_config.json for write");
         return false;
@@ -145,7 +145,7 @@ bool SettingsStore::saveDisplay(const DisplaySettings& s) {
     DynamicJsonDocument doc(128);
     doc["rotation"] = clampRotation(s.rotation);
 
-    File file = EbookFS.open(DISPLAY_CONFIG_PATH, FILE_WRITE);
+    File file = SystemFS.open(DISPLAY_CONFIG_PATH, FILE_WRITE);
     if (!file) {
         WebMgr::getInstance().sendLog("SettingsStore: failed to open display_config.json for write");
         return false;
@@ -163,7 +163,7 @@ bool SettingsStore::saveSleep(const SleepSettings& s) {
     doc["sleepTimeout"] = clampSleepTimeout(s.timeout);
     doc["sleepMessage"] = s.message;
 
-    File file = EbookFS.open(SLEEP_CONFIG_PATH, FILE_WRITE);
+    File file = SystemFS.open(SLEEP_CONFIG_PATH, FILE_WRITE);
     if (!file) {
         WebMgr::getInstance().sendLog("SettingsStore: failed to open sleep_config.json for write");
         return false;

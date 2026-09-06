@@ -50,9 +50,9 @@ JoyDirection JoystickMgr::getDirection() {
 }
 
 bool JoystickMgr::loadCalibration() {
-    if (!EbookFS.exists("/joy_cal.json")) return false;
+    if (!SystemFS.exists("/joy_cal.json")) return false;
 
-    File file = EbookFS.open("/joy_cal.json", "r");
+    File file = SystemFS.open("/joy_cal.json", "r");
     if (!file) return false;
 
     DynamicJsonDocument doc(512);
@@ -85,7 +85,7 @@ bool JoystickMgr::saveCalibration(int center, int up, int down, int left, int ri
     doc["left"] = _cal.left;
     doc["right"] = _cal.right;
 
-    File file = EbookFS.open("/joy_cal.json", "w");
+    File file = SystemFS.open("/joy_cal.json", "w");
     if (!file) return false;
     serializeJson(doc, file);
     file.close();

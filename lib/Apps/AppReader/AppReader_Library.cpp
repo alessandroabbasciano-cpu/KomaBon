@@ -12,6 +12,7 @@
 #include <LittleFS.h>
 #include <ArduinoJson.h>
 #include <map>
+#include <vector>
 #include <WebMgr.h>
 
 static int textWidthForFont(KomaBonDisplay& display, const char* text, const GFXfont* font) {
@@ -83,7 +84,6 @@ static LibraryDirtyRect unionLibraryRect(LibraryDirtyRect a, LibraryDirtyRect b)
 void AppReader::scanBooks() {
     _books.clear();
 
-    // Hardware safety check: do not access filesystem if SD card is not mounted
     if (!SDMgr::getInstance().isMounted()) {
         WebMgr::getInstance().sendLog("AppReader: Cannot scan books, SD card not mounted.");
         return;
@@ -92,7 +92,6 @@ void AppReader::scanBooks() {
     std::map<String, String> metadata;
     loadBookMetadata(metadata);
 
-    // Ensure /covers directory exists on FATFS/SD storage before write attempts
     if (!EbookFS.exists("/covers")) {
         EbookFS.mkdir("/covers");
         WebMgr::getInstance().sendLog("AppReader: Directory /covers created on EbookFS.");
@@ -112,7 +111,6 @@ void AppReader::scanBooks() {
             entry.originalName = (meta != metadata.end()) ? meta->second : fileName;
             entry.title = FontMgr::utf8ToLatin1(titleFromFilename(entry.originalName));
 
-            // Derive thumbnail path from base filename
             int dot = fileName.lastIndexOf('.');
             entry.baseName = (dot > 0) ? fileName.substring(0, dot) : fileName;
             String thumbPath = "/covers/" + entry.baseName + ".thumb";
@@ -126,7 +124,6 @@ void AppReader::scanBooks() {
     }
     root.close();
 
-    // Reconcile saved progress
     {
         ProgressStore& store = ProgressStore::getInstance();
         std::vector<String> present;
@@ -145,7 +142,6 @@ void AppReader::scanBooks() {
         }
     }
 
-    // Apply manual sorting if present
     if (SystemFS.exists("/book_order.json")) {
         File of = SystemFS.open("/book_order.json", "r");
         if (of) {
@@ -168,18 +164,9 @@ void AppReader::scanBooks() {
 }
 
 void AppReader::drawBookTile(KomaBonDisplay& display, const BookEntry& book, int x, int y, int w, int h,
-                             bool selected) {
-    if (book.hasCoverThumb) {
-        String thumbPath = "/covers/" + book.baseName + ".thumb";
-        File f = EbookFS.open(thumbPath, "r");
-        if (f) {
-            uint8_t thumbBuffer[640];
-            size_t bytesRead = f.read(thumbBuffer, sizeof(thumbBuffer));
-            f.close();
-            if (bytesRead > 0) {
-                display.drawBitmap(x, y, thumbBuffer, 60, 80, GxEPD_BLACK);
-            }
-        }
+                             bool selected, const uint8_t* thumbData) {
+    if (thumbData) {
+        display.drawBitmap(x, y, thumbData, 60, 80, GxEPD_BLACK);
     } else {
         // Fallback default vector book icon
         display.fillRect(x, y, w, h, GxEPD_WHITE);
@@ -254,14 +241,31 @@ void AppReader::drawLibrary() {
     }
     _librarySelectionOnlyRedraw = false;
 
+    // PRE-LOAD THUMBNAILS TO PROTECT SPI BUS DURING E-INK REFRESH
+    std::map<int, std::vector<uint8_t>> thumbCache;
+    int preLoadY = HEADER_H + BACK_ITEM_HEIGHT;
+    for (size_t idx = (size_t)_libraryScrollOffset; idx < _books.size(); idx++) {
+        if (preLoadY > display.height() - 70) break;
+        if (_books[idx].hasCoverThumb) {
+            String thumbPath = "/covers/" + _books[idx].baseName + ".thumb";
+            File f = EbookFS.open(thumbPath, "r");
+            if (f) {
+                std::vector<uint8_t> buf(640);
+                if (f.read(buf.data(), 640) == 640) {
+                    thumbCache[idx] = buf;
+                }
+                f.close();
+            }
+        }
+        preLoadY += ITEM_HEIGHT;
+    }
+
     display.firstPage();
     do {
         display.fillScreen(GxEPD_WHITE);
 
-        // Header Title
         drawTextWithFont(display, "Library", 20, 40, &FreeSansBold12pt8b, GxEPD_BLACK);
 
-        // Book counter placed below the status bar area to avoid visual collisions
         char countText[24];
         snprintf(countText, sizeof(countText), "%d books", (int)_books.size());
         fontMgr.drawTextRight(display, countText, display.width() - 20, 48, FONT_SIZE_SMALL, GxEPD_BLACK);
@@ -271,7 +275,6 @@ void AppReader::drawLibrary() {
 
         int y = HEADER_H;
 
-        // Navigation back button
         bool backSelected = (_selectedBookIndex == -1);
         if (backSelected) {
             display.fillRect(20, y + 6, 5, BACK_ITEM_HEIGHT - 12, GxEPD_BLACK);
@@ -304,7 +307,13 @@ void AppReader::drawLibrary() {
                 int coverH = COVER_HEIGHT;
                 int coverX = ITEM_PADDING + 12;
                 int coverY = y + (ITEM_HEIGHT - coverH) / 2;
-                drawBookTile(display, book, coverX, coverY, coverW, coverH, isSelected);
+
+                const uint8_t* tData = nullptr;
+                if (thumbCache.count(idx) > 0) {
+                    tData = thumbCache[idx].data();
+                }
+
+                drawBookTile(display, book, coverX, coverY, coverW, coverH, isSelected, tData);
 
                 uint16_t textColor = GxEPD_BLACK;
                 String title = book.title;
@@ -354,7 +363,6 @@ void AppReader::drawLibrary() {
             }
         }
 
-        // Navigation footer
         char pageStr[24];
         if (_selectedBookIndex == -1) {
             snprintf(pageStr, sizeof(pageStr), "Menu");
@@ -369,7 +377,6 @@ void AppReader::drawLibrary() {
         fontMgr.drawTextRight(display, pageStr, display.width() - 20, display.height() - 18, FONT_SIZE_SMALL,
                               GxEPD_BLACK);
 
-        // Render system status bar on top right of library view
         BatteryMgr::getInstance().drawStatusBar(display, display.width() - 105, 10);
 
     } while (display.nextPage());

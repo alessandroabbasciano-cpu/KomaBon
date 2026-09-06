@@ -229,8 +229,8 @@ void setupSystemEndpoints(AsyncWebServer* server) {
     server->addHandler(wifiConnectHandler);
 
     server->on("/joy_cal.json", HTTP_GET, [](AsyncWebServerRequest* request) {
-        if (EbookFS.exists("/joy_cal.json")) {
-            request->send(EbookFS, "/joy_cal.json", "application/json");
+        if (SystemFS.exists("/joy_cal.json")) {
+            request->send(SystemFS, "/joy_cal.json", "application/json");
         } else {
             request->send(404, "text/plain", "File not found");
         }

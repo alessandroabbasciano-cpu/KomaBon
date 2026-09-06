@@ -42,9 +42,9 @@ bool ProgressStore::load() {
     _resumeOnBoot = false;
     _seq = 0;
 
-    if (!EbookFS.exists(PROGRESS_PATH)) return false;
+    if (!SystemFS.exists(PROGRESS_PATH)) return false;
 
-    File file = EbookFS.open(PROGRESS_PATH, "r");
+    File file = SystemFS.open(PROGRESS_PATH, "r");
     if (!file) return false;
 
     DynamicJsonDocument doc(readCapacityFor(file.size()));
@@ -127,7 +127,7 @@ bool ProgressStore::save() {
         return false;
     }
 
-    File out = EbookFS.open(PROGRESS_TMP_PATH, FILE_WRITE);
+    File out = SystemFS.open(PROGRESS_TMP_PATH, FILE_WRITE);
     if (!out) {
         WebMgr::getInstance().sendLog("ProgressStore: cannot open temp file");
         return false;
@@ -136,17 +136,17 @@ bool ProgressStore::save() {
     out.flush();
     out.close();
     if (written == 0) {
-        EbookFS.remove(PROGRESS_TMP_PATH);
+        SystemFS.remove(PROGRESS_TMP_PATH);
         WebMgr::getInstance().sendLog("ProgressStore: serialisation wrote nothing");
         return false;
     }
 
     // littlefs rename replaces the destination atomically; the remove+retry is
     // only for ports where it refuses an existing target.
-    if (!EbookFS.rename(PROGRESS_TMP_PATH, PROGRESS_PATH)) {
-        EbookFS.remove(PROGRESS_PATH);
-        if (!EbookFS.rename(PROGRESS_TMP_PATH, PROGRESS_PATH)) {
-            EbookFS.remove(PROGRESS_TMP_PATH);
+    if (!SystemFS.rename(PROGRESS_TMP_PATH, PROGRESS_PATH)) {
+        SystemFS.remove(PROGRESS_PATH);
+        if (!SystemFS.rename(PROGRESS_TMP_PATH, PROGRESS_PATH)) {
+            SystemFS.remove(PROGRESS_TMP_PATH);
             WebMgr::getInstance().sendLog("ProgressStore: rename failed — progress not saved");
             return false;
         }
@@ -291,7 +291,7 @@ static void collectPresentOriginalNames(std::map<String, bool>& present) {
     std::map<String, String> metadata;
     loadBookMetadata(metadata);
 
-    File root = EbookFS.open("/");
+    File root = SystemFS.open("/");
     if (!root || !root.isDirectory()) return;
 
     File file = root.openNextFile();
