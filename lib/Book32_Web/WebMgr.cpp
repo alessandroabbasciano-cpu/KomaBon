@@ -648,11 +648,23 @@ void WebMgr::setupEndpoints() {
 
         request->send(response);
     });
-    // API: List Books from EbookFS
-    // v1.2.0: streamed serialization (no fixed 2KB buffer — previously books
-    // beyond the buffer were silently truncated) + manual ordering applied.
+    // API: List Books from EbookFS or download a specific book file
     server->on("/api/books", HTTP_GET, [](AsyncWebServerRequest* request) {
-        // 1) Enumerate FS: books (.epub) and fonts (.ttf) separately.
+        // If a specific book name is requested, send the file as an attachment cleanly
+        if (request->hasParam("name")) {
+            String filename = request->getParam("name")->value();
+            if (isSafeBookName(filename)) {
+                String path = "/" + filename;
+                if (EbookFS.exists(path)) {
+                    // Using native download flag avoids duplicate Content-Disposition headers
+                    request->send(EbookFS, path, "application/octet-stream", true);
+                    return;
+                }
+            }
+            request->send(404, "text/plain", "File not found");
+            return;
+        }
+
         std::vector<String> epubs, fonts;
         File root = EbookFS.open("/");
         if (root && root.isDirectory()) {
@@ -669,14 +681,12 @@ void WebMgr::setupEndpoints() {
             root.close();
         }
 
-        // 2) Apply manual order to books; fonts stay appended in FS order.
         std::vector<String> order;
         loadBookOrder(order);
         applyBookOrder(order, epubs);
         for (const String& f : fonts)
             epubs.push_back(f);
 
-        // 3) Stream JSON directly — O(1) memory w.r.t. number of books.
         AsyncResponseStream* response = request->beginResponseStream("application/json");
         response->print("{\"books\":[");
         bool first = true;
@@ -693,8 +703,7 @@ void WebMgr::setupEndpoints() {
         response->print("]}");
         request->send(response);
     });
-
-    // API (v1.2.0): Save manual book order. Body: {"order":["a.epub","b.epub"]}
+    // API: Save manual book order. Body: {"order":["a.epub","b.epub"]}
     AsyncCallbackJsonWebHandler* bookOrderHandler = new AsyncCallbackJsonWebHandler(
         "/api/books/order", [](AsyncWebServerRequest* request, JsonVariant& json) {
             JsonArray arr = json["order"].as<JsonArray>();
@@ -908,9 +917,6 @@ void WebMgr::setupEndpoints() {
 
         String filename = request->getParam("name")->value();
 
-        // v1.4.1 (security): reject path separators, ".." and unknown
-        // extensions before building a filesystem path. Without this,
-        // ?name=../spiffs/index.html escaped the ebooks root.
         if (!isSafeBookName(filename)) {
             Serial.printf("Rejected unsafe delete request: %s\n", filename.c_str());
             request->send(400, "text/plain", "Invalid name");
@@ -925,12 +931,12 @@ void WebMgr::setupEndpoints() {
                 removeBookMetadata(filename);
                 removeBookProgress(filename);
                 removeFromBookOrder(filename);
-                // Ficheiros derivados em /covers. A extensão é retirada pela
-                // posição do último ponto, não por String::replace(".epub"):
-                // esse substituía a primeira ocorrência em qualquer sítio do
-                // nome ("a.epub.v2.epub" perdia a errada) e só cobria o caso
-                // minúsculas para o .thumb, deixando lixo para trás nos
-                // ficheiros ".EPUB".
+
+                // Invalidate page count cache for this book so re-uploads are recalculated fresh
+                if (EbookFS.exists("/page_totals.json")) {
+                    EbookFS.remove("/page_totals.json");
+                }
+
                 int dot = filename.lastIndexOf('.');
                 String base = (dot > 0) ? filename.substring(0, dot) : filename;
                 const char* derivedExts[] = {".thumb", ".cover", ".cover2"};

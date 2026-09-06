@@ -5,47 +5,75 @@
 #include "KomaBonFS.h"
 #include <JPEGDEC.h>
 
-// Internal state structure passed to the JPEGDEC callback
-struct ThumbState {
+struct ThumbDecodeContext {
     uint8_t thumb[640];
-    int srcW;
-    int srcH;
+    int scaledW;
+    int scaledH;
 };
 
-// Callback to process JPEG MCU blocks on the fly:
-// downsamples pixels via nearest-neighbor, thresholds to 1-bit black/white,
-// and packs the result into a 60x80 byte buffer (8 bytes per row * 80 rows).
-static int thumbDrawCallback(JPEGDRAW* pDraw) {
-    ThumbState* state = (ThumbState*)pDraw->pUser;
-    uint8_t* pixels = (uint8_t*)pDraw->pPixels; // Decoded in EIGHT_BIT_GRAYSCALE mode
+// Callback executed by JPEGDEC for each MCU block in ONE_BIT_DITHERED mode
+static int thumbDitherCallback(JPEGDRAW* pDraw) {
+    ThumbDecodeContext* ctx = (ThumbDecodeContext*)pDraw->pUser;
+    uint8_t* src = (uint8_t*)pDraw->pPixels;
+    int bytesPerRow = (pDraw->iWidth + 7) / 8;
 
     for (int y = 0; y < pDraw->iHeight; y++) {
         int sy = pDraw->y + y;
-        if (sy >= state->srcH) continue;
-        int ty = sy * 80 / state->srcH;
+        if (sy >= ctx->scaledH) continue;
+        int ty = (sy * 80) / ctx->scaledH;
 
         for (int x = 0; x < pDraw->iWidth; x++) {
             int sx = pDraw->x + x;
-            if (sx >= state->srcW) continue;
-            int tx = sx * 60 / state->srcW;
+            if (sx >= ctx->scaledW) continue;
+            int tx = (sx * 60) / ctx->scaledW;
 
-            uint8_t luma = pixels[y * pDraw->iWidth + x];
-            if (luma < 128) { // 1-bit threshold: black pixel = bit 1
+            // In JPEGDEC ONE_BIT_DITHERED mode: bit 0 = black pixel, bit 1 = white pixel
+            int srcByte = y * bytesPerRow + (x / 8);
+            int srcBit = 7 - (x % 8);
+            bool isBlack = !(src[srcByte] & (1 << srcBit));
+
+            if (isBlack) {
                 int dstByte = ty * 8 + (tx / 8);
                 int dstBit = 7 - (tx % 8);
-                state->thumb[dstByte] |= (1 << dstBit);
+                ctx->thumb[dstByte] |= (1 << dstBit);
             }
         }
     }
-    return 1; // Continue decoding next MCU block
+    return 1;
+}
+
+// Validates that a thumbnail buffer contains black pixels and is not entirely blank
+static bool isThumbnailPopulated(const uint8_t* buffer, size_t len) {
+    for (size_t i = 0; i < len; i++) {
+        if (buffer[i] != 0) return true;
+    }
+    return false;
 }
 
 bool CoverExtractor::processNextCover(std::vector<BookEntry>& books) {
     for (auto& book : books) {
-        if (book.hasCoverThumb || book.coverAttempted) continue;
+        if (book.coverAttempted) continue;
 
-        book.coverAttempted = true; // Mark attempted to avoid repetitive processing loops
         String thumbPath = "/covers/" + book.baseName + ".thumb";
+
+        // If a thumbnail file exists, verify that it is valid and not completely white
+        if (book.hasCoverThumb && EbookFS.exists(thumbPath)) {
+            File testF = EbookFS.open(thumbPath, "r");
+            if (testF) {
+                uint8_t buf[640];
+                size_t bytesRead = testF.read(buf, sizeof(buf));
+                testF.close();
+                if (bytesRead == 640 && isThumbnailPopulated(buf, 640)) {
+                    book.coverAttempted = true;
+                    continue;
+                }
+            }
+            // Remove corrupted or completely white thumbnail to force regeneration
+            EbookFS.remove(thumbPath);
+            book.hasCoverThumb = false;
+        }
+
+        book.coverAttempted = true;
         bool generated = false;
 
         if (book.path.endsWith(".kmb")) {
@@ -61,7 +89,6 @@ bool CoverExtractor::processNextCover(std::vector<BookEntry>& books) {
                 if (pageBuf && kb->readPage(0, pageBuf)) {
                     uint8_t thumb[640] = {0};
 
-                    // Nearest-neighbor bit-to-bit reduction
                     for (int ty = 0; ty < 80; ty++) {
                         int sy = ty * h / 80;
                         for (int tx = 0; tx < 60; tx++) {
@@ -98,14 +125,13 @@ bool CoverExtractor::processNextCover(std::vector<BookEntry>& books) {
                 size_t imgSize = 0;
                 uint8_t* imgData = epub->getCoverImageData(&imgSize);
 
-                if (imgData) {
+                if (imgData && imgSize > 0) {
                     JPEGDEC* jpeg = new JPEGDEC();
 
-                    if (jpeg->openRAM(imgData, imgSize, thumbDrawCallback)) {
+                    if (jpeg->openRAM(imgData, imgSize, thumbDitherCallback)) {
                         int imgW = jpeg->getWidth();
                         int imgH = jpeg->getHeight();
 
-                        // Pre-scale during IDCT decoding to reduce CPU load and PSRAM usage
                         int scale = 0;
                         if (imgW / 8 >= 60 && imgH / 8 >= 80)
                             scale = JPEG_SCALE_EIGHTH;
@@ -114,23 +140,34 @@ bool CoverExtractor::processNextCover(std::vector<BookEntry>& books) {
                         else if (imgW / 2 >= 60 && imgH / 2 >= 80)
                             scale = JPEG_SCALE_HALF;
 
-                        ThumbState* state = new ThumbState();
-                        memset(state->thumb, 0, 640);
-                        state->srcW = imgW >> scale;
-                        state->srcH = imgH >> scale;
+                        int actualW = imgW >> scale;
+                        int actualH = imgH >> scale;
+                        int alignedW = (actualW + 15) & ~15;
 
-                        jpeg->setUserPointer(state);
-                        jpeg->setPixelType(EIGHT_BIT_GRAYSCALE);
+                        uint8_t* ditherBuffer = (uint8_t*)ps_malloc(alignedW * 16);
+                        if (!ditherBuffer) ditherBuffer = (uint8_t*)malloc(alignedW * 16);
 
-                        if (jpeg->decode(0, 0, scale)) {
-                            File f = EbookFS.open(thumbPath, "w");
-                            if (f) {
-                                f.write(state->thumb, 640);
-                                f.close();
-                                generated = true;
+                        if (ditherBuffer) {
+                            ThumbDecodeContext ctx;
+                            memset(ctx.thumb, 0, sizeof(ctx.thumb));
+                            ctx.scaledW = actualW;
+                            ctx.scaledH = actualH;
+
+                            jpeg->setUserPointer(&ctx);
+                            jpeg->setPixelType(ONE_BIT_DITHERED);
+
+                            if (jpeg->decodeDither(ditherBuffer, scale)) {
+                                File f = EbookFS.open(thumbPath, "w");
+                                if (f) {
+                                    f.write(ctx.thumb, 640);
+                                    f.close();
+                                    generated = true;
+                                    Serial.printf("CoverExtractor: Generated thumb for %s\n", book.baseName.c_str());
+                                }
                             }
+                            free(ditherBuffer);
                         }
-                        delete state;
+                        jpeg->close();
                     }
                     delete jpeg;
                     free(imgData);

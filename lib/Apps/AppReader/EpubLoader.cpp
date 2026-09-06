@@ -247,19 +247,41 @@ bool EpubLoader::parseOpf() {
             String idLower = id;
             idLower.toLowerCase();
 
-            // --- NEW: Identify the cover image ---
-            if (properties.indexOf("cover-image") != -1) {
-                coverHref = href; // EPUB3 standard
-            } else if (epub2CoverId.length() > 0 && id == epub2CoverId) {
-                coverHref = href; // EPUB2 standard
-            } else if (coverHref.length() == 0 &&
-                       (hrefLower.indexOf("cover") != -1 || idLower.indexOf("cover") != -1)) {
-                // Fallback heuristic: file or ID contains "cover"
-                if (hrefLower.endsWith(".jpg") || hrefLower.endsWith(".jpeg") || hrefLower.endsWith(".png")) {
-                    coverHref = href;
+            // --- Multilingual Cover Identification ---
+            // Ensure target is a supported image extension before matching
+            bool isImageFile =
+                hrefLower.endsWith(".jpg") || hrefLower.endsWith(".jpeg") || hrefLower.endsWith(".png");
+
+            // Standard EPUB3 manifest property
+            if (properties.indexOf("cover-image") != -1 && isImageFile) {
+                coverHref = href;
+            }
+            // Standard EPUB2 metadata reference
+            else if (epub2CoverId.length() > 0 && id == epub2CoverId && isImageFile) {
+                coverHref = href;
+            }
+            // Fallback heuristic: match filename or ID against international keywords
+            else if (coverHref.length() == 0 && isImageFile) {
+                static const char* const COVER_KEYWORDS[] = {
+                    "cover",      // English
+                    "copertina",  // Italian
+                    "couverture", // French
+                    "portada",    // Spanish
+                    "capa",       // Portuguese
+                    "titelbild",  // German
+                    "umschlag"    // German
+                };
+
+                const size_t keywordCount = sizeof(COVER_KEYWORDS) / sizeof(COVER_KEYWORDS[0]);
+
+                for (size_t k = 0; k < keywordCount; ++k) {
+                    const char* kw = COVER_KEYWORDS[k];
+                    if (hrefLower.indexOf(kw) != -1 || idLower.indexOf(kw) != -1) {
+                        coverHref = href;
+                        break;
+                    }
                 }
             }
-            // -------------------------------------
 
             if (hrefLower.endsWith(".ttf") || hrefLower.endsWith(".otf") || mediaType.indexOf("font") != -1) {
                 FontInfo font;

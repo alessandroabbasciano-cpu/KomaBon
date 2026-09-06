@@ -433,7 +433,7 @@ async function optimizeEPUB(file) {
     }
 }
 
-// Convert OpenDocument Text (.odt) to valid standard .epub
+// Convert OpenDocument Text (.odt) to valid standard .epub handling nested sections
 async function convertODTtoEPUB(file) {
     const targetWidth = parseInt(document.getElementById('eink-width').value);
     const targetHeight = parseInt(document.getElementById('eink-height').value);
@@ -470,151 +470,101 @@ async function convertODTtoEPUB(file) {
 
         const oebps = epub.folder("OEBPS");
         const textFolder = oebps.folder("Text");
-        const imagesFolder = oebps.folder("Images");
         const stylesFolder = oebps.folder("Styles");
 
         stylesFolder.file("style.css", `
 body { margin: 5%; text-align: justify; font-family: sans-serif; }
 h1, h2, h3 { text-align: center; margin: 1em 0; }
 p { margin: 0.5em 0; text-indent: 1.5em; }
-img { max-width: 100%; height: auto; display: block; margin: 1em auto; }
 `);
 
-        const manifestImages = [];
-        let imageCounter = 1;
-        let xhtmlBody = "";
+        const chaptersHtml = [];
+        let currentXhtml = "";
+        let paragraphCount = 0;
 
-        const bodyNodes = xmlDoc.getElementsByTagNameNS("*", "body")[0]?.getElementsByTagNameNS("*", "text")[0];
-        if (!bodyNodes) throw new Error("Unable to locate document body in ODT.");
+        const bodyNode = xmlDoc.getElementsByTagNameNS("*", "body")[0]?.getElementsByTagNameNS("*", "text")[0];
+        if (!bodyNode) throw new Error("Unable to locate document body in ODT.");
 
-        const children = bodyNodes.children;
-        const totalNodes = children.length;
+        // Recursive tree walker that explores nested sections and tags
+        function extractTextRecursive(node) {
+            if (!node || node.nodeType !== 1) return;
 
-        for (let i = 0; i < totalNodes; i++) {
-            const node = children[i];
-            const localName = node.localName;
+            const name = node.localName ? node.localName.toLowerCase() : "";
 
-            if (localName === "h") {
-                const level = node.getAttributeNS("*", "outline-level") || "1";
+            if (name === "h") {
+                const level = node.getAttributeNS("*", "outline-level") || node.getAttribute("text:outline-level") || "1";
                 const headingTag = parseInt(level) <= 3 ? `h${level}` : "h3";
-                const headingText = node.textContent.trim();
-                if (headingText.length > 0) {
-                    xhtmlBody += `<${headingTag}>${escapeHtml(headingText)}</${headingTag}>\n`;
-                }
-            } else if (localName === "p") {
-                const drawImages = node.getElementsByTagNameNS("*", "image");
-                if (drawImages.length > 0) {
-                    for (let imgEl of drawImages) {
-                        const rawHref = imgEl.getAttributeNS("*", "href") || imgEl.getAttribute("xlink:href");
-                        if (rawHref && odtZip.file(rawHref)) {
-                            logMessage(`Dithering ODT image: ${rawHref}`);
-                            const imgBlob = await odtZip.file(rawHref).async("blob");
-                            const bitmap = await createImageBitmap(imgBlob);
+                const text = node.textContent.trim();
 
-                            let scale = Math.min(targetWidth / bitmap.width, targetHeight / bitmap.height);
-                            if (scale > 1.0) scale = 1.0;
-
-                            const finalWidth = Math.round(bitmap.width * scale);
-                            const finalHeight = Math.round(bitmap.height * scale);
-
-                            const canvas = document.createElement("canvas");
-                            canvas.width = finalWidth;
-                            canvas.height = finalHeight;
-                            const ctx = canvas.getContext("2d", { willReadFrequently: true });
-
-                            ctx.fillStyle = "#FFFFFF";
-                            ctx.fillRect(0, 0, finalWidth, finalHeight);
-                            ctx.drawImage(bitmap, 0, 0, finalWidth, finalHeight);
-
-                            const imgData = ctx.getImageData(0, 0, finalWidth, finalHeight);
-                            const data = imgData.data;
-
-                            for (let p = 0; p < data.length; p += 4) {
-                                const luma = (data[p] * 0.299) + (data[p + 1] * 0.587) + (data[p + 2] * 0.114);
-                                data[p] = data[p + 1] = data[p + 2] = luma;
-                            }
-
-                            for (let py = 0; py < finalHeight; py++) {
-                                for (let px = 0; px < finalWidth; px++) {
-                                    const pIdx = (py * finalWidth + px) * 4;
-                                    const oldPixel = data[pIdx];
-                                    const newPixel = oldPixel < 128 ? 0 : 255;
-                                    data[pIdx] = data[pIdx + 1] = data[pIdx + 2] = newPixel;
-                                    const err = oldPixel - newPixel;
-
-                                    if (px + 1 < finalWidth) {
-                                        data[pIdx + 4] += err * (7 / 16);
-                                        data[pIdx + 5] += err * (7 / 16);
-                                        data[pIdx + 6] += err * (7 / 16);
-                                    }
-                                    if (py + 1 < finalHeight) {
-                                        if (px - 1 >= 0) {
-                                            data[pIdx + (finalWidth * 4) - 4] += err * (3 / 16);
-                                            data[pIdx + (finalWidth * 4) - 3] += err * (3 / 16);
-                                            data[pIdx + (finalWidth * 4) - 2] += err * (3 / 16);
-                                        }
-                                        data[pIdx + (finalWidth * 4)] += err * (5 / 16);
-                                        data[pIdx + (finalWidth * 4) + 1] += err * (5 / 16);
-                                        data[pIdx + (finalWidth * 4) + 2] += err * (5 / 16);
-                                        if (px + 1 < finalWidth) {
-                                            data[pIdx + (finalWidth * 4) + 4] += err * (1 / 16);
-                                            data[pIdx + (finalWidth * 4) + 5] += err * (1 / 16);
-                                            data[pIdx + (finalWidth * 4) + 6] += err * (1 / 16);
-                                        }
-                                    }
-                                }
-                            }
-                            ctx.putImageData(imgData, 0, 0);
-
-                            const newJpgBlob = await new Promise(res => canvas.toBlob(res, "image/jpeg", 0.9));
-                            const imgFilename = `image_${imageCounter}.jpg`;
-                            imagesFolder.file(imgFilename, newJpgBlob);
-
-                            manifestImages.push({ id: `img${imageCounter}`, filename: imgFilename });
-                            xhtmlBody += `<div class="img-wrapper"><img src="../Images/${imgFilename}" alt="Image" /></div>\n`;
-
-                            imageCounter++;
-                            bitmap.close();
-                        }
+                if (text.length > 0) {
+                    if (paragraphCount > 0) {
+                        chaptersHtml.push(currentXhtml);
+                        currentXhtml = "";
+                        paragraphCount = 0;
                     }
+                    currentXhtml += `<${headingTag}>${escapeHtml(text)}</${headingTag}>\n`;
+                    paragraphCount++;
+                }
+            } else if (name === "p") {
+                const text = node.textContent.trim();
+                if (text.length > 0) {
+                    currentXhtml += `<p>${escapeHtml(text)}</p>\n`;
+                    paragraphCount++;
                 }
 
-                const paragraphText = node.textContent.trim();
-                if (paragraphText.length > 0) {
-                    xhtmlBody += `<p>${escapeHtml(paragraphText)}</p>\n`;
+                if (paragraphCount >= 40) {
+                    chaptersHtml.push(currentXhtml);
+                    currentXhtml = "";
+                    paragraphCount = 0;
                 }
-            } else if (localName === "list") {
-                xhtmlBody += `<ul>\n`;
-                const listItems = node.getElementsByTagNameNS("*", "list-item");
-                for (let li of listItems) {
-                    const liText = li.textContent.trim();
-                    if (liText.length > 0) {
-                        xhtmlBody += `  <li>${escapeHtml(liText)}</li>\n`;
-                    }
+            } else {
+                // Enter nested containers such as text:section, table:table, or custom divisions
+                for (let i = 0; i < node.children.length; i++) {
+                    extractTextRecursive(node.children[i]);
                 }
-                xhtmlBody += `</ul>\n`;
             }
-
-            progressBar.style.width = `${20 + (i / totalNodes * 60)}%`;
         }
 
+        extractTextRecursive(bodyNode);
+
+        if (currentXhtml.length > 0) {
+            chaptersHtml.push(currentXhtml);
+        }
+
+        if (chaptersHtml.length === 0) {
+            chaptersHtml.push("<p>Document contains no readable text.</p>");
+        }
+
+        logMessage(`Extracted ${chaptersHtml.length} chapters from ODT structure.`);
+
         const bookTitle = file.name.replace(/\.odt$/i, "").replace(/[_-]/g, " ");
-        textFolder.file("chapter1.xhtml",
-            `<?xml version="1.0" encoding="utf-8"?>
+        let manifestItems = "";
+        let spineItems = "";
+        let navMapItems = "";
+
+        for (let i = 0; i < chaptersHtml.length; i++) {
+            const chapId = `chapter${i + 1}`;
+            const chapFilename = `${chapId}.xhtml`;
+
+            textFolder.file(chapFilename,
+                `<?xml version="1.0" encoding="utf-8"?>
 <!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.1//EN" "http://www.w3.org/TR/xhtml11/DTD/xhtml11.dtd">
 <html xmlns="http://www.w3.org/1999/xhtml">
 <head>
-  <title>${escapeHtml(bookTitle)}</title>
+  <title>${escapeHtml(bookTitle)} - Part ${i + 1}</title>
   <link rel="stylesheet" type="text/css" href="../Styles/style.css"/>
 </head>
 <body>
-${xhtmlBody}
+${chaptersHtml[i]}
 </body>
 </html>`);
 
-        let imageManifestEntries = "";
-        for (let img of manifestImages) {
-            imageManifestEntries += `    <item id="${img.id}" href="Images/${img.filename}" media-type="image/jpeg"/>\n`;
+            manifestItems += `    <item id="${chapId}" href="Text/${chapFilename}" media-type="application/xhtml+xml"/>\n`;
+            spineItems += `    <itemref idref="${chapId}"/>\n`;
+            navMapItems += `    <navPoint id="navpoint-${i + 1}" playOrder="${i + 1}">
+      <navLabel><text>Part ${i + 1}</text></navLabel>
+      <content src="Text/${chapFilename}"/>
+    </navPoint>\n`;
         }
 
         oebps.file("content.opf",
@@ -622,17 +572,15 @@ ${xhtmlBody}
 <package xmlns="http://www.idpf.org/2007/opf" unique-identifier="BookID" version="2.0">
   <metadata xmlns:dc="http://purl.org/dc/elements/1.1/">
     <dc:title>${escapeHtml(bookTitle)}</dc:title>
-    <dc:language>en</dc:language>
+    <dc:language>it</dc:language>
     <dc:identifier id="BookID">urn:uuid:${Date.now()}</dc:identifier>
   </metadata>
   <manifest>
     <item id="ncx" href="toc.ncx" media-type="application/x-dtbncx+xml"/>
     <item id="style" href="Styles/style.css" media-type="text/css"/>
-    <item id="chapter1" href="Text/chapter1.xhtml" media-type="application/xhtml+xml"/>
-${imageManifestEntries}  </manifest>
+${manifestItems}  </manifest>
   <spine toc="ncx">
-    <itemref idref="chapter1"/>
-  </spine>
+${spineItems}  </spine>
 </package>`);
 
         oebps.file("toc.ncx",
@@ -646,11 +594,7 @@ ${imageManifestEntries}  </manifest>
   </head>
   <docTitle><text>${escapeHtml(bookTitle)}</text></docTitle>
   <navMap>
-    <navPoint id="navpoint-1" playOrder="1">
-      <navLabel><text>Start</text></navLabel>
-      <content src="Text/chapter1.xhtml"/>
-    </navPoint>
-  </navMap>
+${navMapItems}  </navMap>
 </ncx>`);
 
         progressBar.style.width = '85%';
@@ -677,7 +621,6 @@ ${imageManifestEntries}  </manifest>
         logMessage("ODT Conversion Error: " + err.message, true);
     }
 }
-
 // Grayscale conversion, Floyd-Steinberg dithering and 1-bit MSB packing
 function applyDitheringAndPack(ctx, kmbBytes, offset, width, height, bytesPerRow) {
     const imageData = ctx.getImageData(0, 0, width, height);
