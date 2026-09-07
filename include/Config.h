@@ -4,7 +4,7 @@
 // Major.Minor.Patch, always with all three components: release.yml only triggers
 // on v[0-9]+.[0-9]+.[0-9]+ tags and compares the tag with this value character
 // by character. "1.10" here (or a v1.10 tag) would not publish any release.
-#define SYSTEM_VERSION "0.2.1-beta"
+#define SYSTEM_VERSION "0.2.2-beta"
 #define DEVICE_NAME "KomaBon"
 
 // Offline management hotspot (SoftAP). When the device can't reach a known
@@ -46,7 +46,7 @@
 #define SD_MISO_PIN 8
 
 #define SD_INIT_FREQ 400000  // 400 kHz for initial card identification
-#define SD_FAST_FREQ 8000000 // 8 MHz for fast data transfer
+#define SD_FAST_FREQ 4000000 // 4 MHz for fast data transfer
 
 // Display Settings (Portrait 7.5")
 #define SCREEN_WIDTH 480

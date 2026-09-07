@@ -5,14 +5,6 @@
 #include "Fonts/FreeSans.h"
 #include <WebMgr.h>
 
-// NEW: FreeRTOS Yield Callback.
-// While the e-ink panel is physically refreshing (taking ~1.5s),
-// this allows the ESP32 to process inputs, WiFi, and background tasks
-// instead of completely freezing the UI.
-void busyCallback(const void* p) {
-    vTaskDelay(pdMS_TO_TICKS(1));
-}
-
 static void drawCenteredText(KomaBonDisplay& display, const char* text, const GFXfont* font, int16_t baseline,
                              uint16_t color) {
     int16_t x1, y1;
@@ -60,9 +52,6 @@ void DisplayMgr::init() {
     SPI.begin(EPD_SCK, EPD_MISO, EPD_MOSI, EPD_CS);
 
     display.epd2.selectSPI(SPI, SPISettings(20000000, MSBFIRST, SPI_MODE0));
-
-    // Inject the callback into the driver BEFORE init
-    display.epd2.setBusyCallback(busyCallback);
 
     display.init(115200, true, 10, false);
 

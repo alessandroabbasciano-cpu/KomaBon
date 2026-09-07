@@ -116,8 +116,9 @@ void BatteryMgr::update() {
                     }
                     _lastChargingTime = now; // Track when charging was last seen
                 } else if (_cachedStatus.voltage < HIGH_VOLTAGE_THRESHOLD &&
-                           voltageChange < -CHARGE_THRESHOLD) {
-                    // Voltage is dropping and below high threshold = not charging
+                           voltageChange < -(CHARGE_THRESHOLD * 3.0f)) {
+                    // Require a significantly larger drop to declare discharge, avoiding false triggers from
+                    // e-ink load
                     if (_cachedStatus.charging) {
                         _cachedStatus.charging = false;
                         WebMgr::getInstance().sendLogf(
@@ -424,18 +425,73 @@ void BatteryMgr::enterIdleSleep(const char* reason) {
     esp_deep_sleep_start();
 }
 
+void BatteryMgr::drawStatusBar(KomaBonDisplay& display, int startX, int startY) {
+    bool currentWifi = (WiFi.status() == WL_CONNECTED);
+    bool currentSd = SDMgr::getInstance().isMounted();
+    BatteryStatus bat = getStatus();
+    int percentage = bat.percentage;
+    bool currentCharging = bat.charging;
+
+    // Fix the coordinates and dimensions to be universal
+    const int INDICATOR_WIDTH = 85;
+    int cx = display.width() - INDICATOR_WIDTH - 5;
+    int cy = 6;
+
+    display.setTextColor(GxEPD_BLACK);
+
+    // 1. Wi-Fi Icon
+    if (currentWifi) {
+        display.fillRect(cx, cy + 6, 2, 4, GxEPD_BLACK);
+        display.fillRect(cx + 3, cy + 3, 2, 7, GxEPD_BLACK);
+        display.fillRect(cx + 6, cy, 2, 10, GxEPD_BLACK);
+    } else {
+        display.drawLine(cx, cy + 10, cx + 8, cy + 2, GxEPD_BLACK);
+    }
+    cx += 12;
+
+    // 2. SD Icon
+    if (currentSd) {
+        display.drawRect(cx, cy, 8, 10, GxEPD_BLACK);
+        display.drawFastHLine(cx + 1, cy, 2, GxEPD_WHITE);
+        display.fillRect(cx + 1, cy + 3, 6, 4, GxEPD_BLACK);
+    }
+    cx += 12;
+
+    // 3. Battery Icon
+    int batW = 14;
+    int batH = 8;
+    display.drawRect(cx, cy + 1, batW, batH, GxEPD_BLACK);
+    display.fillRect(cx + batW, cy + 3, 2, 4, GxEPD_BLACK);
+
+    int fill = (percentage * (batW - 4)) / 100;
+    if (fill > 0) display.fillRect(cx + 2, cy + 3, fill, batH - 4, GxEPD_BLACK);
+
+    cx += batW + 4;
+
+    // 4. Percentage Text
+    display.setFont(NULL);
+    display.setCursor(cx, cy + 2);
+    display.printf("%d%%", percentage);
+    if (currentCharging) display.print("+");
+}
+
 void BatteryMgr::drawStatusIndicator() {
+    static unsigned long lastIndicatorDrawTime = 0;
+    unsigned long now = millis();
+
+    // Cooldown: prevent redraws more than once per minute
+    if (lastIndicatorDrawTime > 0 && (now - lastIndicatorDrawTime < 60000)) {
+        return;
+    }
+
     bool currentCharging;
-    int percentage;
     bool currentWifi = (WiFi.status() == WL_CONNECTED);
     bool currentSd = SDMgr::getInstance().isMounted();
 
     {
         Book32Guard guard(_mutex);
         currentCharging = _cachedStatus.charging;
-        percentage = _cachedStatus.percentage;
 
-        // Only refresh display if any hardware status has changed
         if (currentCharging == _lastDisplayedCharging && currentWifi == _lastDisplayedWifi &&
             currentSd == _lastDisplayedSd) {
             return;
@@ -444,66 +500,19 @@ void BatteryMgr::drawStatusIndicator() {
 
     KomaBonDisplay& display = DisplayMgr::getInstance().getDisplay();
 
-    // Expanded width to fit Wi-Fi, SD and Battery icons nicely
-    const int INDICATOR_WIDTH = 95;
-    const int INDICATOR_HEIGHT = 30;
+    const int INDICATOR_WIDTH = 65;
+    const int INDICATOR_HEIGHT = 12;
     const int INDICATOR_X = display.width() - INDICATOR_WIDTH - 5;
     const int INDICATOR_Y = 5;
 
+    // Open hardware rendering cycle
     display.setPartialWindow(INDICATOR_X, INDICATOR_Y, INDICATOR_WIDTH, INDICATOR_HEIGHT);
-
     display.firstPage();
     do {
         display.fillScreen(GxEPD_WHITE);
-        display.setTextColor(GxEPD_BLACK);
 
-        int currentX = INDICATOR_X + 2;
-        int iconY = INDICATOR_Y + 7;
-
-        // 1. Draw Wi-Fi Icon (simple signal bars or dot if connected)
-        if (currentWifi) {
-            // Draw connected Wi-Fi indicator (small waves / dots)
-            display.fillRect(currentX, iconY + 10, 2, 4, GxEPD_BLACK);
-            display.fillRect(currentX + 4, iconY + 6, 2, 8, GxEPD_BLACK);
-            display.fillRect(currentX + 8, iconY + 2, 2, 12, GxEPD_BLACK);
-        } else {
-            // Draw disconnected Wi-Fi (small X or muted symbol)
-            display.drawLine(currentX, iconY + 12, currentX + 10, iconY + 2, GxEPD_BLACK);
-        }
-
-        currentX += 14;
-
-        // 2. Draw SD Card Icon if mounted
-        if (currentSd) {
-            // Draw small SD card shape outline
-            display.drawRect(currentX, iconY + 2, 10, 12, GxEPD_BLACK);
-            display.drawFastHLine(currentX + 2, iconY + 2, 2, GxEPD_WHITE); // notch
-            display.fillRect(currentX + 2, iconY + 6, 6, 4, GxEPD_BLACK);   // label area
-        }
-
-        currentX += 14;
-
-        // 3. Draw Battery Icon & Percentage/Bars
-        int batX = currentX;
-        int batY = INDICATOR_Y + 5;
-        int batW = 40;
-        int batH = 20;
-
-        display.drawRect(batX, batY, batW, batH, GxEPD_BLACK);
-        display.fillRect(batX + batW, batY + 5, 3, 10, GxEPD_BLACK);
-
-        int fillWidth = (percentage * (batW - 4)) / 100;
-        if (fillWidth > 0) {
-            display.fillRect(batX + 2, batY + 2, fillWidth, batH - 4, GxEPD_BLACK);
-        }
-
-        if (currentCharging) {
-            int boltX = batX + batW / 2;
-            int boltY = batY + 2;
-            display.drawLine(boltX, boltY, boltX - 4, batY + batH / 2, GxEPD_WHITE);
-            display.drawLine(boltX - 4, batY + batH / 2, boltX + 2, batY + batH / 2, GxEPD_WHITE);
-            display.drawLine(boltX + 2, batY + batH / 2, boltX - 2, batY + batH - 2, GxEPD_WHITE);
-        }
+        // Unified drawing call
+        drawStatusBar(display, 0, 0);
 
     } while (display.nextPage());
 
@@ -512,60 +521,6 @@ void BatteryMgr::drawStatusIndicator() {
         _lastDisplayedCharging = currentCharging;
         _lastDisplayedWifi = currentWifi;
         _lastDisplayedSd = currentSd;
-    }
-
-    WebMgr::getInstance().sendLogf("Status indicators updated: WiFi=%s, SD=%s, Charging=%s\n",
-                                   currentWifi ? "Connected" : "Disconnected",
-                                   currentSd ? "Present" : "Absent", currentCharging ? "Yes" : "No");
-}
-
-void BatteryMgr::drawStatusBar(KomaBonDisplay& display, int startX, int startY) {
-    bool wifiConnected = (WiFi.status() == WL_CONNECTED);
-    bool sdMounted = SDMgr::getInstance().isMounted();
-    BatteryStatus bat = getStatus();
-
-    int currentX = startX;
-    int iconY = startY + 2;
-
-    // 1. Wi-Fi Status Icon
-    if (wifiConnected) {
-        display.fillRect(currentX, iconY + 8, 2, 4, GxEPD_BLACK);
-        display.fillRect(currentX + 4, iconY + 4, 2, 8, GxEPD_BLACK);
-        display.fillRect(currentX + 8, iconY, 2, 12, GxEPD_BLACK);
-    } else {
-        display.drawLine(currentX, iconY + 12, currentX + 10, iconY + 2, GxEPD_BLACK);
-    }
-
-    currentX += 16;
-
-    // 2. SD Card Status Icon
-    if (sdMounted) {
-        display.drawRect(currentX, iconY, 10, 14, GxEPD_BLACK);
-        display.drawFastHLine(currentX + 2, iconY, 2, GxEPD_WHITE);
-        display.fillRect(currentX + 2, iconY + 4, 6, 4, GxEPD_BLACK);
-    }
-
-    currentX += 16;
-
-    // 3. Battery Status Icon
-    int batW = 40;
-    int batH = 20;
-    display.drawRect(currentX, startY, batW, batH, GxEPD_BLACK);
-    display.fillRect(currentX + batW, startY + 5, 3, 10, GxEPD_BLACK);
-
-    int fillWidth = (bat.percentage * 36) / 100;
-    if (fillWidth > 36) fillWidth = 36;
-    if (fillWidth < 0) fillWidth = 0;
-
-    if (bat.percentage > 0) {
-        display.fillRect(currentX + 2, startY + 2, fillWidth, 16, GxEPD_BLACK);
-    }
-
-    if (bat.charging) {
-        int boltX = currentX + batW / 2;
-        int boltY = startY + 2;
-        display.drawLine(boltX, boltY, boltX - 4, startY + batH / 2, GxEPD_WHITE);
-        display.drawLine(boltX - 4, startY + batH / 2, boltX + 2, startY + batH / 2, GxEPD_WHITE);
-        display.drawLine(boltX + 2, startY + batH / 2, boltX - 2, startY + batH - 2, GxEPD_WHITE);
+        lastIndicatorDrawTime = millis();
     }
 }

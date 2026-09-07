@@ -6,8 +6,8 @@
 SDMgr::SDMgr() : _spi(nullptr), _mounted(false) {}
 
 bool SDMgr::init() {
-    // 1. Give voltage regulator and SD internal controller time to settle
-    delay(150);
+    // 1. Give voltage regulator and capacitors time to settle after display refresh
+    delay(350);
 
     // 2. Hardware Safety: configure CS high to deselect card during bus setup
     pinMode(SD_CS_PIN, OUTPUT);
@@ -31,12 +31,11 @@ bool SDMgr::init() {
     // 6. Mount SD Card with retry mechanism for reliable cold boots
     bool mountSuccess = false;
     for (int attempt = 1; attempt <= 3; attempt++) {
-        // AGGIUNTO: Il parametro '10' alla fine permette di tenere aperti fino a 10 file contemporaneamente!
         if (SD.begin(SD_CS_PIN, *_spi, SD_FAST_FREQ, "/ebooks", 10)) {
             mountSuccess = true;
             break;
         }
-        delay(100);
+        delay(350);
     }
 
     if (!mountSuccess) {

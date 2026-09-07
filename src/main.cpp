@@ -65,7 +65,7 @@ static void networkStartupTask(void* parameter) {
         gWifiManager = new WiFiManager();
     }
 
-    // Portal timeout of 120 seconds prevents blocking offline usage
+    // Portal timeout prevents blocking offline usage
     gWifiManager->setConfigPortalTimeout(120);
     bool connected = gWifiManager->autoConnect("KomaBon-Setup");
 
@@ -160,10 +160,11 @@ void setup() {
         WebMgr::getInstance().sendLog("Failed to start network task; continuing offline");
     }
 
-    // Check joystick calibration on internal SystemFS partition
+    // --- BOOT ROUTING LOGIC ---
+    // Check joystick calibration safely on the internal SystemFS partition
     if (!SystemFS.exists("/joy_cal.json")) {
         displayMgr.showBootScreen(100, "Joystick Setup");
-        appMgr.switchTo(2);
+        appMgr.switchTo(2); // SettingsApp is index 2
         settingsApp->startCalibrationWizard();
     } else if (readerApp->hasBootResume()) {
         displayMgr.showBootScreen(100, "Opening reader");
@@ -181,12 +182,15 @@ void loop() {
     InputMgr::getInstance().update();
     AppMgr::getInstance().update();
 
-    // Lazy rendering debouncer: avoids repaints while user interacts with physical keys
+    // --- LAZY RENDERING (DEBOUNCED DRAWING) ---
     static unsigned long lastPhysicalInputTime = 0;
+
+    // Ask InputManager if the user is currently interacting with the controls
     if (InputMgr::getInstance().isInteracting()) {
         lastPhysicalInputTime = millis();
     }
 
+    // Wait for 200ms of absolute silence before allowing the screen to update
     if (millis() - lastPhysicalInputTime > 200) {
         AppMgr::getInstance().draw();
     }
@@ -196,6 +200,7 @@ void loop() {
 
     App* currentApp = AppMgr::getInstance().getCurrentApp();
     if (!currentApp || currentApp->allowsSystemStatusIndicator()) {
+        // Ensure the battery indicator also respects the lazy rendering rule
         if (millis() - lastPhysicalInputTime > 200) {
             BatteryMgr::getInstance().drawStatusIndicator();
         }

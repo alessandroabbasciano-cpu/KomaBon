@@ -8,8 +8,8 @@
 #include "WebMgr.h"
 
 InputMgr::InputMgr()
-    : btn(255, true, true), btnBack(PIN_BUTTON_BACK, true, true), // 255 disables OneButton su GPIO2
-      btnSleep(PIN_BUTTON_SLEEP, true, true) {                    // Active Low, Pullup
+    : btn(), btnBack(PIN_BUTTON_BACK, true, true),
+      btnSleep(PIN_BUTTON_SLEEP, true, true) { // Active Low, Pullup
     callback = nullptr;
 }
 
