@@ -55,7 +55,7 @@ AppReader::AppReader() {
 
 void AppReader::loadSettings() {
     File file;
-    if (EbookFS.exists("/reader_config.json")) {
+    if (SystemFS.exists("/reader_config.json")) {
         file = SystemFS.open("/reader_config.json", "r");
     }
 
@@ -85,7 +85,6 @@ AppReader::~AppReader() {
 }
 
 bool AppReader::hasBootResume() {
-    // Disabled automatic resume on startup to ensure bus and voltage stability at boot
     return false;
 }
 
@@ -94,21 +93,18 @@ void AppReader::resumeSavedBookOnStart() {
 }
 
 void AppReader::start() {
-    // Keep Wi-Fi active if an operator is monitoring via the Web Console
-    if (WebMgr::getInstance().isConsoleActive()) {
+    // Only maintain Wi-Fi active if the manual debug flag was explicitly triggered via API
+    if (WebMgr::getInstance()._debugKeepWifi) {
         WebMgr::getInstance().sendLog(
-            "DEBUG MODE: AppReader started. Wi-Fi shutdown canceled by active Web Console.");
+            "DEBUG MODE: AppReader started. Wi-Fi shutdown canceled by manual flag.");
     } else {
         if (WiFi.getMode() != WIFI_OFF) {
             WebMgr::getInstance().stop();
             delay(50);
             WiFi.disconnect(false);
             WiFi.mode(WIFI_OFF);
-
-            // Hardware stabilization delay: allows 3.3V rail to settle after RF module power down
-            delay(400);
-
-            WebMgr::getInstance().sendLog("AppReader: WiFi powered down");
+            delay(300);
+            Serial.println("AppReader: Wi-Fi powered down for reading session.");
         }
     }
 
@@ -143,7 +139,7 @@ const uint8_t* AppReader::getIconImage() {
 
 void AppReader::handleInput(InputAction action) {
     if (action == INPUT_NONE) return;
-    WebMgr::getInstance().sendLogf("AppReader::handleInput - action: %d, state: %d\n", action, _state);
+
     if (_state == VIEW_LIBRARY) {
         int maxIndex = (int)_books.size() - 1;
         if (action == INPUT_NEXT) {
@@ -172,6 +168,7 @@ void AppReader::handleInput(InputAction action) {
             AppMgr::getInstance().switchTo(0);
         }
     } else if (_state == VIEW_READING) {
+        // Removed aggressive needsRedraw blocking to allow physical debounce logic
         if (action == INPUT_NEXT)
             nextPage();
         else if (action == INPUT_PREV)
@@ -195,11 +192,7 @@ void AppReader::handleInput(InputAction action) {
 }
 
 bool AppReader::openBook(const String& path, bool restoreProgress) {
-    // Hardware verification: prevent operations if SD card is not mounted
-    if (!SDMgr::getInstance().isMounted()) {
-        WebMgr::getInstance().sendLog("AppReader: Cannot open book, SD card is not mounted.");
-        return false;
-    }
+    if (!SDMgr::getInstance().isMounted()) return false;
 
     String fullPath = "/ebooks" + path;
     closeBook(false);
@@ -208,10 +201,7 @@ bool AppReader::openBook(const String& path, bool restoreProgress) {
     String pathLower = path;
     pathLower.toLowerCase();
 
-    WebMgr::getInstance().sendLog("System: Opening book -> " + path);
-
     if (pathLower.endsWith(".kmb")) {
-        WebMgr::getInstance().sendLog("System: KMB format detected, starting COMIC engine.");
         _isComicMode = true;
         _kbReader = new KBReader();
 
@@ -225,7 +215,6 @@ bool AppReader::openBook(const String& path, bool restoreProgress) {
         _currentPageRenderValid = false;
 
     } else {
-        WebMgr::getInstance().sendLog("AppReader: EPUB detected, starting TEXT engine.");
         _isComicMode = false;
         _epubLoader = new EpubLoader();
 
@@ -537,41 +526,38 @@ void AppReader::prevPage() {
         _currentPageRenderValid = false;
         saveReadingProgress(true);
         _needsRedraw = true;
-    } else {
-        if (_currentChapter > 0) {
-            int prevChap = _currentChapter - 1;
+    } else if (_currentChapter > 0) {
+        int prevChap = _currentChapter - 1;
 
-            while (prevChap >= 0) {
-                if (!_epubLoader->getChapterContentRich(prevChap).empty()) break;
-                prevChap--;
-            }
+        while (prevChap >= 0) {
+            if (!_epubLoader->getChapterContentRich(prevChap).empty()) break;
+            prevChap--;
+        }
 
-            if (prevChap >= 0) {
-                if (_globalPageNumber > 1) _globalPageNumber--;
+        if (prevChap >= 0) {
+            loadChapter(prevChap);
+            DisplayMgr& dispMgr = DisplayMgr::getInstance();
+            KomaBonDisplay& display = dispMgr.getDisplay();
 
-                loadChapter(prevChap);
-                DisplayMgr& dispMgr = DisplayMgr::getInstance();
-                KomaBonDisplay& display = dispMgr.getDisplay();
+            while (true) {
+                RenderResult r = _textRenderer->renderRichPageDynamic(
+                    display, _currentRichContent, _currentPagePointer.nodeIndex,
+                    _currentPagePointer.charOffset, _pageHistory.size(), 0, false);
 
-                while (true) {
-                    RenderResult r = _textRenderer->renderRichPageDynamic(
-                        display, _currentRichContent, _currentPagePointer.nodeIndex,
-                        _currentPagePointer.charOffset, _pageHistory.size(), 0, false);
-
-                    if (r.pageFull) {
-                        _pageHistory.push_back(_currentPagePointer);
-                        _currentPagePointer.nodeIndex = r.nextNodeIndex;
-                        _currentPagePointer.charOffset = r.nextCharOffset;
-                    } else {
-                        break;
-                    }
+                if (r.pageFull) {
+                    _pageHistory.push_back(_currentPagePointer);
+                    _currentPagePointer.nodeIndex = r.nextNodeIndex;
+                    _currentPagePointer.charOffset = r.nextCharOffset;
+                } else {
+                    break;
                 }
-
-                if (_textRenderer) _textRenderer->clearCache();
-                _currentPageRenderValid = false;
-                saveReadingProgress(true);
-                _needsRedraw = true;
             }
+
+            if (_globalPageNumber > 1) _globalPageNumber--;
+            if (_textRenderer) _textRenderer->clearCache();
+            _currentPageRenderValid = false;
+            saveReadingProgress(true);
+            _needsRedraw = true;
         }
     }
 }
@@ -633,20 +619,26 @@ void AppReader::drawReading() {
 
     int currentPageNum = _pageHistory.size();
 
+    uint8_t* comicPageBuffer = nullptr;
+    if (_isComicMode && _kbReader) {
+        size_t bufferSize = (_kbReader->getWidth() + 7) / 8 * _kbReader->getHeight();
+        comicPageBuffer = (uint8_t*)ps_malloc(bufferSize);
+        if (comicPageBuffer) {
+            if (!_kbReader->readPage(_globalPageNumber - 1, comicPageBuffer)) {
+                free(comicPageBuffer);
+                comicPageBuffer = nullptr;
+            }
+        }
+    }
+
     display.firstPage();
     do {
         display.fillScreen(GxEPD_WHITE);
 
         if (_isComicMode) {
-            size_t bufferSize = (_kbReader->getWidth() + 7) / 8 * _kbReader->getHeight();
-            uint8_t* pageBuffer = (uint8_t*)ps_malloc(bufferSize);
-
-            if (pageBuffer) {
-                if (_kbReader->readPage(_globalPageNumber - 1, pageBuffer)) {
-                    display.drawBitmap(0, 0, pageBuffer, _kbReader->getWidth(), _kbReader->getHeight(),
-                                       GxEPD_BLACK);
-                }
-                free(pageBuffer);
+            if (comicPageBuffer) {
+                display.drawBitmap(0, 0, comicPageBuffer, _kbReader->getWidth(), _kbReader->getHeight(),
+                                   GxEPD_BLACK);
             }
         } else {
             _currentPageRender = _textRenderer->renderRichPageDynamic(
@@ -677,10 +669,14 @@ void AppReader::drawReading() {
         display.setCursor(cursorX, cursorY);
         display.print(footerText);
 
-        // Overlay status bar on top of the reading page
         BatteryMgr::getInstance().drawStatusBar(display, display.width() - 105, 10);
 
     } while (display.nextPage());
+
+    if (comicPageBuffer) {
+        free(comicPageBuffer);
+        comicPageBuffer = nullptr;
+    }
 }
 
 void AppReader::update() {
@@ -691,7 +687,9 @@ void AppReader::update() {
         }
     }
 
-    if (_countingActive) updateTotalPagesCount();
+    if (_countingActive && !_needsRedraw) {
+        updateTotalPagesCount();
+    }
 
     if (_progressDirty && (millis() - _lastProgressChangeMs) >= PROGRESS_FLUSH_DELAY_MS) {
         flushProgress();

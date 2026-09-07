@@ -92,18 +92,24 @@ void AppReader::scanBooks() {
     std::map<String, String> metadata;
     loadBookMetadata(metadata);
 
-    if (!EbookFS.exists("/covers")) {
-        EbookFS.mkdir("/covers");
-        WebMgr::getInstance().sendLog("AppReader: Directory /covers created on EbookFS.");
+    // Initialize covers directory safely on the internal memory
+    File coversDir = SystemFS.open("/covers");
+    if (!coversDir) {
+        SystemFS.mkdir("/covers");
+        WebMgr::getInstance().sendLog("AppReader: Directory /covers initialized on SystemFS.");
+    } else {
+        coversDir.close();
     }
 
     File root = EbookFS.open("/");
     if (!root || !root.isDirectory()) return;
+
     File file = root.openNextFile();
     while (file) {
         String fileName = normalizedBookName(file.name());
         String fileNameLower = fileName;
         fileNameLower.toLowerCase();
+
         if (fileNameLower.endsWith(".epub") || fileNameLower.endsWith(".kmb")) {
             BookEntry entry;
             entry.path = "/" + fileName;
@@ -113,8 +119,10 @@ void AppReader::scanBooks() {
 
             int dot = fileName.lastIndexOf('.');
             entry.baseName = (dot > 0) ? fileName.substring(0, dot) : fileName;
+
+            // Check thumbnails in SystemFS
             String thumbPath = "/covers/" + entry.baseName + ".thumb";
-            entry.hasCoverThumb = EbookFS.exists(thumbPath);
+            entry.hasCoverThumb = SystemFS.exists(thumbPath);
             entry.coverAttempted = entry.hasCoverThumb;
 
             _books.push_back(entry);
@@ -168,7 +176,6 @@ void AppReader::drawBookTile(KomaBonDisplay& display, const BookEntry& book, int
     if (thumbData) {
         display.drawBitmap(x, y, thumbData, 60, 80, GxEPD_BLACK);
     } else {
-        // Fallback default vector book icon
         display.fillRect(x, y, w, h, GxEPD_WHITE);
         display.drawRoundRect(x, y, w, h, 5, GxEPD_BLACK);
         display.drawRoundRect(x + 3, y + 3, w - 6, h - 6, 3, GxEPD_BLACK);
@@ -241,14 +248,14 @@ void AppReader::drawLibrary() {
     }
     _librarySelectionOnlyRedraw = false;
 
-    // PRE-LOAD THUMBNAILS TO PROTECT SPI BUS DURING E-INK REFRESH
+    // Load thumbnails into RAM from internal SystemFS
     std::map<int, std::vector<uint8_t>> thumbCache;
     int preLoadY = HEADER_H + BACK_ITEM_HEIGHT;
     for (size_t idx = (size_t)_libraryScrollOffset; idx < _books.size(); idx++) {
         if (preLoadY > display.height() - 70) break;
         if (_books[idx].hasCoverThumb) {
             String thumbPath = "/covers/" + _books[idx].baseName + ".thumb";
-            File f = EbookFS.open(thumbPath, "r");
+            File f = SystemFS.open(thumbPath, "r");
             if (f) {
                 std::vector<uint8_t> buf(640);
                 if (f.read(buf.data(), 640) == 640) {

@@ -240,9 +240,15 @@
             <!-- Live Console Tab -->
             <section id="console" class="tab-content">
                 <div class="card full-width-card">
-                    <div class="section-heading" style="margin-bottom: 1rem;">
-                        <h3>Live System Console</h3>
-                        <p class="hint">Real-time serial stream from KomaBon via WebSocket.</p>
+                    <div class="section-heading"
+                        style="margin-bottom: 1rem; display: flex; justify-content: space-between; align-items: center;">
+                        <div>
+                            <h3 style="margin-bottom: 0.2rem;">Live System Console</h3>
+                            <p class="hint" style="margin-top: 0;">Real-time serial stream from KomaBon via WebSocket.
+                            </p>
+                        </div>
+                        <button id="debug-wifi-btn" class="btn secondary" onclick="toggleDebugWifi()">Enable Wi-Fi
+                            Debug</button>
                     </div>
                     <div id="live-log" class="console-terminal"></div>
                 </div>

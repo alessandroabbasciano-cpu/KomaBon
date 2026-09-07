@@ -235,4 +235,9 @@ void setupSystemEndpoints(AsyncWebServer* server) {
             request->send(404, "text/plain", "File not found");
         }
     });
+
+    server->on("/api/debug", HTTP_POST, [](AsyncWebServerRequest* request) {
+        WebMgr::getInstance()._debugKeepWifi = !WebMgr::getInstance()._debugKeepWifi;
+        request->send(200, "text/plain", WebMgr::getInstance()._debugKeepWifi ? "1" : "0");
+    });
 }

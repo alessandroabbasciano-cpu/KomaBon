@@ -64,9 +64,8 @@ static void networkStartupTask(void* parameter) {
     if (!gWifiManager) {
         gWifiManager = new WiFiManager();
     }
-    // Don't let the setup portal block forever when no known network is in
-    // range. On timeout autoConnect returns false and the main menu brings up
-    // the KomaBon management hotspot instead.
+
+    // Portal timeout of 120 seconds prevents blocking offline usage
     gWifiManager->setConfigPortalTimeout(120);
     bool connected = gWifiManager->autoConnect("KomaBon-Setup");
 
@@ -91,8 +90,6 @@ static void networkStartupTask(void* parameter) {
         return;
     }
 
-    // WiFiManager releases its config portal before returning, but a short yield
-    // gives the networking stack a clean handoff before starting our server.
     vTaskDelay(pdMS_TO_TICKS(250));
 
     WebMgr::getInstance().init();
@@ -112,7 +109,7 @@ void setup() {
     // Register system-wide log interceptor for the Web Console
     esp_log_set_vprintf(webLogVprintf);
 
-    // Bring the E-ink panel up before the slower startup work begins.
+    // Initialize display subsystem and show initial boot screen
     DisplayMgr& displayMgr = DisplayMgr::getInstance();
     displayMgr.init();
     displayMgr.showBootScreen(8, "Display ready");
@@ -123,35 +120,30 @@ void setup() {
     WebMgr::getInstance().sendLogf("║  Build: %s %s  ║\n", __DATE__, __TIME__);
     WebMgr::getInstance().sendLog("╚═══════════════════════════════════════╝");
 
-    // Get singleton instances (must be done after Arduino init, not at global scope)
     InputMgr& inputMgr = InputMgr::getInstance();
     AppMgr& appMgr = AppMgr::getInstance();
     WebMgr& webMgr = WebMgr::getInstance();
 
-    // 2. Initialize the external MicroSD card FIRST to claim the VFS mount point.
-    // Must happen before webMgr starts to prevent VFS lock corruption on "/ebooks".
+    // Initialize the external MicroSD card first to claim VFS mount point
     SDMgr::getInstance().init();
 
-    // 2.4 Mount internal Filesystems. If SD failed, this will safely mount the fallback.
+    // Mount internal filesystems; falls back safely if SD card is missing
     displayMgr.showBootScreen(28, "Mounting storage");
     webMgr.mountFilesystems();
 
-    // 2.5. Initialize Font Manager (after filesystems, before UI)
+    // Initialize font subsystem
     FontMgr::getInstance().init();
 
-    // Apply the saved display orientation now that the filesystem is mounted
-    // (the boot screen briefly showed in the default orientation before this).
+    // Load display orientation from internal storage
     displayMgr.loadDisplaySettings();
 
-    // 3. Battery/Input/App Init. Network services start in the background so
-    // the menu is usable while WiFi and the web server finish coming up.
     displayMgr.showBootScreen(72, "Preparing controls");
     BatteryMgr::getInstance().init();
 
-    // 4. Input Init
+    // Initialize input management
     inputMgr.init();
 
-    // 5. App Init
+    // Register core applications
     appMgr.registerApp(new AppMainMenu());
     AppReader* readerApp = new AppReader();
     appMgr.registerApp(readerApp);
@@ -168,13 +160,11 @@ void setup() {
         WebMgr::getInstance().sendLog("Failed to start network task; continuing offline");
     }
 
-    // --- BOOT ROUTING LOGIC ---
-    // Check if joystick calibration file exists. Adapt "/joy_cal.json" to your actual filename.
-    if (!EbookFS.exists("/joy_cal.json")) {
+    // Check joystick calibration on internal SystemFS partition
+    if (!SystemFS.exists("/joy_cal.json")) {
         displayMgr.showBootScreen(100, "Joystick Setup");
-        appMgr.switchTo(2); // SettingsApp is index 2
+        appMgr.switchTo(2);
         settingsApp->startCalibrationWizard();
-
     } else if (readerApp->hasBootResume()) {
         displayMgr.showBootScreen(100, "Opening reader");
         readerApp->resumeSavedBookOnStart();
@@ -185,32 +175,27 @@ void setup() {
     }
 
     WebMgr::getInstance().sendLog("Setup Complete");
-} // End of setup()
+}
 
 void loop() {
     InputMgr::getInstance().update();
     AppMgr::getInstance().update();
 
-    // --- LAZY RENDERING (DEBOUNCED DRAWING) ---
+    // Lazy rendering debouncer: avoids repaints while user interacts with physical keys
     static unsigned long lastPhysicalInputTime = 0;
-
-    // Ask InputManager if the user is currently interacting with the controls
     if (InputMgr::getInstance().isInteracting()) {
         lastPhysicalInputTime = millis();
     }
 
-    // Wait for 200ms of absolute silence before allowing the screen to update.
     if (millis() - lastPhysicalInputTime > 200) {
-        AppMgr::getInstance().draw(); // Trigger app rendering
+        AppMgr::getInstance().draw();
     }
-    // ------------------------------------------
 
     WebMgr::getInstance().update();
     BatteryMgr::getInstance().update();
 
     App* currentApp = AppMgr::getInstance().getCurrentApp();
     if (!currentApp || currentApp->allowsSystemStatusIndicator()) {
-        // Ensure the battery indicator also respects the lazy rendering rule
         if (millis() - lastPhysicalInputTime > 200) {
             BatteryMgr::getInstance().drawStatusIndicator();
         }

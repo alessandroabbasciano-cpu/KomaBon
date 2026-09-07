@@ -435,6 +435,34 @@ function initWebSocket() {
     };
 }
 
+// Toggle Wi-Fi Debug Mode for reading sessions
+function toggleDebugWifi() {
+    const btn = document.getElementById('debug-wifi-btn');
+    const originalText = btn.innerText;
+    btn.innerText = "Toggling...";
+    
+    fetch('/api/debug', { method: 'POST' })
+        .then(response => response.text())
+        .then(data => {
+            if (data === "1") {
+                // Debug ON: Wi-Fi stays alive during reading
+                btn.innerText = "Disable Wi-Fi Debug";
+                btn.classList.remove('secondary');
+                btn.classList.add('primary');
+            } else {
+                // Debug OFF: Standard behavior (Wi-Fi shuts down)
+                btn.innerText = "Enable Wi-Fi Debug";
+                btn.classList.remove('primary');
+                btn.classList.add('secondary');
+            }
+        })
+        .catch(error => {
+            console.error('Error toggling debug mode:', error);
+            btn.innerText = "Error!";
+            setTimeout(() => { btn.innerText = originalText; }, 2000);
+        });
+}
+
 // Initialization on load
 initWebSocket();
 setInterval(fetchStatus, 5000);

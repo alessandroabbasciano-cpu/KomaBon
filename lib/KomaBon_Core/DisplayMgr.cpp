@@ -91,17 +91,22 @@ void DisplayMgr::setRotation(int rotation) {
 }
 
 void DisplayMgr::loadDisplaySettings() {
-    int rotation = 3;
-    if (EbookFS.exists("/display_config.json")) {
-        File file = EbookFS.open("/display_config.json", "r");
+    int rotation = 3; // Default portrait orientation
+
+    // Load display orientation from internal SystemFS to protect the SD bus
+    if (SystemFS.exists("/display_config.json")) {
+        File file = SystemFS.open("/display_config.json", "r");
         if (file) {
-            DynamicJsonDocument doc(256);
+            DynamicJsonDocument doc(128);
             if (!deserializeJson(doc, file)) {
-                rotation = doc["rotation"] | 3;
+                if (doc.containsKey("rotation")) {
+                    rotation = doc["rotation"];
+                }
             }
             file.close();
         }
     }
+
     setRotation(rotation);
     WebMgr::getInstance().sendLogf("Loaded display settings: rotation=%d\n", _rotation);
 }

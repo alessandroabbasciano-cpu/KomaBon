@@ -34,6 +34,7 @@ class WebMgr {
     bool isConsoleActive() const;
 
     volatile bool _otaPending = false;
+    volatile bool _debugKeepWifi = false;
     volatile int _pendingRotation = -1;
     volatile int _pendingReaderFontSize = 0;
     volatile int _pendingReaderFontFamily = -1;
