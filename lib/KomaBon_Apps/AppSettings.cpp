@@ -111,14 +111,14 @@ bool AppSettings::isWifiOn() const {
 
 void AppSettings::toggleWifi() {
     if (isWifiOn()) {
-        WebMgr::getInstance().stop();
+        WebMgr::getInstance().stopNetwork();
         WiFi.disconnect(false);
         WiFi.mode(WIFI_OFF);
         setStatus("Wi-Fi off");
     } else {
-        WiFi.mode(WIFI_STA);
-        WiFi.begin();
-        setStatus("Connecting Wi-Fi...");
+        // Strict On-Demand: User explicitly requested network activation
+        WebMgr::getInstance().startNetwork();
+        setStatus("Wi-Fi on (On-Demand)");
     }
 }
 
@@ -253,7 +253,8 @@ void AppSettings::handleInput(InputAction action) {
         } else if (action == INPUT_SELECT) {
             if (_subSelectedIndex == 0) {
                 if (WiFi.status() != WL_CONNECTED) {
-                    setStatus("No network. Turn on Wi-Fi first.");
+                    // Turn on network on-demand to check for updates
+                    WebMgr::getInstance().startNetwork();
                 } else {
                     setStatus("Searching...", 1000);
                     draw();

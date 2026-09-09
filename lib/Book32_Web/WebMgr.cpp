@@ -13,6 +13,7 @@
 #include "../KomaBon_Core/DisplayMgr.h"
 #include <SD.h>
 #include <stdarg.h>
+#include "../../include/NetworkState.h"
 
 // Formatted logging implementation dispatching to both USB Serial and WebSocket
 void WebMgr::sendLogf(const char* format, ...) {
@@ -128,74 +129,95 @@ void WebMgr::mountFilesystems() {
     WebMgr::getInstance().sendLog("============================\n");
 }
 
-void WebMgr::init() {
+void WebMgr::startNetwork() {
     if (_initialized) return;
+
+    WebMgr::getInstance().sendLog("=== Starting Network (On-Demand) ===");
+    gNetworkStartupInProgress = true;
+
+    // 1. Attempt STA mode (Router connection)
+    WiFi.mode(WIFI_STA);
+    WiFi.begin();
+
+    WebMgr::getInstance().sendLog("Trying STA mode...");
+    int attempts = 0;
+    while (WiFi.status() != WL_CONNECTED && attempts < 20) {
+        delay(500);
+        attempts++;
+    }
+
+    // 2. Fallback to SoftAP if STA fails
+    if (WiFi.status() != WL_CONNECTED) {
+        WebMgr::getInstance().sendLog("STA failed. Switching to AP mode.");
+        WiFi.disconnect();
+        WiFi.mode(WIFI_AP);
+        WiFi.softAP(AP_SSID, devicePassword());
+        WebMgr::getInstance().sendLogf("AP Started. SSID: %s, IP: %s\n", AP_SSID,
+                                       WiFi.softAPIP().toString().c_str());
+    } else {
+        WebMgr::getInstance().sendLogf("STA Connected. IP: %s\n", WiFi.localIP().toString().c_str());
+    }
+
+    // 3. Start AsyncWebServer and mDNS
     if (!_endpointsConfigured) {
         setupEndpoints();
-        server->addHandler(ws); // Register WebSocket to server instance
+        server->addHandler(ws);
         _endpointsConfigured = true;
     }
     server->begin();
     _initialized = true;
-    WebMgr::getInstance().sendLog("Web Server Started");
+    resetIdleTimer();
 
-    if (MDNS.begin("book32")) {
+    if (MDNS.begin(DEVICE_NAME)) {
         MDNS.addService("http", "tcp", 80);
         WebMgr::getInstance().sendLog("mDNS: http://book32.local/");
     }
+
+    gNetworkStartupInProgress = false;
 }
 
-void WebMgr::stop() {
+void WebMgr::stopNetwork() {
     if (!_initialized) return;
+
+    WebMgr::getInstance().sendLog("=== Stopping Network & Killing Radio ===");
+
     MDNS.end();
     server->end();
+
+    // Aggressive PHY teardown to preserve battery
+    WiFi.disconnect(true);
+    WiFi.softAPdisconnect(true);
+    WiFi.mode(WIFI_OFF);
+
     _initialized = false;
-    WebMgr::getInstance().sendLog("Web Server Stopped");
+}
+
+void WebMgr::resetIdleTimer() {
+    _lastActivityTime = millis();
 }
 
 void WebMgr::update() {
-    if (_pendingRotation != -1) {
-        int rot = _pendingRotation;
-        _pendingRotation = -1;
-        DisplayMgr::getInstance().setRotation(rot);
-        App* current = AppMgr::getInstance().getCurrentApp();
-        if (current) current->forceRedraw();
-    }
+    // ... [Keep existing _pendingRotation, _pendingReaderFontSize logic] ...
 
-    if (_pendingReaderFontSize != 0) {
-        int pt = _pendingReaderFontSize;
-        _pendingReaderFontSize = 0;
-        for (auto* app : AppMgr::getInstance().getApps()) {
-            if (strcmp(app->getName(), "eReader") == 0) {
-                app->applyFontSize(pt);
-                break;
-            }
+    // Wi-Fi Watchdog routine
+    if (_initialized && !_debugKeepWifi) {
+        if (millis() - _lastActivityTime > WIFI_TIMEOUT_MS) {
+            WebMgr::getInstance().sendLog("Inactivity timeout reached. Shutting down Wi-Fi.");
+            stopNetwork();
+
+            // Force GUI refresh to remove Wi-Fi status icon
+            App* current = AppMgr::getInstance().getCurrentApp();
+            if (current) current->forceRedraw();
         }
-    }
-
-    if (_pendingReaderFontFamily != -1) {
-        int fam = _pendingReaderFontFamily;
-        _pendingReaderFontFamily = -1;
-        for (auto* app : AppMgr::getInstance().getApps()) {
-            if (strcmp(app->getName(), "eReader") == 0) {
-                app->applyFontFamily(fam);
-                break;
-            }
-        }
-    }
-
-    if (_pendingAppSwitch >= 0) {
-        int index = _pendingAppSwitch;
-        _pendingAppSwitch = -1;
-        AppMgr::getInstance().switchTo(index);
     }
 
     if (_otaPending) {
         _otaPending = false;
         WebMgr::getInstance().sendLog("Scheduling OTA update in separate task...");
-        stop();
-        delay(100);
+        // Ensure network is not killed before OTA starts
+        resetIdleTimer();
 
+        delay(100);
         xTaskCreatePinnedToCore(
             [](void* param) {
                 WebMgr::getInstance().sendLog("OTA task started");

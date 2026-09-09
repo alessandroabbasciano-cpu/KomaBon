@@ -47,86 +47,6 @@ static bool isReaderActive() {
     return current && strcmp(current->getName(), "eReader") == 0;
 }
 
-void AppMainMenu::updateCheckTask(void* parameter) {
-    AppMainMenu* self = (AppMainMenu*)parameter;
-
-    // Wait for connection (max 10s)
-    int attempts = 0;
-    while (WiFi.status() != WL_CONNECTED && attempts < 20) {
-        vTaskDelay(pdMS_TO_TICKS(500));
-        attempts++;
-    }
-
-    if (WiFi.status() == WL_CONNECTED) {
-        UpdateInfo info = GitHubMgr::getInstance().checkUpdate(SYSTEM_VERSION);
-        if (info.available) {
-            {
-                Book32Guard guard(self->_updateMutex);
-                self->_updateAvailable = true;
-                self->_updateVersion = info.version;
-            }
-            self->_needsRedraw = true; // Trigger redraw to show icon
-        }
-    }
-
-    self->_updateTaskHandle = nullptr;
-    vTaskDelete(NULL);
-}
-
-void AppMainMenu::wifiWakeTask(void* parameter) {
-    AppMainMenu* self = (AppMainMenu*)parameter;
-    WebMgr::getInstance().sendLog("Main menu WiFi wake task started");
-
-    if (isReaderActive()) {
-        self->_wifiStarting = false;
-        self->_wifiTaskHandle = nullptr;
-        vTaskDelete(NULL);
-        return;
-    }
-
-    WiFi.mode(WIFI_STA);
-    WiFi.begin();
-
-    int attempts = 0;
-    while (WiFi.status() != WL_CONNECTED && attempts < 40) {
-        if (isReaderActive()) {
-            WebMgr::getInstance().stop();
-            WiFi.disconnect(false);
-            WiFi.mode(WIFI_OFF);
-            self->_wifiStarting = false;
-            self->_footerOnlyRedraw = true;
-            self->_needsRedraw = true;
-            self->_wifiTaskHandle = nullptr;
-            WebMgr::getInstance().sendLog("Main menu WiFi wake cancelled; eReader is active");
-            vTaskDelete(NULL);
-            return;
-        }
-        vTaskDelay(pdMS_TO_TICKS(250));
-        attempts++;
-    }
-
-    if (WiFi.status() == WL_CONNECTED && !isReaderActive()) {
-        WebMgr::getInstance().sendLog("Main menu WiFi connected");
-        WebMgr::getInstance().sendLog(WiFi.localIP().toString());
-        WebMgr::getInstance().init();
-    } else {
-        WebMgr::getInstance().sendLog("Main menu WiFi wake did not connect; bringing up hotspot");
-        self->_wifiTaskHandle = nullptr; // Clear before starting the hotspot
-        if (!isReaderActive()) self->startHotspot();
-        self->_wifiStarting = false;
-        self->_footerOnlyRedraw = true;
-        self->_needsRedraw = true;
-        vTaskDelete(NULL);
-        return;
-    }
-
-    self->_wifiStarting = false;
-    self->_footerOnlyRedraw = true;
-    self->_needsRedraw = true;
-    self->_wifiTaskHandle = nullptr;
-    vTaskDelete(NULL);
-}
-
 String AppMainMenu::getWifiFooterText() const {
     if (WiFi.status() == WL_CONNECTED) {
         IPAddress ip = WiFi.localIP();
@@ -135,12 +55,9 @@ String AppMainMenu::getWifiFooterText() const {
         }
     }
     if (_hotspotActive) {
-        // Show the passphrase only while the hotspot is up. On a normal
-        // station connection the credential stays off-screen, so simply
-        // picking the device up doesn't reveal the API password.
         return String("Wi-Fi: ") + AP_SSID + " / " + WebMgr::devicePassword() + "  ->  192.168.4.1";
     }
-    return _wifiStarting ? "WiFi starting" : "WiFi offline";
+    return "WiFi offline (Strict On-Demand)";
 }
 
 void AppMainMenu::startHotspot() {
@@ -148,18 +65,11 @@ void AppMainMenu::startHotspot() {
     if (isReaderActive()) return;
 
     WebMgr::getInstance().sendLog("Main menu: starting KomaBon management hotspot (offline)");
-    WiFi.mode(WIFI_AP_STA); // AP serves the web UI; STA stays available for joining a network
-    // v1.5.0 (security): the hotspot was previously open, giving anyone in
-    // radio range full access to the API. WPA2 needs >= 8 characters; the
-    // derived credential is always 10. The passphrase is shown in the footer
-    // while the hotspot is up so it can be read off the e-ink screen.
+    WiFi.mode(WIFI_AP_STA);
     WiFi.softAP(AP_SSID, WebMgr::devicePassword());
-    delay(100); // Let the AP interface come up before binding the server
-    WebMgr::getInstance().init();
+    delay(100);
+    WebMgr::getInstance().startNetwork();
     _hotspotActive = true;
-
-    Serial.print("Hotspot ready at ");
-    WebMgr::getInstance().sendLog(WiFi.softAPIP().toString());
 
     _selectionOnlyRedraw = false;
     _batteryOnlyRedraw = false;
@@ -172,33 +82,14 @@ void AppMainMenu::stopHotspot() {
 
     WebMgr::getInstance().sendLog("Main menu: stopping management hotspot");
     WiFi.softAPdisconnect(true);
-    // Drop back to station-only; preserves an active connection if one exists.
     WiFi.mode(WIFI_STA);
     _hotspotActive = false;
 }
 
-void AppMainMenu::ensureWifiAwake() {
-    if (WiFi.status() == WL_CONNECTED) {
-        WebMgr::getInstance().init();
-        _wifiStarting = false;
-        return;
-    }
-
-    if (gNetworkStartupInProgress) {
-        _wifiStarting = true;
-        return;
-    }
-
-    if (!_wifiTaskHandle) {
-        _wifiStarting = true;
-        xTaskCreatePinnedToCore(wifiWakeTask, "WiFiWake", 6144, this, 1, &_wifiTaskHandle, 0);
-    }
-}
-
 void AppMainMenu::start() {
-    selectedIndex = 1; // Start with first app (skip main menu itself)
+    selectedIndex = 1;
     _needsRedraw = true;
-    _firstDraw = true; // Force full refresh on first draw
+    _firstDraw = true;
     _selectionOnlyRedraw = false;
     _batteryOnlyRedraw = false;
     _previousSelectedIndex = selectedIndex;
@@ -208,23 +99,16 @@ void AppMainMenu::start() {
     _lastBatteryPoll = millis();
     _lastBatteryStatus = BatteryMgr::getInstance().refreshNow();
     InputMgr::getInstance().setCallback(std::bind(&AppMainMenu::handleInput, this, std::placeholders::_1));
-    ensureWifiAwake();
 
-    // Spawn update check task if not already found
-    if (!_updateTaskHandle && !_updateAvailable) {
-        xTaskCreatePinnedToCore(updateCheckTask, "UpdateCheck", 8192, this, 1, &_updateTaskHandle, 0);
-    }
+    // Wi-Fi is strictly off on menu entry to protect battery life.
 }
 
 void AppMainMenu::stop() {
-    // Hotspot is a main-menu-only convenience. Leaving the menu tears it down so
-    // it doesn't keep the radio (and battery) busy inside other apps. Normal
-    // station connections are left untouched for management services.
     stopHotspot();
 }
 
 void AppMainMenu::forceRedraw() {
-    _firstDraw = true; // Full-frame repaint at the new orientation
+    _firstDraw = true;
     _selectionOnlyRedraw = false;
     _batteryOnlyRedraw = false;
     _footerOnlyRedraw = false;
@@ -237,47 +121,36 @@ void AppMainMenu::handleInput(InputAction action) {
 
     WebMgr::getInstance().sendLogf("AppMainMenu::handleInput - action: %d\n", action);
 
-    // Max index is apps.size() - 1 + 1 (if update available)
     int maxSelectable = apps.size() - 1 + (_updateAvailable ? 1 : 0);
 
-    // Group forward navigation commands (Down and Right)
     if (action == INPUT_NEXT || action == INPUT_RIGHT) {
-        // Tracking update for partial refresh is intentionally omitted here
-        // and handled in the draw() method to prevent ghosting artifacts.
         selectedIndex++;
         if (selectedIndex > maxSelectable) selectedIndex = 1;
-        if (selectedIndex == 0) selectedIndex = 1; // Safety fallback
+        if (selectedIndex == 0) selectedIndex = 1;
         _selectionOnlyRedraw = !_firstDraw;
         _needsRedraw = true;
-    }
-    // Group backward navigation commands (Up and Left)
-    else if (action == INPUT_PREV || action == INPUT_LEFT) {
+    } else if (action == INPUT_PREV || action == INPUT_LEFT) {
         selectedIndex--;
         if (selectedIndex < 1) selectedIndex = maxSelectable;
         _selectionOnlyRedraw = !_firstDraw;
         _needsRedraw = true;
     } else if (action == INPUT_SELECT) {
         if (_updateAvailable && selectedIndex == (int)apps.size()) {
-            // Update selected: launch in a dedicated high-memory task
             WebMgr::getInstance().sendLog("AppMainMenu: Launching OTA task...");
             xTaskCreatePinnedToCore(
                 [](void* param) {
                     GitHubMgr::getInstance().triggerUpdate(SYSTEM_VERSION);
                     vTaskDelete(NULL);
                 },
-                "OTA_Menu_Task",
-                16384, // 16KB stack space for cryptography
-                nullptr, 1, nullptr,
-                1 // Run on Core 1 (App Core)
-            );
+                "OTA_Menu_Task", 16384, nullptr, 1, nullptr, 1);
         } else if (selectedIndex > 0 && selectedIndex < (int)apps.size()) {
             appMgr.switchTo(selectedIndex);
         }
     } else if (action == INPUT_GO_TO_MAIN_MENU) {
-        // Already at main menu, no action needed
         WebMgr::getInstance().sendLog("AppMainMenu: INPUT_GO_TO_MAIN_MENU - already at main menu");
     }
 }
+
 void AppMainMenu::update() {
     unsigned long now = millis();
 
@@ -286,16 +159,6 @@ void AppMainMenu::update() {
 
         bool connected = WiFi.status() == WL_CONNECTED;
         String ip = connected ? WiFi.localIP().toString() : "";
-        if (connected) {
-            _wifiStarting = false;
-        } else if (!gNetworkStartupInProgress && !_wifiTaskHandle) {
-            _wifiStarting = false;
-            // Offline and idle: bring up the management hotspot so a phone can
-            // still reach the web interface without a router.
-            if (!_hotspotActive && !isReaderActive()) {
-                startHotspot();
-            }
-        }
 
         String footerText = getWifiFooterText();
         if (connected != _lastWifiConnected || ip != _lastIp || footerText != _lastWifiFooterText) {
@@ -333,10 +196,9 @@ void AppMainMenu::draw() {
     AppMgr& appMgr = AppMgr::getInstance();
     std::vector<App*>& apps = appMgr.getApps();
 
-    int16_t screenW = display.width();  // 480
-    int16_t screenH = display.height(); // 800
+    int16_t screenW = display.width();
+    int16_t screenH = display.height();
 
-    // Coherent copy of the state written by the update check task.
     bool updateAvailable;
     String updateVersion;
     {
@@ -345,13 +207,11 @@ void AppMainMenu::draw() {
         updateVersion = _updateVersion;
     }
 
-    // Layout constants
     const int ICON_SIZE = 160;
     const int COLS = 2;
     const int ROW_HEIGHT = 240;
     const int START_Y = 180;
 
-    // Use full refresh only on first draw, partial refresh for navigation
     if (_firstDraw) {
         display.setFullWindow();
         _firstDraw = false;
@@ -373,7 +233,6 @@ void AppMainMenu::draw() {
     _selectionOnlyRedraw = false;
     _batteryOnlyRedraw = false;
     _footerOnlyRedraw = false;
-    // NEW: Update the tracking variable ONLY when a physical draw occurs.
     _previousSelectedIndex = selectedIndex;
 
     display.firstPage();
@@ -381,17 +240,13 @@ void AppMainMenu::draw() {
         display.fillScreen(GxEPD_WHITE);
         display.setTextColor(GxEPD_BLACK);
 
-        // === Title (only on full draw, persists on partial) ===
         fontMgr.drawText(display, "KomaBon", 15, 35, FONT_SIZE_SUBTITLE, GxEPD_BLACK);
         int komaBonWidth = fontMgr.getTextWidth("KomaBon", FONT_SIZE_SUBTITLE);
         char versionStr[16];
         snprintf(versionStr, sizeof(versionStr), " v%s", SYSTEM_VERSION);
         fontMgr.drawText(display, versionStr, 15 + komaBonWidth, 35, FONT_SIZE_SMALL, GxEPD_BLACK);
 
-        // === Unified System Status Bar (Wi-Fi, SD, Battery) ===
-        // Positioned 105 pixels from the right border to fit all three icons cleanly
         BatteryMgr::getInstance().drawStatusBar(display, screenW - 105, 10);
-        // === App Icons Grid ===
         int colWidth = screenW / COLS;
 
         for (size_t i = 0; i < apps.size(); i++) {
@@ -422,9 +277,8 @@ void AppMainMenu::draw() {
             fontMgr.drawText(display, name, nameX, y + ICON_SIZE + 15, FONT_SIZE_MENU, GxEPD_BLACK);
         }
 
-        // Render Update Icon if available
         if (updateAvailable) {
-            int i = apps.size(); // Index for update app (virtual index)
+            int i = apps.size();
             int idx = i - 1;
             int col = idx % COLS;
             int row = idx / COLS;
@@ -445,7 +299,6 @@ void AppMainMenu::draw() {
                              GxEPD_BLACK);
         }
 
-        // === Footer ===
         fontMgr.drawTextCentered(display, "Joy: Move  |  Center: Select", screenH - 45, FONT_SIZE_SMALL,
                                  GxEPD_BLACK);
         String ipStr = getWifiFooterText();

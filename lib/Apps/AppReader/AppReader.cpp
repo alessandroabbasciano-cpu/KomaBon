@@ -99,7 +99,7 @@ void AppReader::start() {
             "DEBUG MODE: AppReader started. Wi-Fi shutdown canceled by manual flag.");
     } else {
         if (WiFi.getMode() != WIFI_OFF) {
-            WebMgr::getInstance().stop();
+            WebMgr::getInstance().stopNetwork();
             delay(50);
             WiFi.disconnect(false);
             WiFi.mode(WIFI_OFF);

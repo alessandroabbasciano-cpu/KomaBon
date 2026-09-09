@@ -47,10 +47,5 @@ class AppMainMenu : public App {
     Book32Mutex _updateMutex;
     bool _updateAvailable = false;
     String _updateVersion = "";
-    TaskHandle_t _updateTaskHandle = nullptr;
-    TaskHandle_t _wifiTaskHandle = nullptr;
-    static void updateCheckTask(void* parameter);
-    static void wifiWakeTask(void* parameter);
-    void ensureWifiAwake();
     String getWifiFooterText() const;
 };

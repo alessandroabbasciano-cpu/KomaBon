@@ -7,16 +7,13 @@
 
 class SDMgr {
   public:
-    // Singleton pattern for global access
     static SDMgr& getInstance() {
         static SDMgr instance;
         return instance;
     }
 
-    // Mounts the SD card using the dedicated SPI2/HSPI bus
     bool init();
 
-    // Returns true if the SD card is currently mounted and accessible
     bool isMounted() const {
         return _mounted;
     }

@@ -12,25 +12,21 @@ class WebMgr {
     static WebMgr& getInstance();
 
     void mountFilesystems();
-    void init();
-    void stop();
+
+    // Core network lifecycle
+    void startNetwork();
+    void stopNetwork();
+    void resetIdleTimer();
+
     void update();
     bool isInitialized() const {
         return _initialized;
     }
 
     static const char* devicePassword();
-
-    // Sends a message to the Web UI Live Console and serial
     void sendLog(const String& msg);
-
-    // Formatted logging supporting printf style arguments
     void sendLogf(const char* format, ...) __attribute__((format(printf, 2, 3)));
-
-    // Broadcasts raw serial buffer bytes to connected WebSockets
     void broadcastSerial(const uint8_t* buffer, size_t size);
-
-    // Checks if any client is currently viewing the console
     bool isConsoleActive() const;
 
     volatile bool _otaPending = false;
@@ -47,6 +43,10 @@ class WebMgr {
     AsyncWebServer* server;
     bool _initialized = false;
     bool _endpointsConfigured = false;
+
+    // Power management and watchdog
+    unsigned long _lastActivityTime = 0;
+    const unsigned long WIFI_TIMEOUT_MS = 300000; // 5 minutes inactivity kill switch
 
     void setupEndpoints();
 };

@@ -1,5 +1,4 @@
 #include <Arduino.h>
-#include <WiFi.h>
 #include <esp_ota_ops.h>
 #include "Config.h"
 #include "NetworkState.h"
@@ -16,166 +15,101 @@
 #include "../KomaBon_Apps/AppMainMenu.h"
 #include "../Apps/AppReader/AppReader.h"
 #include "../KomaBon_Apps/AppSettings.h"
-#include <WiFiManager.h>
-#include <stdarg.h>
 
-// Global custom vprintf hook to mirror all system logs to WebSocket with clean line breaks
+// System-wide flag for network status UI indicators
+volatile bool gNetworkStartupInProgress = false;
+
+// Hook for ESP_LOGx macros to mirror to Web Console ONLY IF active.
+// Prevents broadcasting to a dead socket during offline boot.
 static int webLogVprintf(const char* fmt, va_list args) {
     char loc_buf[256];
     int len = vsnprintf(loc_buf, sizeof(loc_buf), fmt, args);
     if (len > 0) {
-        String msg = String(loc_buf);
-        Serial.print(msg);
+        // Always print to hardware serial
+        Serial.print(loc_buf);
 
-        // Ensure every log chunk ends with a newline for proper console formatting
-        if (!msg.endsWith("\n")) {
-            msg += "\n";
+        // Broadcast only if the On-Demand Wi-Fi is actively running
+        if (WebMgr::getInstance().isInitialized()) {
+            String msg = String(loc_buf);
+            if (!msg.endsWith("\n")) {
+                msg += "\n";
+            }
+            WebMgr::getInstance().broadcastSerial((const uint8_t*)msg.c_str(), msg.length());
         }
-        WebMgr::getInstance().broadcastSerial((const uint8_t*)msg.c_str(), msg.length());
     }
     return len;
 }
 
-// Bridge class that duplicates all print calls to Hardware Serial and Web Console
-class SerialWebBridge : public Print {
-  public:
-    size_t write(uint8_t c) override {
-        Serial.write(c);
-        WebMgr::getInstance().broadcastSerial(&c, 1);
-        return 1;
-    }
-
-    size_t write(const uint8_t* buffer, size_t size) override {
-        Serial.write(buffer, size);
-        WebMgr::getInstance().broadcastSerial(buffer, size);
-        return size;
-    }
-};
-
-static SerialWebBridge LogBridge;
-
-volatile bool gNetworkStartupInProgress = false;
-static WiFiManager* gWifiManager = nullptr;
-
-static void networkStartupTask(void* parameter) {
-    (void)parameter;
-
-    WebMgr::getInstance().sendLog("Network startup task started");
-    if (!gWifiManager) {
-        gWifiManager = new WiFiManager();
-    }
-
-    // Portal timeout prevents blocking offline usage
-    gWifiManager->setConfigPortalTimeout(120);
-    bool connected = gWifiManager->autoConnect("KomaBon-Setup");
-
-    if (!connected) {
-        WebMgr::getInstance().sendLog("WiFi setup did not connect; continuing offline");
-        gNetworkStartupInProgress = false;
-        vTaskDelete(nullptr);
-        return;
-    }
-
-    WebMgr::getInstance().sendLog("WiFi connected");
-    WebMgr::getInstance().sendLog(WiFi.localIP().toString());
-
-    App* currentApp = AppMgr::getInstance().getCurrentApp();
-    if (currentApp && strcmp(currentApp->getName(), "eReader") == 0) {
-        WebMgr::getInstance().sendLog("Network startup skipped services; eReader is active");
-        WebMgr::getInstance().stop();
-        WiFi.disconnect(false);
-        WiFi.mode(WIFI_OFF);
-        gNetworkStartupInProgress = false;
-        vTaskDelete(nullptr);
-        return;
-    }
-
-    vTaskDelay(pdMS_TO_TICKS(250));
-
-    WebMgr::getInstance().init();
-    LogBridge.println("\n[SYS] Web Console Stream Connected.");
-
-    WebMgr::getInstance().sendLog("Network services ready");
-    gNetworkStartupInProgress = false;
-    vTaskDelete(nullptr);
-}
-
 void setup() {
+    // 1. Core System Init
     esp_ota_mark_app_valid_cancel_rollback();
 
     Serial.begin(115200);
     delay(250);
 
-    // Register system-wide log interceptor for the Web Console
     esp_log_set_vprintf(webLogVprintf);
 
-    // Initialize display subsystem and show initial boot screen
+    Serial.println("\n\n");
+    Serial.println("=======================================");
+    Serial.println("        KomaBon OS Starting...         ");
+    Serial.printf("  Build: %s %s  \n", __DATE__, __TIME__);
+    Serial.println("=======================================");
+
+    // Enforce strict offline mode on boot
+    gNetworkStartupInProgress = false;
+
+    // 2. Hardware Subsystems
     DisplayMgr& displayMgr = DisplayMgr::getInstance();
     displayMgr.init();
-    displayMgr.showBootScreen(8, "Display ready");
+    displayMgr.showBootScreen(10, "Init Display Subsystem");
 
-    WebMgr::getInstance().sendLog("\n\n");
-    WebMgr::getInstance().sendLog("╔═══════════════════════════════════════╗");
-    WebMgr::getInstance().sendLog("║        KomaBon OS Starting...         ║");
-    WebMgr::getInstance().sendLogf("║  Build: %s %s  ║\n", __DATE__, __TIME__);
-    WebMgr::getInstance().sendLog("╚═══════════════════════════════════════╝");
-
-    InputMgr& inputMgr = InputMgr::getInstance();
-    AppMgr& appMgr = AppMgr::getInstance();
-    WebMgr& webMgr = WebMgr::getInstance();
-
-    // Initialize the external MicroSD card first to claim VFS mount point
+    // Initialize the external MicroSD card via high-speed SPI (SdFat)
+    displayMgr.showBootScreen(25, "Mounting High-Speed SD");
     SDMgr::getInstance().init();
 
-    // Mount internal filesystems; falls back safely if SD card is missing
-    displayMgr.showBootScreen(28, "Mounting storage");
-    webMgr.mountFilesystems();
+    // Mount internal LittleFS filesystems (SystemFS, EbookFS fallback)
+    displayMgr.showBootScreen(40, "Mounting Internal Storage");
+    WebMgr::getInstance().mountFilesystems();
 
-    // Initialize font subsystem
+    // 3. UI & Managers
+    displayMgr.showBootScreen(55, "Loading Font Assets");
     FontMgr::getInstance().init();
-
-    // Load display orientation from internal storage
     displayMgr.loadDisplaySettings();
 
-    displayMgr.showBootScreen(72, "Preparing controls");
+    displayMgr.showBootScreen(70, "Init Power & Controls");
     BatteryMgr::getInstance().init();
+    InputMgr::getInstance().init();
 
-    // Initialize input management
-    inputMgr.init();
+    // 4. Application Registry
+    displayMgr.showBootScreen(85, "Registering Core Apps");
+    AppMgr& appMgr = AppMgr::getInstance();
 
-    // Register core applications
     appMgr.registerApp(new AppMainMenu());
+
     AppReader* readerApp = new AppReader();
     appMgr.registerApp(readerApp);
 
     AppSettings* settingsApp = new AppSettings();
     appMgr.registerApp(settingsApp);
 
-    displayMgr.showBootScreen(90, "Starting network");
-    gNetworkStartupInProgress = true;
-    BaseType_t networkTaskStarted =
-        xTaskCreatePinnedToCore(networkStartupTask, "NetworkStart", 12288, nullptr, 1, nullptr, 0);
-    if (networkTaskStarted != pdPASS) {
-        gNetworkStartupInProgress = false;
-        WebMgr::getInstance().sendLog("Failed to start network task; continuing offline");
-    }
+    // 5. Boot Routing Logic
+    displayMgr.showBootScreen(100, "System Ready");
 
-    // --- BOOT ROUTING LOGIC ---
     // Check joystick calibration safely on the internal SystemFS partition
     if (!SystemFS.exists("/joy_cal.json")) {
-        displayMgr.showBootScreen(100, "Joystick Setup");
+        Serial.println("[BOOT] Missing calibration. Starting wizard.");
         appMgr.switchTo(2); // SettingsApp is index 2
         settingsApp->startCalibrationWizard();
     } else if (readerApp->hasBootResume()) {
-        displayMgr.showBootScreen(100, "Opening reader");
+        Serial.println("[BOOT] Resuming last opened book.");
         readerApp->resumeSavedBookOnStart();
-        appMgr.switchTo(1);
+        appMgr.switchTo(1); // eReader is index 1
     } else {
-        displayMgr.showBootScreen(100, "Opening menu");
-        appMgr.switchTo(0);
+        Serial.println("[BOOT] Loading Main Menu.");
+        appMgr.switchTo(0); // MainMenu is index 0
     }
 
-    WebMgr::getInstance().sendLog("Setup Complete");
+    Serial.println("[BOOT] Sequence Complete. Entering Lazy Render Loop.");
 }
 
 void loop() {
@@ -190,7 +124,7 @@ void loop() {
         lastPhysicalInputTime = millis();
     }
 
-    // Wait for 200ms of absolute silence before allowing the screen to update
+    // Wait for 200ms of absolute silence before allowing the e-ink screen to update
     if (millis() - lastPhysicalInputTime > 200) {
         AppMgr::getInstance().draw();
     }
@@ -206,5 +140,5 @@ void loop() {
         }
     }
 
-    delay(1);
+    delay(1); // Yield to FreeRTOS watchdog
 }
