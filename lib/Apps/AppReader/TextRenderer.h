@@ -94,4 +94,4 @@ class TextRenderer {
     const GFXfont* getGFXFont(TextStyle style, int& lineHeight);
 };
 
-#endif
+#endif // TEXT_RENDERER_H

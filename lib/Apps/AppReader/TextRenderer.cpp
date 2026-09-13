@@ -34,7 +34,6 @@ TextRenderer::TextRenderer(int width, int height, int fontSize, EpubLoader* epub
     _height = height;
     _epubLoader = epubLoader;
 
-    // Normalize to a supported body size (9/12/18); default to small.
     if (fontSize >= 18)
         _fontSize = 18;
     else if (fontSize >= 12)
@@ -51,7 +50,6 @@ void TextRenderer::setFontSize(int size) {
     int normalized = (size >= 18) ? 18 : (size >= 12 ? 12 : 9);
     if (normalized == _fontSize) return;
     _fontSize = normalized;
-    // Force width cache + pagination to be recomputed for the new font.
     _lastGFXFont = nullptr;
     clearCache();
     calculateDimensions();
@@ -62,7 +60,6 @@ void TextRenderer::setFontFamily(int family) {
         (family >= READER_FONT_SANS && family <= READER_FONT_OPEN_SANS) ? family : READER_FONT_SANS;
     if (normalized == _fontFamily) return;
     _fontFamily = normalized;
-    // Force width cache + pagination to be recomputed for the new font.
     _lastGFXFont = nullptr;
     clearCache();
     calculateDimensions();
@@ -81,8 +78,6 @@ void TextRenderer::clearCache() {
 }
 
 const GFXfont* TextRenderer::getGFXFont(TextStyle style, int& lineHeight) {
-    // Body font follows the user-selected size. Headers step up from the body
-    // size (and are always >= body) so the hierarchy holds at every size.
     const GFXfont* normal;
     const GFXfont* bold;
     const GFXfont* h4;
@@ -90,12 +85,9 @@ const GFXfont* TextRenderer::getGFXFont(TextStyle style, int& lineHeight) {
     const GFXfont* h2;
     const GFXfont* h1;
 
-    // Each family provides Regular at 9/12/18pt and Bold at 9/12/18/24pt,
-    // mirroring the FreeSans set below so header steps behave identically
-    // regardless of which family is selected.
 #define B32_FONT_SET(NORMAL9, NORMAL12, NORMAL18, BOLD9, BOLD12, BOLD18, BOLD24)                             \
     switch (_fontSize) {                                                                                     \
-        case 18: /* Large */                                                                                 \
+        case 18:                                                                                             \
             normal = &NORMAL18;                                                                              \
             bold = &BOLD18;                                                                                  \
             h4 = &BOLD18;                                                                                    \
@@ -103,7 +95,7 @@ const GFXfont* TextRenderer::getGFXFont(TextStyle style, int& lineHeight) {
             h2 = &BOLD24;                                                                                    \
             h1 = &BOLD24;                                                                                    \
             break;                                                                                           \
-        case 12: /* Medium */                                                                                \
+        case 12:                                                                                             \
             normal = &NORMAL12;                                                                              \
             bold = &BOLD12;                                                                                  \
             h4 = &BOLD12;                                                                                    \
@@ -111,7 +103,7 @@ const GFXfont* TextRenderer::getGFXFont(TextStyle style, int& lineHeight) {
             h2 = &BOLD18;                                                                                    \
             h1 = &BOLD24;                                                                                    \
             break;                                                                                           \
-        case 9: /* Small (default) */                                                                        \
+        case 9:                                                                                              \
         default:                                                                                             \
             normal = &NORMAL9;                                                                               \
             bold = &BOLD9;                                                                                   \
@@ -175,9 +167,6 @@ const GFXfont* TextRenderer::getGFXFont(TextStyle style, int& lineHeight) {
             break;
     }
 
-    // Line height = the font's own advance plus a little leading. Deriving it
-    // from the font keeps vertical spacing, word-wrap and page breaks correct
-    // for any size instead of relying on hand-tuned constants.
     lineHeight = font->yAdvance + 2;
     return font;
 }
@@ -197,7 +186,6 @@ RenderResult TextRenderer::renderRichPageDynamic(KomaBonDisplay& display,
             display.setCursor(line.x, line.y);
             display.print(line.text);
         }
-        // Page number drawing moved to AppReader for consistency
         return _cachedResult;
     }
 
@@ -223,8 +211,6 @@ RenderResult TextRenderer::renderRichPageDynamic(KomaBonDisplay& display,
             display.setFont(font);
 
             if (font != _lastGFXFont) {
-                // int (not uint8_t) loop variable: an upper bound of 256
-                // would make a uint8_t wrap at 255 and never terminate.
                 for (int c = 32; c < 256; c++) {
                     if (c >= font->first && c <= font->last) {
                         _gfxCharWidths[c] = font->glyph[c - font->first].xAdvance;
@@ -242,13 +228,12 @@ RenderResult TextRenderer::renderRichPageDynamic(KomaBonDisplay& display,
                 }
                 currentX = x_margin + node.textNode.indent;
 
-                // Add extra spacing before headers
                 if (node.textNode.style == STYLE_HEADER1) {
-                    y += 30;      // Big gap before chapter title
-                    currentX = 0; // Will be centered below
+                    y += 30;
+                    currentX = 0;
                 } else if (node.textNode.style == STYLE_HEADER2) {
                     y += 20;
-                    currentX = 0; // Centered
+                    currentX = 0;
                 } else if (node.textNode.style == STYLE_HEADER3) {
                     y += 12;
                 }
@@ -292,7 +277,7 @@ RenderResult TextRenderer::renderRichPageDynamic(KomaBonDisplay& display,
 
                     if (currentX + line_width + segment_width + spaceWidth + wordWidth > usableWidth &&
                         (line_width + segment_width) > 0) {
-                        // Word doesn't fit on this line
+
                         if (y + nodeLineHeight > maxY) {
                             if (strlen(lineBuf) > 0) {
                                 int drawX = currentX + line_width;
@@ -318,7 +303,6 @@ RenderResult TextRenderer::renderRichPageDynamic(KomaBonDisplay& display,
                             return result;
                         }
 
-                        // Commit current segment before starting new line
                         if (segment_width > 0) {
                             _lineCache.push_back(
                                 {currentX + line_width, y, (int)node.textNode.style, false, String(lineBuf)});
@@ -334,44 +318,32 @@ RenderResult TextRenderer::renderRichPageDynamic(KomaBonDisplay& display,
                         segment_width = 0;
                         lineBuf[0] = '\0';
 
-                        // Retest the word on the new line
                         spaceWidth = 0;
                     }
 
-                    // Space left in lineBuf, recomputed before every write: the
-                    // appends below are clamped to it. Without the clamp a
-                    // single token longer than the buffer (a URL, or text the
-                    // HTML parser failed to split) ran past the end of this
-                    // stack buffer — the wrap branch above only fires once the
-                    // line already holds something, so the first word of a
-                    // line was always copied whole.
                     int bufLeft = (int)sizeof(lineBuf) - 1 - (int)strlen(lineBuf);
 
                     if (segment_width > 0 || line_width > 0) {
-                        if (bufLeft <= 0) break; // no room even for a separator
+                        if (bufLeft <= 0) break;
                         strcat(lineBuf, " ");
                         segment_width += spaceWidth;
                         bufLeft--;
                     }
 
-                    // A word still too wide here cannot fit a line of its own
-                    // either, so it is broken by character (see WordFitLogic.h,
-                    // host test tools/tests/test_word_fit.cpp).
                     int wordLen = wordEnd - wordStart;
                     int pixelBudget = usableWidth - (currentX + line_width + segment_width);
                     WordFit fit = fitWordIntoLine(text + wordStart, wordLen, wordWidth, bufLeft, pixelBudget,
                                                   _gfxCharWidths);
-                    if (fit.take <= 0) break; // buffer full: commit this line
+                    if (fit.take <= 0) break;
 
                     strncat(lineBuf, text + wordStart, fit.take);
                     segment_width += fit.width;
                     line_chars = wordStart + fit.take - pos;
-                    if (fit.take < wordLen) break; // remainder goes on the next line
+                    if (fit.take < wordLen) break;
                 }
 
                 if (strlen(lineBuf) > 0) {
                     int drawX = currentX + line_width;
-                    // Center headers (H1, H2)
                     if (node.textNode.style == STYLE_HEADER1 || node.textNode.style == STYLE_HEADER2) {
                         drawX = (_width - segment_width) / 2;
                     }
@@ -385,7 +357,6 @@ RenderResult TextRenderer::renderRichPageDynamic(KomaBonDisplay& display,
 
                 pos += line_chars;
                 if (pos < textLen) {
-                    // We filled the line but the node has more text
                     y += nodeLineHeight;
                     line_width = 0;
                     currentX = x_margin;
@@ -393,14 +364,11 @@ RenderResult TextRenderer::renderRichPageDynamic(KomaBonDisplay& display,
                 yield();
             }
 
-            // CRITICAL: Check if we exited the text loop because page is full but text remains
             if (pos < textLen && y >= maxY) {
-                // Page full but this node has more text - return position in this node
                 result.pageFull = true;
                 result.charsConsumedInLastNode = pos;
                 result.nextNodeIndex = currentNode;
                 result.nextCharOffset = pos;
-                // nodesConsumed is the count of COMPLETED nodes before this one
                 _cachedResult = result;
                 _hasCachedResult = true;
                 return result;
@@ -408,11 +376,10 @@ RenderResult TextRenderer::renderRichPageDynamic(KomaBonDisplay& display,
 
             if (node.textNode.isBlockStart && currentNode < (int)content.size() - 1 &&
                 content[currentNode + 1].textNode.isBlockStart) {
-                y += 8; // Paragraph gap
+                y += 8;
             }
-            // Add extra spacing after headers
             if (node.textNode.style == STYLE_HEADER1) {
-                y += 25; // Extra gap after chapter title
+                y += 25;
             } else if (node.textNode.style == STYLE_HEADER2) {
                 y += 15;
             } else if (node.textNode.style == STYLE_HEADER3) {
@@ -429,7 +396,7 @@ RenderResult TextRenderer::renderRichPageDynamic(KomaBonDisplay& display,
                     if (jpeg->openRAM(imgData, imgSize, drawJpegCallback)) {
                         int imgW = jpeg->getWidth();
                         int imgH = jpeg->getHeight();
-                        // Force a page break if the image is tall (>30% of screen height)
+
                         if (imgH > (_height * 0.3) && y > 50) {
                             jpeg->close();
                             delete jpeg;
@@ -444,7 +411,6 @@ RenderResult TextRenderer::renderRichPageDynamic(KomaBonDisplay& display,
                         }
 
                         int availableH = maxY - y;
-                        // Keep high-quality dithering active for native EPUBs
                         jpeg->setPixelType(ONE_BIT_DITHERED);
 
                         int scale = 0;
@@ -472,10 +438,7 @@ RenderResult TextRenderer::renderRichPageDynamic(KomaBonDisplay& display,
                             _hasCachedResult = true;
                             return result;
                         }
-                        // --- FIX CORRUPT HEAP (BAD TAIL) ---
-                        // JPEGDEC works in 16x16 MCU blocks. We must align the buffer width
-                        // to the next multiple of 16 to prevent the decoder from writing
-                        // out of bounds and destroying the heap guard.
+
                         int alignedW = (actualW + 15) & ~15;
                         int ditherBufferSize = alignedW * 16;
 

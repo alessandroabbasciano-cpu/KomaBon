@@ -62,18 +62,19 @@ struct FontInfo {
     String format; // ttf, otf, woff, woff2
 };
 
-// Content node - can be text, table, or an image!
+// Content node - can be text, table, or an image
 enum ContentType { CONTENT_TEXT, CONTENT_TABLE, CONTENT_IMAGE };
 struct ImageNode {
     String imagePath;
     int width;
     int height;
 };
+
 struct ContentNode {
     ContentType type;
     RichTextNode textNode;
     Table table;
-    ImageNode imageNode; // Inseriamo la nostra immagine nelle opzioni possibili
+    ImageNode imageNode;
 
     ContentNode() : type(CONTENT_TEXT) {}
 };
@@ -119,7 +120,7 @@ class EpubLoader {
     String epubPath;
     String opfPath;
     String rootDir;   // Directory of the OPF file
-    String coverHref; // <-- NEW: Path to the cover image inside the ZIP
+    String coverHref; // Path to the cover image inside the ZIP
 
     // Fonts
     std::vector<FontInfo> fonts;

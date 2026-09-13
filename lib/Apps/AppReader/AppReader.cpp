@@ -93,19 +93,14 @@ void AppReader::resumeSavedBookOnStart() {
 }
 
 void AppReader::start() {
-    // Only maintain Wi-Fi active if the manual debug flag was explicitly triggered via API
-    if (WebMgr::getInstance()._debugKeepWifi) {
-        WebMgr::getInstance().sendLog(
-            "DEBUG MODE: AppReader started. Wi-Fi shutdown canceled by manual flag.");
-    } else {
-        if (WiFi.getMode() != WIFI_OFF) {
-            WebMgr::getInstance().stopNetwork();
-            delay(50);
-            WiFi.disconnect(false);
-            WiFi.mode(WIFI_OFF);
-            delay(300);
-            Serial.println("AppReader: Wi-Fi powered down for reading session.");
-        }
+    // Strict Offline Mode: Kill radio unconditionally to save battery life
+    if (WiFi.getMode() != WIFI_OFF) {
+        WebMgr::getInstance().stopNetwork();
+        delay(50);
+        WiFi.disconnect(false);
+        WiFi.mode(WIFI_OFF);
+        delay(300);
+        Serial.println("AppReader: Wi-Fi powered down strictly for reading session.");
     }
 
     loadSettings();
@@ -168,7 +163,6 @@ void AppReader::handleInput(InputAction action) {
             AppMgr::getInstance().switchTo(0);
         }
     } else if (_state == VIEW_READING) {
-        // Removed aggressive needsRedraw blocking to allow physical debounce logic
         if (action == INPUT_NEXT)
             nextPage();
         else if (action == INPUT_PREV)
@@ -210,6 +204,18 @@ bool AppReader::openBook(const String& path, bool restoreProgress) {
             _kbReader = nullptr;
             return false;
         }
+
+        // ALLOCATE ONCE: Lock 48KB in PSRAM for the entire reading session
+        size_t bufferSize = (_kbReader->getWidth() + 7) / 8 * _kbReader->getHeight();
+        _comicPageBuffer = (uint8_t*)ps_malloc(bufferSize);
+
+        if (!_comicPageBuffer) {
+            Serial.println("AppReader: FATAL - PSRAM allocation failed for KMB buffer.");
+            delete _kbReader;
+            _kbReader = nullptr;
+            return false;
+        }
+
         _totalPages = _kbReader->getPageCount();
         _globalPageNumber = 1;
         _currentPageRenderValid = false;
@@ -342,6 +348,12 @@ void AppReader::closeBook(bool markInactive) {
         _kbReader->close();
         delete _kbReader;
         _kbReader = nullptr;
+    }
+
+    // FREE BUFFER: Release the PSRAM lock
+    if (_comicPageBuffer) {
+        free(_comicPageBuffer);
+        _comicPageBuffer = nullptr;
     }
 
     _isComicMode = false;
@@ -619,15 +631,10 @@ void AppReader::drawReading() {
 
     int currentPageNum = _pageHistory.size();
 
-    uint8_t* comicPageBuffer = nullptr;
-    if (_isComicMode && _kbReader) {
-        size_t bufferSize = (_kbReader->getWidth() + 7) / 8 * _kbReader->getHeight();
-        comicPageBuffer = (uint8_t*)ps_malloc(bufferSize);
-        if (comicPageBuffer) {
-            if (!_kbReader->readPage(_globalPageNumber - 1, comicPageBuffer)) {
-                free(comicPageBuffer);
-                comicPageBuffer = nullptr;
-            }
+    // Load data into persistent buffer directly from SD
+    if (_isComicMode && _kbReader && _comicPageBuffer) {
+        if (!_kbReader->readPage(_globalPageNumber - 1, _comicPageBuffer)) {
+            Serial.println("AppReader: Failed to read KMB page data from SD.");
         }
     }
 
@@ -636,8 +643,9 @@ void AppReader::drawReading() {
         display.fillScreen(GxEPD_WHITE);
 
         if (_isComicMode) {
-            if (comicPageBuffer) {
-                display.drawBitmap(0, 0, comicPageBuffer, _kbReader->getWidth(), _kbReader->getHeight(),
+            if (_comicPageBuffer) {
+                // Zero-overhead dump to display
+                display.drawBitmap(0, 0, _comicPageBuffer, _kbReader->getWidth(), _kbReader->getHeight(),
                                    GxEPD_BLACK);
             }
         } else {
@@ -672,11 +680,6 @@ void AppReader::drawReading() {
         BatteryMgr::getInstance().drawStatusBar(display, display.width() - 105, 10);
 
     } while (display.nextPage());
-
-    if (comicPageBuffer) {
-        free(comicPageBuffer);
-        comicPageBuffer = nullptr;
-    }
 }
 
 void AppReader::update() {

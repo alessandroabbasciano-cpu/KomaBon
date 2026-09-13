@@ -3,7 +3,6 @@
 #include "KBReader.h"
 #include "EpubLoader.h"
 #include "KomaBonFS.h"
-#include "WebMgr.h"
 #include <JPEGDEC.h>
 
 struct ThumbState {

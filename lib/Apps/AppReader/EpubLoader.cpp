@@ -7,7 +7,6 @@
 #include <unistd.h>
 #include <errno.h>
 #include <algorithm>
-#include <WebMgr.h>
 
 #ifndef ZIP_SUCCESS
 #define ZIP_SUCCESS 0
@@ -41,10 +40,12 @@ void myClose(void* p) {
         zipFd = -1;
     }
 }
+
 int32_t myRead(void* p, uint8_t* buffer, int32_t length) {
     if (zipFd < 0 || !buffer || length <= 0) return -1;
     return (int32_t)read(zipFd, buffer, length);
 }
+
 int32_t mySeek(void* p, int32_t position, int iType) {
     if (zipFd < 0) return -1;
     return (int32_t)lseek(zipFd, position, iType);
@@ -95,6 +96,7 @@ void EpubLoader::close() {
 String EpubLoader::getTitle() {
     return bookTitle;
 }
+
 int EpubLoader::getChapterCount() {
     return spine.size();
 }
@@ -152,7 +154,7 @@ String EpubLoader::getChapterContent(int index) {
     }
 
     // --- AGGRESSIVE CLEANING ---
-    // Handle Windows-1252 / UTF-8 mix-up artifacts seen in Sanderson EPUBs
+    // Handle Windows-1252 / UTF-8 mix-up artifacts
     clean.replace("¶Ç8", " -- ");
     clean.replace("¶ÇÖ", "'");
     clean.replace("¶Çö", "'");
@@ -160,7 +162,7 @@ String EpubLoader::getChapterContent(int index) {
     clean.replace("¶Ç¥", "\"");
     clean.replace("¶Çª", "-");
     clean.replace("¶ÇÜ", "...");
-    clean.replace("¶Ç", ""); // Wipe any remaining prefix
+    clean.replace("¶Ç", "");
 
     // Standard UTF-8
     clean.replace("\xE2\x80\x9C", "\"");
@@ -171,7 +173,7 @@ String EpubLoader::getChapterContent(int index) {
     clean.replace("\xE2\x80\x93", " - ");
     clean.replace("\xE2\x80\xA6", "...");
 
-    // Strip accidental newlines before punctuation (fixes the orphan comma/dot)
+    // Strip accidental newlines before punctuation
     clean.replace("\n,", ",");
     clean.replace("\n.", ".");
     clean.replace("\n?", "?");
@@ -206,7 +208,7 @@ bool EpubLoader::parseOpf() {
     bookTitle = extractMetadata(xml, "dc:title");
     if (bookTitle.length() == 0) bookTitle = extractMetadata(xml, "title");
 
-    // --- NEW: Find the cover ID for EPUB2 ---
+    // Find the cover ID for EPUB2
     String epub2CoverId = "";
     int metaPos = 0;
     while (true) {
@@ -221,7 +223,6 @@ bool EpubLoader::parseOpf() {
         }
         metaPos = metaEnd + 1;
     }
-    // ----------------------------------------
 
     int manifestStart = xml.indexOf("<manifest");
     int manifestEnd = xml.indexOf("</manifest>");
@@ -239,7 +240,7 @@ bool EpubLoader::parseOpf() {
         String id = extractAttribute(itemTag, "item", "id");
         String href = extractAttribute(itemTag, "item", "href");
         String mediaType = extractAttribute(itemTag, "item", "media-type");
-        String properties = extractAttribute(itemTag, "item", "properties"); // NEW
+        String properties = extractAttribute(itemTag, "item", "properties");
 
         if (id.length() > 0 && href.length() > 0) {
             manifest[id] = href;
@@ -257,7 +258,6 @@ bool EpubLoader::parseOpf() {
             } else if (epub2CoverId.length() > 0 && id == epub2CoverId && isImageFile) {
                 coverHref = href;
             } else if (coverHref.length() == 0 && isImageFile) {
-                // Dictionary of international cover keywords
                 static const char* const COVER_KEYWORDS[] = {
                     "cover",      // English
                     "copertina",  // Italian
@@ -347,7 +347,6 @@ uint8_t* EpubLoader::getFontData(String path, size_t* outSize) {
         return nullptr;
     }
 
-    // Allocate memory with a small safety margin
     uint8_t* buffer = (uint8_t*)ps_malloc(size + 32);
     if (!buffer) buffer = (uint8_t*)malloc(size + 32);
     if (!buffer) {
@@ -357,8 +356,7 @@ uint8_t* EpubLoader::getFontData(String path, size_t* outSize) {
 
     memset(buffer, 0, size + 32);
 
-    // FIX: Read in chunks to prevent unzipLIB from overshooting the buffer
-    // during a single massive decompression call.
+    // Read in chunks to prevent unzipLIB from overshooting the buffer
     size_t totalRead = 0;
     while (totalRead < size) {
         int toRead = (size - totalRead > 1024) ? 1024 : (size - totalRead);
@@ -398,11 +396,6 @@ String EpubLoader::extractMetadata(const String& xml, const String& tag) {
     return content;
 }
 
-// Ceiling for what is loaded from inside the ZIP into a String. The size comes
-// from the EPUB header, meaning from a user file: without a ceiling, a
-// giant chapter (or a lying header) would request this size from the internal
-// heap, which only has a few hundred KB, causing the reader to crash opening the book.
-// Truncating leaves the chapter incomplete but keeps the device alive.
 static const int KOMABON_MAX_ZIP_TEXT_BYTES = 256 * 1024;
 
 String EpubLoader::readFileFromZip(const char* path) {
@@ -412,9 +405,11 @@ String EpubLoader::readFileFromZip(const char* path) {
     char szName[256];
     zip->getFileInfo(&fileInfo, szName, sizeof(szName), NULL, 0, NULL, 0);
     int size = fileInfo.uncompressed_size;
+
     if (size > KOMABON_MAX_ZIP_TEXT_BYTES) {
-        WebMgr::getInstance().sendLogf("EpubLoader: %s has %d bytes; truncating to %d\n", path, size,
-                                       KOMABON_MAX_ZIP_TEXT_BYTES);
+        // Output through hardware serial instead of WebMgr
+        Serial.printf("EpubLoader: %s has %d bytes; truncating to %d\n", path, size,
+                      KOMABON_MAX_ZIP_TEXT_BYTES);
         size = KOMABON_MAX_ZIP_TEXT_BYTES;
     }
 
@@ -548,18 +543,13 @@ int extractIndentFromStyle(String styleAttr) {
         if (valEnd == -1) valEnd = styleAttr.length();
         String val = styleAttr.substring(valStart, valEnd);
         val.trim();
-        // Handle em, px, %
-        if (val.endsWith("em")) return val.substring(0, val.length() - 2).toInt() * 20; // Rough 1em = 20px
+        if (val.endsWith("em")) return val.substring(0, val.length() - 2).toInt() * 20;
         if (val.endsWith("px")) return val.substring(0, val.length() - 2).toInt();
         return val.toInt();
     }
     return 0;
 }
 
-// Decode the HTML character entities that matter for Portuguese EPUB text.
-// Named entities are mapped straight to Latin-1 bytes; numeric entities
-// (&#231; / &#xE7;) are emitted as UTF-8 so the subsequent utf8ToLatin1()
-// pass normalizes everything through a single code path.
 static void appendCodepointUtf8(String& out, uint32_t cp) {
     if (cp < 0x80) {
         out += (char)cp;
@@ -582,7 +572,6 @@ static void decodeHtmlEntities(String& text) {
         const char* name;
         const char* value;
     };
-    // Latin-1 values are written as escaped bytes so this file stays ASCII.
     static const Entity entities[] = {
         {"amp", "&"},       {"lt", "<"},        {"gt", ">"},        {"quot", "\""},     {"apos", "'"},
         {"nbsp", " "},      {"shy", ""},        {"aacute", "\xE1"}, {"agrave", "\xE0"}, {"acirc", "\xE2"},
@@ -612,7 +601,6 @@ static void decodeHtmlEntities(String& text) {
             continue;
         }
         int semi = text.indexOf(';', i + 1);
-        // Entities are short; an unmatched or distant ';' means a literal '&'.
         if (semi == -1 || semi - i > 10) {
             out += c;
             i++;
@@ -676,7 +664,7 @@ std::vector<ContentNode> EpubLoader::parseHtmlToRichContent(const String& html, 
                 currentText = "";
                 isListItem = false;
                 currentIndent = 0;
-                nextIsBlockStart = false; // Next node in same block is not a start
+                nextIsBlockStart = false;
             }
             int tagEnd = html.indexOf('>', i);
             if (tagEnd == -1) break;
@@ -692,15 +680,13 @@ std::vector<ContentNode> EpubLoader::parseHtmlToRichContent(const String& html, 
             bool isClosing = tag.startsWith("/");
             if (isClosing) tag = tag.substring(1);
 
-            // Handle inline styling elements
             if (tag == "b" || tag == "strong" || tag == "i" || tag == "em") {
                 if (!isClosing)
                     styleStack.push_back(getStyleFromTag(tag));
                 else if (styleStack.size() > 1)
                     styleStack.pop_back();
-            }
-            // Handle header elements - they are BOTH styled AND block elements
-            else if (tag == "h1" || tag == "h2" || tag == "h3" || tag == "h4" || tag == "h5" || tag == "h6") {
+            } else if (tag == "h1" || tag == "h2" || tag == "h3" || tag == "h4" || tag == "h5" ||
+                       tag == "h6") {
                 if (!isClosing) {
                     styleStack.push_back(getStyleFromTag(tag));
                     nextIsBlockStart = true;
@@ -714,12 +700,8 @@ std::vector<ContentNode> EpubLoader::parseHtmlToRichContent(const String& html, 
                 String classAttr = extractAttribute(fullTag, tag, "class");
                 classAttr.toLowerCase();
 
-                // Detect chapter numbers/titles by CSS class
-                // Be very conservative - actual headers use <h1>-<h6> tags which are handled separately
-                // Only match very specific chapter/title class patterns to avoid false positives
                 if (classAttr.indexOf("chapter-title") != -1 || classAttr.indexOf("chap-title") != -1 ||
                     classAttr.indexOf("section-title") != -1 || classAttr.indexOf("part-title") != -1) {
-                    // This is likely a chapter/section title - use header style
                     styleStack.push_back(STYLE_HEADER1);
                 }
 
@@ -732,7 +714,6 @@ std::vector<ContentNode> EpubLoader::parseHtmlToRichContent(const String& html, 
                 }
             } else if (tag == "/p" || tag == "/div" || tag.startsWith("/h")) {
                 nextIsBlockStart = true;
-                // Pop any header style that was pushed for this block
                 if (styleStack.size() > 1 &&
                     (styleStack.back() == STYLE_HEADER1 || styleStack.back() == STYLE_HEADER2 ||
                      styleStack.back() == STYLE_HEADER3)) {
@@ -850,19 +831,14 @@ std::vector<ContentNode> EpubLoader::parseHtmlToRichContent(const String& html, 
             node.textNode.text.replace("\n.", ".");
             node.textNode.text.replace("\n!", "!");
             node.textNode.text.replace("\n?", "?");
-            // Collapse UTF-8 to Latin-1 for the display layer. Must run AFTER
-            // the punctuation replaces above (they match raw UTF-8 sequences)
-            // and after decodeHtmlEntities(). TextRenderer draws these bytes
-            // directly, so accented Portuguese characters depend on this.
             node.textNode.text = FontMgr::utf8ToLatin1(node.textNode.text);
             node.textNode.text.trim();
-            // Filter out common image alt text placeholders
+
             if (node.textNode.text == "Unknown" || node.textNode.text == "image" ||
                 node.textNode.text == "Image" || node.textNode.text == "[image]") {
                 node.textNode.text = "";
             }
 
-            // Heuristic: Short numeric content (1-3 digits) that starts a block is likely a chapter number
             if (node.textNode.isBlockStart && node.textNode.text.length() > 0 &&
                 node.textNode.text.length() <= 3) {
                 bool isNumeric = true;
@@ -873,12 +849,12 @@ std::vector<ContentNode> EpubLoader::parseHtmlToRichContent(const String& html, 
                     }
                 }
                 if (isNumeric) {
-                    node.textNode.style = STYLE_HEADER1; // Chapter number - use big centered style
+                    node.textNode.style = STYLE_HEADER1;
                 }
             }
         }
     }
-    // Remove empty text nodes
+
     nodes.erase(std::remove_if(nodes.begin(), nodes.end(),
                                [](const ContentNode& n) {
                                    return n.type == CONTENT_TEXT && n.textNode.text.length() == 0;
@@ -921,7 +897,7 @@ uint8_t* EpubLoader::getFileData(String path, size_t* outSize) {
     if (fullPath.startsWith("./")) fullPath = fullPath.substring(2);
     return getFontData(fullPath, outSize);
 }
-// --- NEW: Method to retrieve the cover image bytes ---
+
 uint8_t* EpubLoader::getCoverImageData(size_t* outSize) {
     if (coverHref.length() == 0) return nullptr;
     return getFileData(coverHref, outSize);

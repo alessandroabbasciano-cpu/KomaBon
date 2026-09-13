@@ -1,6 +1,5 @@
 #include "KBReader.h"
 #include "KomaBonFS.h" // Ensures correct mounting endpoint for the external/internal VFS
-#include "WebMgr.h"    // For logging and error reporting
 
 KBReader::KBReader() {
     _width = 0;
@@ -31,8 +30,7 @@ bool KBReader::open(const char* path) {
     char magic[5] = {0};
     _file.readBytes(magic, 4);
     if (strcmp(magic, "KMB1") != 0) {
-        WebMgr::getInstance().sendLog(
-            "KBReader: Invalid Magic Signature. File is corrupted or not a valid KMB.");
+        Serial.println("KBReader: Invalid Magic Signature. File is corrupted or not a valid KMB.");
         close();
         return false;
     }
@@ -40,8 +38,7 @@ bool KBReader::open(const char* path) {
     uint16_t version;
     _file.read((uint8_t*)&version, 2);
     if (version != 3) {
-        WebMgr::getInstance().sendLogf("KBReader: Unsupported Format Version: %d. Expected Version 3.\n",
-                                       version);
+        Serial.printf("KBReader: Unsupported Format Version: %d. Expected Version 3.\n", version);
         close();
         return false;
     }
@@ -64,9 +61,8 @@ bool KBReader::open(const char* path) {
     // The graphic payload starts immediately after the reserved cover block.
     _dataOffset = 16 + _coverLen;
 
-    WebMgr::getInstance().sendLogf(
-        "KBReader: Successfully mounted %d pages, Frame Buffer Resolution: %dx%d\n", _pageCount, _width,
-        _height);
+    Serial.printf("KBReader: Successfully mounted %d pages, Frame Buffer Resolution: %dx%d\n", _pageCount,
+                  _width, _height);
     return true;
 }
 
@@ -102,8 +98,8 @@ bool KBReader::readPage(uint16_t index, uint8_t* buffer) {
     size_t bytesRead = _file.read(buffer, bytesPerPage);
 
     if (bytesRead != bytesPerPage) {
-        WebMgr::getInstance().sendLogf(
-            "KBReader: Critical read failure. Data truncation detected on physical page %d\n", index);
+        Serial.printf("KBReader: Critical read failure. Data truncation detected on physical page %d\n",
+                      index);
         return false;
     }
 

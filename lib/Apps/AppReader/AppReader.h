@@ -100,6 +100,9 @@ class AppReader : public App {
     int _globalPageNumber;
     bool _needsRedraw;
 
+    // Persistent DMA-ready buffer for KMB raw page data allocated in PSRAM
+    uint8_t* _comicPageBuffer = nullptr;
+
     // Asynchronous Total Page Counting
     int _totalPages;
     bool _countingActive;

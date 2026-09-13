@@ -13,7 +13,6 @@
 #include <ArduinoJson.h>
 #include <map>
 #include <vector>
-#include <WebMgr.h>
 
 static int textWidthForFont(KomaBonDisplay& display, const char* text, const GFXfont* font) {
     int16_t x1, y1;
@@ -85,7 +84,7 @@ void AppReader::scanBooks() {
     _books.clear();
 
     if (!SDMgr::getInstance().isMounted()) {
-        WebMgr::getInstance().sendLog("AppReader: Cannot scan books, SD card not mounted.");
+        Serial.println("AppReader: Cannot scan books, SD card not mounted.");
         return;
     }
 
@@ -96,7 +95,7 @@ void AppReader::scanBooks() {
     File coversDir = SystemFS.open("/covers");
     if (!coversDir) {
         SystemFS.mkdir("/covers");
-        WebMgr::getInstance().sendLog("AppReader: Directory /covers initialized on SystemFS.");
+        Serial.println("AppReader: Directory /covers initialized on SystemFS.");
     } else {
         coversDir.close();
     }
