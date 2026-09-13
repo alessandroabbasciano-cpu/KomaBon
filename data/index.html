@@ -22,7 +22,6 @@
             <ul class="nav-links">
                 <li class="active" onclick="showTab('library')">Dashboard</li>
                 <li onclick="showTab('settings')">Settings</li>
-                <li onclick="showTab('console')">Console</li>
             </ul>
             <div class="version">v<span id="version-display">1.0</span></div>
         </nav>
@@ -55,7 +54,7 @@
                     </div>
                 </div>
 
-                <!-- Universal Converter (Full Width Card, no action-grid wrapper) -->
+                <!-- Universal Converter -->
                 <div class="card converter-card">
                     <div class="converter-header">
                         <div class="converter-info">
@@ -151,7 +150,12 @@
 
                 <div class="card">
                     <h3>Wi-Fi &amp; Hotspot</h3>
-                    <p id="wifi-status" class="hint">Checking connection...</p>
+                    <div
+                        style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem;">
+                        <p id="wifi-status" class="hint" style="margin: 0;">Checking connection...</p>
+                        <button id="debug-wifi-btn" class="btn secondary btn-micro" onclick="toggleDebugWifi()"
+                            style="width: auto;">Enable Wi-Fi Debug</button>
+                    </div>
                     <div class="setting-row spaced">
                         <label for="wifi-ssid">Network</label>
                         <select id="wifi-ssid" class="input-grow">
@@ -234,23 +238,6 @@
                             </div>
                         </div>
                     </div>
-                </div>
-            </section>
-
-            <!-- Live Console Tab -->
-            <section id="console" class="tab-content">
-                <div class="card full-width-card">
-                    <div class="section-heading"
-                        style="margin-bottom: 1rem; display: flex; justify-content: space-between; align-items: center;">
-                        <div>
-                            <h3 style="margin-bottom: 0.2rem;">Live System Console</h3>
-                            <p class="hint" style="margin-top: 0;">Real-time serial stream from KomaBon via WebSocket.
-                            </p>
-                        </div>
-                        <button id="debug-wifi-btn" class="btn secondary" onclick="toggleDebugWifi()">Enable Wi-Fi
-                            Debug</button>
-                    </div>
-                    <div id="live-log" class="console-terminal"></div>
                 </div>
             </section>
         </main>

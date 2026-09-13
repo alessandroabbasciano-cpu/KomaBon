@@ -1,7 +1,6 @@
 #include "ProgressStore.h"
 #include "KomaBonFS.h"
 #include "BookMeta.h"
-#include "WebMgr.h"
 
 // All public methods open with a Book32Guard. load() and save() are left
 // without a guard on purpose: they are private and only reached from a public
@@ -51,14 +50,13 @@ bool ProgressStore::load() {
     DeserializationError error = deserializeJson(doc, file);
     file.close();
     if (error) {
-        WebMgr::getInstance().sendLogf("ProgressStore: %s unreadable (%s) — starting empty\n", PROGRESS_PATH,
-                                       error.c_str());
+        Serial.printf("ProgressStore: %s unreadable (%s) — starting empty\n", PROGRESS_PATH, error.c_str());
         return false;
     }
 
     int schema = doc["schema"] | 1;
     if (!isSupportedSchema(schema)) {
-        WebMgr::getInstance().sendLogf("ProgressStore: schema %d not supported — ignoring file\n", schema);
+        Serial.printf("ProgressStore: schema %d not supported — ignoring file\n", schema);
         return false;
     }
 
@@ -95,8 +93,8 @@ bool ProgressStore::load() {
     }
 
     if (schema < PROGRESS_SCHEMA_CURRENT) {
-        WebMgr::getInstance().sendLogf("ProgressStore: migrating schema %d -> %d (%u books)\n", schema,
-                                       PROGRESS_SCHEMA_CURRENT, (unsigned)_books.size());
+        Serial.printf("ProgressStore: migrating schema %d -> %d (%u books)\n", schema,
+                      PROGRESS_SCHEMA_CURRENT, (unsigned)_books.size());
         save();
     }
     return true;
@@ -123,13 +121,13 @@ bool ProgressStore::save() {
     if (doc.overflowed()) {
         // Better to refuse the write than to overwrite a good file with a
         // truncated one — that was exactly the v1 failure mode.
-        WebMgr::getInstance().sendLog("ProgressStore: document overflowed — write refused");
+        Serial.println("ProgressStore: document overflowed — write refused");
         return false;
     }
 
     File out = SystemFS.open(PROGRESS_TMP_PATH, FILE_WRITE);
     if (!out) {
-        WebMgr::getInstance().sendLog("ProgressStore: cannot open temp file");
+        Serial.println("ProgressStore: cannot open temp file");
         return false;
     }
     size_t written = serializeJson(doc, out);
@@ -137,7 +135,7 @@ bool ProgressStore::save() {
     out.close();
     if (written == 0) {
         SystemFS.remove(PROGRESS_TMP_PATH);
-        WebMgr::getInstance().sendLog("ProgressStore: serialisation wrote nothing");
+        Serial.println("ProgressStore: serialisation wrote nothing");
         return false;
     }
 
@@ -147,7 +145,7 @@ bool ProgressStore::save() {
         SystemFS.remove(PROGRESS_PATH);
         if (!SystemFS.rename(PROGRESS_TMP_PATH, PROGRESS_PATH)) {
             SystemFS.remove(PROGRESS_TMP_PATH);
-            WebMgr::getInstance().sendLog("ProgressStore: rename failed — progress not saved");
+            Serial.println("ProgressStore: rename failed — progress not saved");
             return false;
         }
     }
@@ -284,9 +282,6 @@ void ProgressStore::fillExportJson(JsonObject dest) {
     }
 }
 
-// Original names of every .epub currently on flash. Built once per import: the
-// per-entry alternative re-read /books_meta.json for each book, and dozens of
-// sequential LittleFS reads on the async web task would stall the server.
 static void collectPresentOriginalNames(std::map<String, bool>& present) {
     std::map<String, String> metadata;
     loadBookMetadata(metadata);
@@ -341,7 +336,6 @@ ImportReport ProgressStore::applyImportedJson(JsonObjectConst src) {
         imported.charOffset = entry["charOffset"] | 0;
         imported.globalPage = entry["globalPage"] | 1;
 
-        // The .epub may not be here yet — that is what `pending` protects.
         bool fileExists = present.find(key) != present.end();
 
         auto it = _books.find(key);

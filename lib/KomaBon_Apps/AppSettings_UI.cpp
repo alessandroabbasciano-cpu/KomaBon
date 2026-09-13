@@ -3,6 +3,7 @@
 #include "../KomaBon_Core/FontMgr.h"
 #include "../KomaBon_Core/BatteryMgr.h"
 #include "../KomaBon_Core/KomaBonFS.h"
+#include "../Book32_Web/WebMgr.h"
 #include "../../include/Config.h"
 #include <WiFi.h>
 
@@ -43,10 +44,8 @@ String AppSettings::valueForRow(int index) const {
         case ROW_FONT_FAMILY:
             return String(FONT_FAMILY_NAMES[SettingsStore::clampFontFamily(_reader.fontFamily)]);
         case ROW_ROTATION: {
-            // Using "deg" instead of "°" to prevent missing glyph artifacts in FreeSans
             const char* rotNames[] = {"0 deg", "90 deg", "180 deg", "270 deg"};
             int rot = _display.rotation;
-            // Safety clamp
             if (rot < 0 || rot > 3) rot = 3;
             return String(rotNames[rot]);
         }
@@ -98,9 +97,6 @@ void AppSettings::drawMainScreen() {
 
     for (int i = 0; i < ROW_COUNT; i++) {
         int y = LIST_START_Y + i * ROW_HEIGHT;
-
-        // NEW AESTHETIC: Double-thickness outline box instead of solid fill.
-        // Text remains black regardless of selection.
         display.setTextColor(GxEPD_BLACK);
 
         if (i == _selectedIndex) {
@@ -108,7 +104,6 @@ void AppSettings::drawMainScreen() {
             display.drawRect(13, y - 29, w - 26, ROW_HEIGHT - 10, GxEPD_BLACK);
         }
 
-        // Removed the color toggling variable, hardcoded to GxEPD_BLACK
         String label = String(ROW_LABELS[i]);
         if (rowChanged(i)) label = "*" + label;
         font.drawText(display, label.c_str(), 26, y, FONT_SIZE_BODY, GxEPD_BLACK);
@@ -133,11 +128,9 @@ void AppSettings::drawFontScreen() {
 
     for (int i = 0; i < 6; i++) {
         int y = LIST_START_Y + i * ROW_HEIGHT;
-
         display.setTextColor(GxEPD_BLACK);
 
         if (i == _subSelectedIndex) {
-            // NEW AESTHETIC: Double-thickness outline box
             display.drawRect(12, y - 30, w - 24, ROW_HEIGHT - 8, GxEPD_BLACK);
             display.drawRect(13, y - 29, w - 26, ROW_HEIGHT - 10, GxEPD_BLACK);
         }
@@ -145,7 +138,6 @@ void AppSettings::drawFontScreen() {
         String label = String(FONT_FAMILY_NAMES[i]);
         if (i == _reader.fontFamily) label += "  (current)";
 
-        // Text is always black
         font.drawText(display, label.c_str(), 26, y, FONT_SIZE_BODY, GxEPD_BLACK);
     }
 
@@ -163,18 +155,23 @@ void AppSettings::drawNetworkScreen() {
     int y = LIST_START_Y;
 
     font.drawText(display, "Status:", 26, y, FONT_SIZE_BODY, GxEPD_BLACK);
-    font.drawText(display, connected ? "Connected" : (isWifiOn() ? "Connecting / no link" : "Disconnected"),
-                  200, y, FONT_SIZE_BODY, GxEPD_BLACK);
+    font.drawText(display, connected ? "Connected" : (isWifiOn() ? "AP Mode / No Link" : "Disconnected"), 200,
+                  y, FONT_SIZE_BODY, GxEPD_BLACK);
     y += ROW_HEIGHT;
 
     font.drawText(display, "SSID:", 26, y, FONT_SIZE_BODY, GxEPD_BLACK);
-    String ssid = connected ? WiFi.SSID() : String("-");
+    String ssid = connected ? WiFi.SSID() : String(AP_SSID);
     font.drawText(display, FontMgr::utf8ToLatin1(ssid).c_str(), 200, y, FONT_SIZE_BODY, GxEPD_BLACK);
     y += ROW_HEIGHT;
 
+    // --- Added row to display device password explicitly ---
+    font.drawText(display, "Pass:", 26, y, FONT_SIZE_BODY, GxEPD_BLACK);
+    font.drawText(display, WebMgr::devicePassword(), 200, y, FONT_SIZE_BODY, GxEPD_BLACK);
+    y += ROW_HEIGHT;
+
     font.drawText(display, "IP:", 26, y, FONT_SIZE_BODY, GxEPD_BLACK);
-    font.drawText(display, connected ? WiFi.localIP().toString().c_str() : "-", 200, y, FONT_SIZE_BODY,
-                  GxEPD_BLACK);
+    font.drawText(display, connected ? WiFi.localIP().toString().c_str() : (isWifiOn() ? "192.168.4.1" : "-"),
+                  200, y, FONT_SIZE_BODY, GxEPD_BLACK);
     y += ROW_HEIGHT;
 
     font.drawText(display, "MAC:", 26, y, FONT_SIZE_BODY, GxEPD_BLACK);
@@ -222,12 +219,10 @@ void AppSettings::drawSystemScreen() {
         display.setTextColor(GxEPD_BLACK);
 
         if (i == _subSelectedIndex) {
-            // NEW AESTHETIC: Double-thickness outline box
             display.drawRect(12, ay - 30, w - 24, ROW_HEIGHT - 8, GxEPD_BLACK);
             display.drawRect(13, ay - 29, w - 26, ROW_HEIGHT - 10, GxEPD_BLACK);
         }
 
-        // Text is always black
         font.drawText(display, actions[i], 26, ay, FONT_SIZE_BODY, GxEPD_BLACK);
     }
 
@@ -249,16 +244,13 @@ void AppSettings::drawConfirmScreen() {
     int y = LIST_START_Y + 70;
     for (int i = 0; i < 3; i++) {
         int oy = y + i * ROW_HEIGHT;
-
         display.setTextColor(GxEPD_BLACK);
 
         if (i == _subSelectedIndex) {
-            // NEW AESTHETIC: Double-thickness outline box
             display.drawRect(12, oy - 30, w - 24, ROW_HEIGHT - 8, GxEPD_BLACK);
             display.drawRect(13, oy - 29, w - 26, ROW_HEIGHT - 10, GxEPD_BLACK);
         }
 
-        // Text is always black
         font.drawText(display, options[i], 26, oy, FONT_SIZE_BODY, GxEPD_BLACK);
     }
 
@@ -282,16 +274,13 @@ void AppSettings::drawConfirmForgetWifiScreen() {
     int y = LIST_START_Y + 100;
     for (int i = 0; i < 2; i++) {
         int oy = y + i * ROW_HEIGHT;
-
         display.setTextColor(GxEPD_BLACK);
 
         if (i == _subSelectedIndex) {
-            // NEW AESTHETIC: Double-thickness outline box
             display.drawRect(12, oy - 30, w - 24, ROW_HEIGHT - 8, GxEPD_BLACK);
             display.drawRect(13, oy - 29, w - 26, ROW_HEIGHT - 10, GxEPD_BLACK);
         }
 
-        // Text is always black
         font.drawText(display, options[i], 26, oy, FONT_SIZE_BODY, GxEPD_BLACK);
     }
 

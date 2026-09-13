@@ -10,7 +10,6 @@
 #include <Ed25519.h>
 #include "../KomaBon_Core/DisplayMgr.h"
 #include "../KomaBon_Core/FontMgr.h"
-#include "WebMgr.h"
 #include <GxEPD2_BW.h>
 
 // v1.4.1: abort a download that makes no progress for this long (ms).
@@ -75,24 +74,24 @@ UpdateInfo GitHubMgr::checkUpdate(const char* currentVersion) {
     UpdateInfo info = {false, "", "", "", "", false, false, "", "", "", ""};
 
     if (WiFi.status() != WL_CONNECTED) {
-        WebMgr::getInstance().sendLog("WiFi not connected, cannot check for updates");
+        Serial.println("WiFi not connected, cannot check for updates");
         return info;
     }
 
     HTTPClient http;
     String apiURL = String("https://api.github.com/repos/") + GITHUB_REPO + "/releases/latest";
 
-    WebMgr::getInstance().sendLogf("Checking: %s\n", apiURL.c_str());
+    Serial.printf("Checking: %s\n", apiURL.c_str());
 
     http.begin(apiURL);
     // Updated User-Agent to KomaBon
     http.setUserAgent("KomaBon-ESP32");
     http.setTimeout(10000); // 10 second timeout
 
-    WebMgr::getInstance().sendLog("Using public GitHub release API");
+    Serial.println("Using public GitHub release API");
 
     int httpCode = http.GET();
-    WebMgr::getInstance().sendLogf("HTTP Response: %d\n", httpCode);
+    Serial.printf("HTTP Response: %d\n", httpCode);
 
     if (httpCode == HTTP_CODE_OK) {
         // Filter: the GitHub response brings the `author` object, the `uploader`
@@ -112,7 +111,7 @@ UpdateInfo GitHubMgr::checkUpdate(const char* currentVersion) {
             deserializeJson(doc, http.getStream(), DeserializationOption::Filter(filter));
 
         if (err) {
-            WebMgr::getInstance().sendLogf("JSON parse error: %s\n", err.c_str());
+            Serial.printf("JSON parse error: %s\n", err.c_str());
             http.end();
             return info;
         }
@@ -121,8 +120,7 @@ UpdateInfo GitHubMgr::checkUpdate(const char* currentVersion) {
         info.version = tagName ? tagName : "";
         info.notes = doc["body"].as<String>();
 
-        WebMgr::getInstance().sendLogf("Latest version: %s, Current: %s\n", info.version.c_str(),
-                                       currentVersion);
+        Serial.printf("Latest version: %s, Current: %s\n", info.version.c_str(), currentVersion);
 
         // v1.4.1: compare Major.Minor.Patch numerically instead of testing for
         // mere inequality. The old check reported a *downgrade* as an available
@@ -133,7 +131,7 @@ UpdateInfo GitHubMgr::checkUpdate(const char* currentVersion) {
 
         if (semverIsNewer(latestV, currentV)) {
             info.available = true;
-            WebMgr::getInstance().sendLog("Update IS available");
+            Serial.println("Update IS available");
 
             // Find asset URLs
             JsonArray assets = doc["assets"];
@@ -145,12 +143,12 @@ UpdateInfo GitHubMgr::checkUpdate(const char* currentVersion) {
                 if (name == "firmware.bin" || name.endsWith("_firmware.bin")) {
                     info.firmwareUrl = url;
                     info.hasFirmware = true;
-                    WebMgr::getInstance().sendLogf("Found firmware: %s\n", name.c_str());
+                    Serial.printf("Found firmware: %s\n", name.c_str());
                 } else if (name == "littlefs.bin" || name == "filesystem.bin" ||
                            name.endsWith("_littlefs.bin")) {
                     info.filesystemUrl = url;
                     info.hasFilesystem = true;
-                    WebMgr::getInstance().sendLogf("Found filesystem: %s\n", name.c_str());
+                    Serial.printf("Found filesystem: %s\n", name.c_str());
                 }
             }
             // v1.6.0: pull the expected SHA-256 for each asset out of the
@@ -158,10 +156,9 @@ UpdateInfo GitHubMgr::checkUpdate(const char* currentVersion) {
             // which makes the download abort (fail closed).
             if (info.hasFirmware) {
                 if (extractSha256(info.notes, "firmware.bin", info.firmwareSha256)) {
-                    WebMgr::getInstance().sendLogf("Expected firmware SHA-256: %s\n",
-                                                   info.firmwareSha256.c_str());
+                    Serial.printf("Expected firmware SHA-256: %s\n", info.firmwareSha256.c_str());
                 } else {
-                    WebMgr::getInstance().sendLog("WARNING: release publishes no SHA-256 for firmware.bin");
+                    Serial.println("WARNING: release publishes no SHA-256 for firmware.bin");
                 }
             }
             if (info.hasFilesystem) {
@@ -169,8 +166,7 @@ UpdateInfo GitHubMgr::checkUpdate(const char* currentVersion) {
                     extractSha256(info.notes, "filesystem.bin", info.filesystemSha256);
                 }
                 if (info.filesystemSha256.length() == 0) {
-                    WebMgr::getInstance().sendLog(
-                        "WARNING: release publishes no SHA-256 for the filesystem image");
+                    Serial.println("WARNING: release publishes no SHA-256 for the filesystem image");
                 }
             }
             // v1.11.0: pull the expected Ed25519 signature (over the asset's
@@ -179,10 +175,9 @@ UpdateInfo GitHubMgr::checkUpdate(const char* currentVersion) {
             // closed) — same treatment as a missing SHA-256.
             if (info.hasFirmware) {
                 if (extractEd25519Signature(info.notes, "firmware.bin", info.firmwareEd25519Sig)) {
-                    WebMgr::getInstance().sendLog("Expected firmware Ed25519 signature found");
+                    Serial.println("Expected firmware Ed25519 signature found");
                 } else {
-                    WebMgr::getInstance().sendLog(
-                        "WARNING: release publishes no Ed25519 signature for firmware.bin");
+                    Serial.println("WARNING: release publishes no Ed25519 signature for firmware.bin");
                 }
             }
             if (info.hasFilesystem) {
@@ -190,19 +185,19 @@ UpdateInfo GitHubMgr::checkUpdate(const char* currentVersion) {
                     extractEd25519Signature(info.notes, "filesystem.bin", info.filesystemEd25519Sig);
                 }
                 if (info.filesystemEd25519Sig.length() == 0) {
-                    WebMgr::getInstance().sendLog(
+                    Serial.println(
                         "WARNING: release publishes no Ed25519 signature for the filesystem image");
                 }
             }
         } else {
-            WebMgr::getInstance().sendLog("Already up to date");
+            Serial.println("Already up to date");
         }
     } else if (httpCode == 404) {
-        WebMgr::getInstance().sendLog("No releases found on GitHub");
+        Serial.println("No releases found on GitHub");
     } else if (httpCode == 403) {
-        WebMgr::getInstance().sendLog("GitHub API rate limited - try again later");
+        Serial.println("GitHub API rate limited - try again later");
     } else {
-        WebMgr::getInstance().sendLogf("GitHub API Failed: %d\n", httpCode);
+        Serial.printf("GitHub API Failed: %d\n", httpCode);
     }
     http.end();
     return info;
@@ -213,13 +208,13 @@ bool GitHubMgr::downloadAndFlash(const char* url, int partition, const char* lab
                                  const char* expectedEd25519Sig) {
     if (WiFi.status() != WL_CONNECTED) return false;
 
-    WebMgr::getInstance().sendLogf("Downloading %s from: %s\n", label, url);
+    Serial.printf("Downloading %s from: %s\n", label, url);
 
     // v1.6.0: refuse to flash anything we can't verify. The release workflow
     // publishes "SHA256 (<asset>) = <hex>" in the release body; a missing or
     // malformed line lands here.
     if (!expectedSha256 || strlen(expectedSha256) != BOOK32_SHA256_HEX_LEN) {
-        WebMgr::getInstance().sendLog("Refusing update: release publishes no valid SHA-256 for this asset");
+        Serial.println("Refusing update: release publishes no valid SHA-256 for this asset");
         drawOTAProgress(0, "Update Blocked", "No checksum in release");
         delay(3000);
         return false;
@@ -230,8 +225,7 @@ bool GitHubMgr::downloadAndFlash(const char* url, int partition, const char* lab
     // response the SHA-256 above is fetched from) could simply omit the
     // ED25519 line and fall back to a SHA-256-only check they also control.
     if (!expectedEd25519Sig || strlen(expectedEd25519Sig) != BOOK32_ED25519_SIG_HEX_LEN) {
-        WebMgr::getInstance().sendLog(
-            "Refusing update: release publishes no valid Ed25519 signature for this asset");
+        Serial.println("Refusing update: release publishes no valid Ed25519 signature for this asset");
         drawOTAProgress(0, "Update Blocked", "No signature in release");
         delay(3000);
         return false;
@@ -256,26 +250,26 @@ bool GitHubMgr::downloadAndFlash(const char* url, int partition, const char* lab
 
     int httpCode = http.GET();
     if (httpCode != HTTP_CODE_OK) {
-        WebMgr::getInstance().sendLogf("%s download failed: %d\n", label, httpCode);
+        Serial.printf("%s download failed: %d\n", label, httpCode);
         http.end();
         return false;
     }
 
     int contentLength = http.getSize();
-    WebMgr::getInstance().sendLogf("%s size: %d bytes\n", label, contentLength);
+    Serial.printf("%s size: %d bytes\n", label, contentLength);
 
     // v1.4.1: getSize() returns -1 for chunked responses. The download loop
     // compares size_t against this int, so -1 promotes to SIZE_MAX and the
     // loop never terminates (watchdog reset). Fail closed instead.
     if (contentLength <= 0) {
-        WebMgr::getInstance().sendLogf("Invalid or unknown %s content length; aborting\n", label);
+        Serial.printf("Invalid or unknown %s content length; aborting\n", label);
         http.end();
         return false;
     }
 
     // U_SPIFFS is used for both SPIFFS and LittleFS.
     if (!Update.begin(contentLength, partition)) {
-        WebMgr::getInstance().sendLogf("Not enough space for %s update\n", label);
+        Serial.printf("Not enough space for %s update\n", label);
         http.end();
         return false;
     }
@@ -304,7 +298,7 @@ bool GitHubMgr::downloadAndFlash(const char* url, int partition, const char* lab
         size_t available = stream->available();
         if (available == 0) {
             if (millis() - lastDataMs > OTA_STALL_TIMEOUT_MS) {
-                WebMgr::getInstance().sendLogf("Download stalled; aborting %s update\n", label);
+                Serial.printf("Download stalled; aborting %s update\n", label);
                 mbedtls_sha256_free(&shaCtx);
                 Update.abort();
                 http.end();
@@ -315,13 +309,13 @@ bool GitHubMgr::downloadAndFlash(const char* url, int partition, const char* lab
         }
         lastDataMs = millis();
 
-        size_t toRead = min(available, sizeof(buff));
+        size_t toRead = std::min(available, sizeof(buff));
         size_t bytesRead = stream->readBytes(buff, toRead);
         if (bytesRead == 0) continue;
 
         size_t bytesWritten = Update.write(buff, bytesRead);
         if (bytesWritten != bytesRead) {
-            WebMgr::getInstance().sendLogf("Write error during %s update\n", label);
+            Serial.printf("Write error during %s update\n", label);
             mbedtls_sha256_free(&shaCtx);
             Update.abort();
             http.end();
@@ -333,7 +327,7 @@ bool GitHubMgr::downloadAndFlash(const char* url, int partition, const char* lab
         // Progress and yield every ~5%
         int progress = (written * 100) / contentLength;
         if (progress / 5 > lastProgress / 5) {
-            WebMgr::getInstance().sendLogf("%s progress: %d%%\n", label, progress);
+            Serial.printf("%s progress: %d%%\n", label, progress);
             drawOTAProgress(progress, title, "Downloading...");
             lastProgress = progress;
         }
@@ -347,13 +341,12 @@ bool GitHubMgr::downloadAndFlash(const char* url, int partition, const char* lab
         // Without the abort, the Update session remained open and the next
         // Update.begin() refused to start until a reboot.
         Update.abort();
-        WebMgr::getInstance().sendLogf("%s write failed. Written: %u / %d\n", label, (unsigned)written,
-                                       contentLength);
+        Serial.printf("%s write failed. Written: %u / %d\n", label, (unsigned)written, contentLength);
         http.end();
         return false;
     }
 
-    WebMgr::getInstance().sendLogf("%s written successfully\n", label);
+    Serial.printf("%s written successfully\n", label);
     drawOTAProgress(100, title, "Verifying...");
 
     // v1.6.0: finalise the digest and compare BEFORE Update.end() commits
@@ -371,16 +364,16 @@ bool GitHubMgr::downloadAndFlash(const char* url, int partition, const char* lab
     String actual = String(actualHex);
     String expected = String(expectedSha256);
     if (!sha256Equal(actual, expected)) {
-        WebMgr::getInstance().sendLog("SHA-256 MISMATCH - refusing to install");
-        WebMgr::getInstance().sendLogf("  expected: %s\n", expected.c_str());
-        WebMgr::getInstance().sendLogf("  actual:   %s\n", actual.c_str());
+        Serial.println("SHA-256 MISMATCH - refusing to install");
+        Serial.printf("  expected: %s\n", expected.c_str());
+        Serial.printf("  actual:   %s\n", actual.c_str());
         Update.abort();
         http.end();
         drawOTAProgress(0, "Update Blocked", "Checksum mismatch");
         delay(3000);
         return false;
     }
-    WebMgr::getInstance().sendLog("SHA-256 verified OK");
+    Serial.println("SHA-256 verified OK");
 
     // v1.11.0: verify the Ed25519 signature over that same digest before
     // committing the image. This is the check that actually defends against
@@ -388,7 +381,7 @@ bool GitHubMgr::downloadAndFlash(const char* url, int partition, const char* lab
     // expected value comes from the same (forgeable) API response.
     uint8_t sigBytes[BOOK32_ED25519_SIG_LEN];
     if (!hexDecode(String(expectedEd25519Sig), (size_t)BOOK32_ED25519_SIG_HEX_LEN, sigBytes)) {
-        WebMgr::getInstance().sendLog("Ed25519 signature is not valid hex - refusing to install");
+        Serial.println("Ed25519 signature is not valid hex - refusing to install");
         Update.abort();
         http.end();
         drawOTAProgress(0, "Update Blocked", "Malformed signature");
@@ -396,28 +389,28 @@ bool GitHubMgr::downloadAndFlash(const char* url, int partition, const char* lab
         return false;
     }
     if (!Ed25519::verify(sigBytes, BOOK32_OTA_ED25519_PUBLIC_KEY, digest, sizeof(digest))) {
-        WebMgr::getInstance().sendLog("Ed25519 SIGNATURE INVALID - refusing to install");
+        Serial.println("Ed25519 SIGNATURE INVALID - refusing to install");
         Update.abort();
         http.end();
         drawOTAProgress(0, "Update Blocked", "Signature invalid");
         delay(3000);
         return false;
     }
-    WebMgr::getInstance().sendLog("Ed25519 signature verified OK");
+    Serial.println("Ed25519 signature verified OK");
 
     drawOTAProgress(100, title, "Installing...");
     if (!Update.end()) {
-        WebMgr::getInstance().sendLogf("%s install failed: %s\n", label, Update.errorString());
+        Serial.printf("%s install failed: %s\n", label, Update.errorString());
         http.end();
         return false;
     }
 
-    WebMgr::getInstance().sendLogf("%s update complete\n", label);
+    Serial.printf("%s update complete\n", label);
     drawOTAProgress(100, title, "Complete!");
     delay(500);
     http.end();
     if (restartAfter) {
-        WebMgr::getInstance().sendLog("Restarting...");
+        Serial.println("Restarting...");
         ESP.restart();
     }
     return true;
@@ -436,25 +429,25 @@ bool GitHubMgr::performFilesystemUpdate(const char* url, bool restartAfter, int 
 }
 
 void GitHubMgr::triggerUpdate(const char* currentVersion) {
-    WebMgr::getInstance().sendLog("Triggering Full Update (Firmware + Filesystem)...");
+    Serial.println("Triggering Full Update (Firmware + Filesystem)...");
 
     bool success = performFullUpdate(currentVersion);
 
     if (!success) {
-        WebMgr::getInstance().sendLog("Full update process did not complete successfully.");
+        Serial.println("Full update process did not complete successfully.");
     }
 }
 
 bool GitHubMgr::performFullUpdate(const char* currentVersion) {
-    WebMgr::getInstance().sendLog("Starting full update check...");
+    Serial.println("Starting full update check...");
     UpdateInfo info = checkUpdate(currentVersion);
 
     if (!info.available) {
-        WebMgr::getInstance().sendLog("No update available.");
+        Serial.println("No update available.");
         return false;
     }
 
-    WebMgr::getInstance().sendLogf("Update available: %s\n", info.version.c_str());
+    Serial.printf("Update available: %s\n", info.version.c_str());
 
     bool firmwareUpdated = false;
     bool filesystemUpdated = false;
@@ -466,11 +459,11 @@ bool GitHubMgr::performFullUpdate(const char* currentVersion) {
     // Update firmware first (don't restart yet)
     if (info.hasFirmware) {
         currentStep++;
-        WebMgr::getInstance().sendLog("Updating firmware...");
+        Serial.println("Updating firmware...");
         firmwareUpdated = performFirmwareUpdate(info.firmwareUrl.c_str(), false, currentStep, totalSteps,
                                                 info.firmwareSha256.c_str(), info.firmwareEd25519Sig.c_str());
         if (!firmwareUpdated) {
-            WebMgr::getInstance().sendLog("Firmware update failed!");
+            Serial.println("Firmware update failed!");
             return false;
         }
     }
@@ -478,15 +471,15 @@ bool GitHubMgr::performFullUpdate(const char* currentVersion) {
     // Then update filesystem (don't restart yet)
     if (info.hasFilesystem) {
         currentStep++;
-        WebMgr::getInstance().sendLog("Updating filesystem...");
+        Serial.println("Updating filesystem...");
         filesystemUpdated =
             performFilesystemUpdate(info.filesystemUrl.c_str(), false, currentStep, totalSteps,
                                     info.filesystemSha256.c_str(), info.filesystemEd25519Sig.c_str());
         if (!filesystemUpdated) {
-            WebMgr::getInstance().sendLog("Filesystem update failed!");
+            Serial.println("Filesystem update failed!");
             // Still restart if firmware was updated
             if (firmwareUpdated) {
-                WebMgr::getInstance().sendLog("Restarting after firmware update...");
+                Serial.println("Restarting after firmware update...");
                 ESP.restart();
             }
             return false;
@@ -498,7 +491,7 @@ bool GitHubMgr::performFullUpdate(const char* currentVersion) {
         // Show restarting message
         drawOTAProgress(100, "Update Complete!", "Restarting...");
         delay(1000);
-        WebMgr::getInstance().sendLog("All updates complete. Restarting...");
+        Serial.println("All updates complete. Restarting...");
         ESP.restart();
         return true;
     }

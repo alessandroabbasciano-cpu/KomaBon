@@ -1,7 +1,6 @@
 #include "SDMgr.h"
 #include "../../include/Config.h"
 #include "KomaBonFS.h"
-#include "WebMgr.h"
 
 SDMgr::SDMgr() : _spi(nullptr), _mounted(false) {}
 
@@ -32,21 +31,21 @@ bool SDMgr::init() {
     }
 
     if (!mountSuccess) {
-        WebMgr::getInstance().sendLog("SDMgr: Mount failed or no SD card present.");
+        Serial.println("SDMgr: Mount failed or no SD card present.");
         _mounted = false;
         return false;
     }
 
     uint8_t cardType = SD.cardType();
     if (cardType == CARD_NONE) {
-        WebMgr::getInstance().sendLog("SDMgr: No SD card attached.");
+        Serial.println("SDMgr: No SD card attached.");
         _mounted = false;
         return false;
     }
 
-    WebMgr::getInstance().sendLog("SDMgr: SD Card mounted successfully at /ebooks.");
-    WebMgr::getInstance().sendLogf("SDMgr: SD Card Type: %d\n", cardType);
-    WebMgr::getInstance().sendLogf("SDMgr: SD Card Size: %llu MB\n", SD.cardSize() / (1024 * 1024));
+    Serial.println("SDMgr: SD Card mounted successfully at /ebooks.");
+    Serial.printf("SDMgr: SD Card Type: %d\n", cardType);
+    Serial.printf("SDMgr: SD Card Size: %llu MB\n", SD.cardSize() / (1024 * 1024));
 
     // Bind filesystem pointer for global VFS compatibility
     EbookFSPtr = &SD;

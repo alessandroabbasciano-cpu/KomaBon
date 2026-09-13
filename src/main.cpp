@@ -19,35 +19,12 @@
 // System-wide flag for network status UI indicators
 volatile bool gNetworkStartupInProgress = false;
 
-// Hook for ESP_LOGx macros to mirror to Web Console ONLY IF active.
-// Prevents broadcasting to a dead socket during offline boot.
-static int webLogVprintf(const char* fmt, va_list args) {
-    char loc_buf[256];
-    int len = vsnprintf(loc_buf, sizeof(loc_buf), fmt, args);
-    if (len > 0) {
-        // Always print to hardware serial
-        Serial.print(loc_buf);
-
-        // Broadcast only if the On-Demand Wi-Fi is actively running
-        if (WebMgr::getInstance().isInitialized()) {
-            String msg = String(loc_buf);
-            if (!msg.endsWith("\n")) {
-                msg += "\n";
-            }
-            WebMgr::getInstance().broadcastSerial((const uint8_t*)msg.c_str(), msg.length());
-        }
-    }
-    return len;
-}
-
 void setup() {
     // 1. Core System Init
     esp_ota_mark_app_valid_cancel_rollback();
 
     Serial.begin(115200);
     delay(250);
-
-    esp_log_set_vprintf(webLogVprintf);
 
     Serial.println("\n\n");
     Serial.println("=======================================");
@@ -63,8 +40,8 @@ void setup() {
     displayMgr.init();
     displayMgr.showBootScreen(10, "Init Display Subsystem");
 
-    // Initialize the external MicroSD card via high-speed SPI (SdFat)
-    displayMgr.showBootScreen(25, "Mounting High-Speed SD");
+    // Initialize the external MicroSD card via standard SPI
+    displayMgr.showBootScreen(25, "Mounting SD Card");
     SDMgr::getInstance().init();
 
     // Mount internal LittleFS filesystems (SystemFS, EbookFS fallback)

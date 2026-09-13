@@ -26,7 +26,10 @@ function showTab(tabId) {
     document.getElementById(tabId).classList.add('active');
 
     const navItems = ['library', 'settings'];
-    document.querySelectorAll('.nav-links li')[navItems.indexOf(tabId)].classList.add('active');
+    const tabIndex = navItems.indexOf(tabId);
+    if (tabIndex >= 0) {
+        document.querySelectorAll('.nav-links li')[tabIndex].classList.add('active');
+    }
 
     if (tabId === 'library') {
         if (typeof fetchBooks === 'function') fetchBooks();
@@ -415,42 +418,20 @@ function connectWifi() {
         });
 }
 
-// WebSocket Console logic
-let ws;
-function initWebSocket() {
-    const host = window.location.hostname || '192.168.1.21';
-    ws = new WebSocket(`ws://${host}/ws`);
-
-    ws.onmessage = function (event) {
-        const terminal = document.getElementById('live-log');
-        if (!terminal) return;
-
-        // Append raw serial text
-        terminal.textContent += event.data;
-        terminal.scrollTop = terminal.scrollHeight;
-    };
-
-    ws.onclose = function () {
-        setTimeout(initWebSocket, 3000);
-    };
-}
-
 // Toggle Wi-Fi Debug Mode for reading sessions
 function toggleDebugWifi() {
     const btn = document.getElementById('debug-wifi-btn');
     const originalText = btn.innerText;
     btn.innerText = "Toggling...";
-    
+
     fetch('/api/debug', { method: 'POST' })
         .then(response => response.text())
         .then(data => {
             if (data === "1") {
-                // Debug ON: Wi-Fi stays alive during reading
                 btn.innerText = "Disable Wi-Fi Debug";
                 btn.classList.remove('secondary');
                 btn.classList.add('primary');
             } else {
-                // Debug OFF: Standard behavior (Wi-Fi shuts down)
                 btn.innerText = "Enable Wi-Fi Debug";
                 btn.classList.remove('primary');
                 btn.classList.add('secondary');
@@ -464,7 +445,6 @@ function toggleDebugWifi() {
 }
 
 // Initialization on load
-initWebSocket();
 setInterval(fetchStatus, 5000);
 fetchStatus();
 

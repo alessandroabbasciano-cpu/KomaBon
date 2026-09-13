@@ -11,7 +11,6 @@
 #include <WiFiManager.h>
 #include <KomaBonFS.h>
 
-// Logic arrays
 static const int FONT_SIZES[] = {9, 12, 18};
 static const int REFRESH_FREQS[] = {5, 10, 20, 50};
 static const int SLEEP_TIMEOUTS[] = {0, 5, 15, 30, 60};
@@ -116,9 +115,9 @@ void AppSettings::toggleWifi() {
         WiFi.mode(WIFI_OFF);
         setStatus("Wi-Fi off");
     } else {
-        // Strict On-Demand: User explicitly requested network activation
         WebMgr::getInstance().startNetwork();
-        setStatus("Wi-Fi on (On-Demand)");
+        String statusMsg = "AP: " + String(AP_SSID) + " | Pwd: " + WebMgr::devicePassword();
+        setStatus(statusMsg.c_str(), 4000);
     }
 }
 
@@ -147,10 +146,8 @@ void AppSettings::cycleValue(int index, bool forward) {
             break;
         case ROW_ROTATION:
             if (forward) {
-                // Cycle forward: 0 -> 1 -> 2 -> 3 -> 0
                 _display.rotation = (_display.rotation + 1) % 4;
             } else {
-                // Cycle backward using modulo arithmetic (+3 is equivalent to -1 mod 4)
                 _display.rotation = (_display.rotation + 3) % 4;
             }
             break;
@@ -196,7 +193,7 @@ void AppSettings::activate(int index) {
             AppMgr::getInstance().switchTo(0);
             return;
         default:
-            cycleValue(index, true); // Fallback to forward cycle
+            cycleValue(index, true);
             return;
     }
     _needsRedraw = true;
@@ -253,7 +250,6 @@ void AppSettings::handleInput(InputAction action) {
         } else if (action == INPUT_SELECT) {
             if (_subSelectedIndex == 0) {
                 if (WiFi.status() != WL_CONNECTED) {
-                    // Turn on network on-demand to check for updates
                     WebMgr::getInstance().startNetwork();
                 } else {
                     setStatus("Searching...", 1000);
@@ -261,7 +257,7 @@ void AppSettings::handleInput(InputAction action) {
                     UpdateInfo info = GitHubMgr::getInstance().checkUpdate(SYSTEM_VERSION);
                     if (info.available) {
                         saveDraftIfDirty();
-                        WebMgr::getInstance().sendLog("AppSettings: Launching OTA task...");
+                        Serial.println("AppSettings: Launching OTA task...");
                         xTaskCreatePinnedToCore(
                             [](void* param) {
                                 GitHubMgr::getInstance().triggerUpdate(SYSTEM_VERSION);
@@ -390,7 +386,7 @@ void AppSettings::discardChanges() {
 
 void AppSettings::saveDraftIfDirty() {
     if (!_dirty) return;
-    WebMgr::getInstance().sendLog("AppSettings: flushing unsaved draft before sleep/exit");
+    Serial.println("AppSettings: flushing unsaved draft before sleep/exit");
     applyAndSave();
 }
 
@@ -411,21 +407,15 @@ void AppSettings::update() {
     }
 
     if (_screen == SCREEN_JOYCAL && _joyCalStep < 5) {
-
-        // HARDWARE EMERGENCY ABORT
         pinMode(PIN_BUTTON_BACK, INPUT_PULLUP);
         if (digitalRead(PIN_BUTTON_BACK) == LOW) {
-            WebMgr::getInstance().sendLog("AppSettings: Calibration aborted via physical button.");
+            Serial.println("AppSettings: Calibration aborted via physical button.");
 
-            // NEW: Protect existing calibration.
-            // Check if the file exists before writing defaults to break the boot loop.
-            // If the user already has a custom calibration, we do not overwrite it.
             if (!EbookFS.exists("/joy_cal.json")) {
-                WebMgr::getInstance().sendLog("AppSettings: No calibration found. Saving defaults.");
+                Serial.println("AppSettings: No calibration found. Saving defaults.");
                 JoystickMgr::getInstance().saveCalibration(0, 3350, 1250, 2650, 1950);
             }
 
-            // Wait for button release BEFORE changing the screen state.
             while (digitalRead(PIN_BUTTON_BACK) == LOW) {
                 delay(10);
             }
@@ -452,13 +442,8 @@ void AppSettings::update() {
                             JoystickMgr::getInstance().saveCalibration(_joyCalValues[0], _joyCalValues[1],
                                                                        _joyCalValues[2], _joyCalValues[3],
                                                                        _joyCalValues[4]);
-                            // NEW: Set a 1-second safety cooldown for the final screen
                             _statusUntil = millis() + 1000;
                         }
-                        // NEW: Force an immediate physical screen update.
-                        // This bypasses the Lazy Rendering block in main.cpp,
-                        // providing instant visual feedback while the user is
-                        // still physically holding the joystick direction.
                         draw();
                     }
                 } else {

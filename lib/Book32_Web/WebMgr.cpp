@@ -15,27 +15,6 @@
 #include <stdarg.h>
 #include "../../include/NetworkState.h"
 
-// Formatted logging implementation dispatching to both USB Serial and WebSocket
-void WebMgr::sendLogf(const char* format, ...) {
-    char buffer[256];
-    va_list args;
-    va_start(args, format);
-    vsnprintf(buffer, sizeof(buffer), format, args);
-    va_end(args);
-
-    // Print to hardware USB serial
-    Serial.print(buffer);
-
-    // Send formatted line to connected Web Console clients
-    if (ws && ws->count() > 0) {
-        String msg = String(buffer);
-        if (!msg.endsWith("\n")) {
-            msg += "\n";
-        }
-        ws->textAll(msg);
-    }
-}
-
 const char* WebMgr::devicePassword() {
     static char pw[BOOK32_CRED_LEN] = {0};
     if (pw[0] == '\0') {
@@ -52,36 +31,22 @@ WebMgr& WebMgr::getInstance() {
     return instance;
 }
 
-// Constructor: initialize async server and live console WebSocket
-WebMgr::WebMgr() : server(new AsyncWebServer(80)), ws(new AsyncWebSocket("/ws")) {}
-
-// Dispatch system log messages to both serial output and active WebSocket clients with proper newlines
-void WebMgr::sendLog(const String& msg) {
-    Serial.println(msg);
-    if (ws && ws->count() > 0) {
-        String formattedMsg = msg + "\n";
-        ws->textAll(formattedMsg);
-    }
-}
-
-// Check if any client is currently connected to the live console WebSocket
-bool WebMgr::isConsoleActive() const {
-    return ws && (ws->count() > 0);
-}
+// Constructor: initialize async server
+WebMgr::WebMgr() : server(new AsyncWebServer(80)) {}
 
 static void listFiles(fs::FS& fs, const char* dirname, uint8_t levels) {
 #if BOOK32_VERBOSE_BOOT_LOG
-    WebMgr::getInstance().sendLogf("Listing directory: %s\n", dirname);
+    Serial.printf("Listing directory: %s\n", dirname);
     File root = fs.open(dirname);
     if (!root || !root.isDirectory()) return;
 
     File file = root.openNextFile();
     while (file) {
         if (file.isDirectory()) {
-            WebMgr::getInstance().sendLogf("  DIR : %s\n", file.name());
+            Serial.printf("  DIR : %s\n", file.name());
             if (levels) listFiles(fs, file.path(), levels - 1);
         } else {
-            WebMgr::getInstance().sendLogf("  FILE: %s  SIZE: %d\n", file.name(), file.size());
+            Serial.printf("  FILE: %s  SIZE: %d\n", file.name(), file.size());
         }
         file.close();
         file = root.openNextFile();
@@ -91,20 +56,18 @@ static void listFiles(fs::FS& fs, const char* dirname, uint8_t levels) {
 }
 
 void WebMgr::mountFilesystems() {
-    WebMgr::getInstance().sendLog("=== Mounting Filesystems ===");
+    Serial.println("=== Mounting Filesystems ===");
 
     bool sysOK = SystemFS.begin(true, "/littlefs", 10, "spiffs");
     if (sysOK) {
-        WebMgr::getInstance().sendLogf("SystemFS OK: %u / %u bytes used\n", SystemFS.usedBytes(),
-                                       SystemFS.totalBytes());
+        Serial.printf("SystemFS OK: %u / %u bytes used\n", SystemFS.usedBytes(), SystemFS.totalBytes());
     } else {
-        WebMgr::getInstance().sendLog("WARNING: SystemFS mount FAILED!");
+        Serial.println("WARNING: SystemFS mount FAILED!");
     }
 
     bool ebookOK = EbookFS_begin();
     if (ebookOK) {
-        WebMgr::getInstance().sendLogf("EbookFS OK: %u / %u bytes used\n", EbookFS_usedBytes(),
-                                       EbookFS_totalBytes());
+        Serial.printf("EbookFS OK: %u / %u bytes used\n", EbookFS_usedBytes(), EbookFS_totalBytes());
 
         // Clean up interrupted .part uploads on boot
         std::vector<String> stale;
@@ -120,26 +83,26 @@ void WebMgr::mountFilesystems() {
             root.close();
         }
         for (const String& n : stale) {
-            WebMgr::getInstance().sendLogf("Removing incomplete upload: %s\n", n.c_str());
+            Serial.printf("Removing incomplete upload: %s\n", n.c_str());
             EbookFS.remove("/" + n);
         }
     } else {
-        WebMgr::getInstance().sendLog("ERROR: EbookFS mount failed!");
+        Serial.println("ERROR: EbookFS mount failed!");
     }
-    WebMgr::getInstance().sendLog("============================\n");
+    Serial.println("============================\n");
 }
 
 void WebMgr::startNetwork() {
     if (_initialized) return;
 
-    WebMgr::getInstance().sendLog("=== Starting Network (On-Demand) ===");
+    Serial.println("=== Starting Network (On-Demand) ===");
     gNetworkStartupInProgress = true;
 
     // 1. Attempt STA mode (Router connection)
     WiFi.mode(WIFI_STA);
     WiFi.begin();
 
-    WebMgr::getInstance().sendLog("Trying STA mode...");
+    Serial.println("Trying STA mode...");
     int attempts = 0;
     while (WiFi.status() != WL_CONNECTED && attempts < 20) {
         delay(500);
@@ -148,20 +111,18 @@ void WebMgr::startNetwork() {
 
     // 2. Fallback to SoftAP if STA fails
     if (WiFi.status() != WL_CONNECTED) {
-        WebMgr::getInstance().sendLog("STA failed. Switching to AP mode.");
+        Serial.println("STA failed. Switching to AP mode.");
         WiFi.disconnect();
         WiFi.mode(WIFI_AP);
         WiFi.softAP(AP_SSID, devicePassword());
-        WebMgr::getInstance().sendLogf("AP Started. SSID: %s, IP: %s\n", AP_SSID,
-                                       WiFi.softAPIP().toString().c_str());
+        Serial.printf("AP Started. SSID: %s, IP: %s\n", AP_SSID, WiFi.softAPIP().toString().c_str());
     } else {
-        WebMgr::getInstance().sendLogf("STA Connected. IP: %s\n", WiFi.localIP().toString().c_str());
+        Serial.printf("STA Connected. IP: %s\n", WiFi.localIP().toString().c_str());
     }
 
     // 3. Start AsyncWebServer and mDNS
     if (!_endpointsConfigured) {
         setupEndpoints();
-        server->addHandler(ws);
         _endpointsConfigured = true;
     }
     server->begin();
@@ -170,7 +131,7 @@ void WebMgr::startNetwork() {
 
     if (MDNS.begin(DEVICE_NAME)) {
         MDNS.addService("http", "tcp", 80);
-        WebMgr::getInstance().sendLog("mDNS: http://book32.local/");
+        Serial.println("mDNS: http://book32.local/");
     }
 
     gNetworkStartupInProgress = false;
@@ -179,7 +140,7 @@ void WebMgr::startNetwork() {
 void WebMgr::stopNetwork() {
     if (!_initialized) return;
 
-    WebMgr::getInstance().sendLog("=== Stopping Network & Killing Radio ===");
+    Serial.println("=== Stopping Network & Killing Radio ===");
 
     MDNS.end();
     server->end();
@@ -197,12 +158,10 @@ void WebMgr::resetIdleTimer() {
 }
 
 void WebMgr::update() {
-    // ... [Keep existing _pendingRotation, _pendingReaderFontSize logic] ...
-
     // Wi-Fi Watchdog routine
     if (_initialized && !_debugKeepWifi) {
         if (millis() - _lastActivityTime > WIFI_TIMEOUT_MS) {
-            WebMgr::getInstance().sendLog("Inactivity timeout reached. Shutting down Wi-Fi.");
+            Serial.println("Inactivity timeout reached. Shutting down Wi-Fi.");
             stopNetwork();
 
             // Force GUI refresh to remove Wi-Fi status icon
@@ -213,16 +172,16 @@ void WebMgr::update() {
 
     if (_otaPending) {
         _otaPending = false;
-        WebMgr::getInstance().sendLog("Scheduling OTA update in separate task...");
+        Serial.println("Scheduling OTA update in separate task...");
         // Ensure network is not killed before OTA starts
         resetIdleTimer();
 
         delay(100);
         xTaskCreatePinnedToCore(
             [](void* param) {
-                WebMgr::getInstance().sendLog("OTA task started");
+                Serial.println("OTA task started");
                 GitHubMgr::getInstance().performFullUpdate(SYSTEM_VERSION);
-                WebMgr::getInstance().sendLog("OTA task complete, restarting...");
+                Serial.println("OTA task complete, restarting...");
                 vTaskDelay(100 / portTICK_PERIOD_MS);
                 ESP.restart();
             },
@@ -238,17 +197,10 @@ void WebMgr::setupEndpoints() {
 
     // Serve static Web UI
     if (SystemFS.exists("/index.html")) {
-        WebMgr::getInstance().sendLog("Serving web UI from SystemFS");
+        Serial.println("Serving web UI from SystemFS");
         server->serveStatic("/", SystemFS, "/").setDefaultFile("index.html");
     } else if (EbookFS.exists("/index.html")) {
-        WebMgr::getInstance().sendLog("Serving web UI from EbookFS");
+        Serial.println("Serving web UI from EbookFS");
         server->serveStatic("/", EbookFS, "/").setDefaultFile("index.html");
-    }
-}
-
-// Broadcast raw bytes to all connected WebSocket clients
-void WebMgr::broadcastSerial(const uint8_t* buffer, size_t size) {
-    if (ws && ws->count() > 0) {
-        ws->textAll((const char*)buffer, size);
     }
 }

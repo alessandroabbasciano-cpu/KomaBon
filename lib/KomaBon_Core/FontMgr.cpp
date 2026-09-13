@@ -1,5 +1,4 @@
 #include "FontMgr.h"
-#include "WebMgr.h"
 
 FontMgr::FontMgr() {
     memset(_charWidths, 0, sizeof(_charWidths));
@@ -13,7 +12,7 @@ FontMgr& FontMgr::getInstance() {
 }
 
 bool FontMgr::init() {
-    WebMgr::getInstance().sendLog("FontMgr: Initialized with Adafruit GFX FreeSans fonts");
+    Serial.println("FontMgr: Initialized with Adafruit GFX FreeSans fonts");
     return true;
 }
 
@@ -35,8 +34,6 @@ void FontMgr::cacheCharWidths(const GFXfont* font) {
     if (font == _lastFont) return;
     _lastFont = font;
 
-    // int (not uint8_t) loop variable: with an upper bound of 256 a uint8_t
-    // would wrap at 255 and never terminate.
     for (int c = 32; c < 256; c++) {
         if (c >= font->first && c <= font->last) {
             _charWidths[c] = font->glyph[c - font->first].xAdvance;
@@ -48,8 +45,6 @@ void FontMgr::cacheCharWidths(const GFXfont* font) {
 
 void FontMgr::drawText(KomaBonDisplay& display, const char* text, int x, int y, int fontSize,
                        uint16_t color) {
-    // Strings arrive as UTF-8 (filenames, EPUB metadata, WiFi SSIDs, ...) but
-    // the GFX layer draws one byte per glyph, so convert to Latin-1 here.
     char latin1[512];
     utf8ToLatin1(text, latin1, sizeof(latin1));
     const GFXfont* font = getFont(fontSize);
@@ -76,9 +71,6 @@ int FontMgr::getTextWidth(const char* text, int fontSize) {
     const GFXfont* font = getFont(fontSize);
     cacheCharWidths(font);
 
-    // Measure over the same Latin-1 bytes drawText() will print, otherwise
-    // centered/right-aligned UTF-8 strings are measured on their multi-byte
-    // form and drift out of position.
     char latin1[512];
     utf8ToLatin1(text, latin1, sizeof(latin1));
 
@@ -110,16 +102,13 @@ void FontMgr::utf8ToLatin1(const char* src, char* dst, size_t dstSize) {
                  ((uint32_t)(s[1] & 0x3F) << 6) | (s[2] & 0x3F);
             s += 3;
         } else {
-            // Invalid lead byte or orphan continuation byte. Assume the text
-            // was already Latin-1 (e.g. pre-converted EPUB content) and pass
-            // the byte through untouched.
             dst[o++] = (char)b;
             continue;
         }
 
-        if (cp == 0x00A0) { // NBSP -> normal space (allows wrapping)
+        if (cp == 0x00A0) {
             dst[o++] = ' ';
-        } else if (cp == 0x00AD) { // soft hyphen -> drop
+        } else if (cp == 0x00AD) {
             continue;
         } else if (cp <= 0xFF) {
             dst[o++] = (char)cp;
@@ -129,17 +118,17 @@ void FontMgr::utf8ToLatin1(const char* src, char* dst, size_t dstSize) {
                 case 0x2019:
                 case 0x201A:
                     dst[o++] = '\'';
-                    break; // curly single quotes
+                    break;
                 case 0x201C:
                 case 0x201D:
                 case 0x201E:
                     dst[o++] = '"';
-                    break; // curly double quotes
+                    break;
                 case 0x2013:
                 case 0x2014:
                     dst[o++] = '-';
-                    break;   // en/em dash
-                case 0x2026: // ellipsis
+                    break;
+                case 0x2026:
                     dst[o++] = '.';
                     if (o + 1 < dstSize) dst[o++] = '.';
                     if (o + 1 < dstSize) dst[o++] = '.';
@@ -154,8 +143,6 @@ void FontMgr::utf8ToLatin1(const char* src, char* dst, size_t dstSize) {
 }
 
 String FontMgr::utf8ToLatin1(const String& src) {
-    // Latin-1 output is never longer than the UTF-8 input, so a same-sized
-    // buffer is always enough.
     size_t bufSize = src.length() + 1;
     char* buf = (char*)malloc(bufSize);
     if (!buf) return src;

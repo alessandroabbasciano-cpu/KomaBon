@@ -8,12 +8,10 @@
 // Local FreeSans with Latin-1 Supplement (0x20-0xFF).
 #include "Fonts/FreeSans.h"
 #include "SDMgr.h"
-#include "WebMgr.h"
 #include <WiFi.h>
 
 // Static constants
-const float BatteryMgr::CHARGE_THRESHOLD =
-    0.03f; // 30mV increase = charging (avoid false positives from fluctuation)
+const float BatteryMgr::CHARGE_THRESHOLD = 0.03f;      // 30mV increase = charging (avoid false positives)
 const float BatteryMgr::CRITICAL_VOLTAGE = 3.0f;       // Shutdown at 3.0V
 const float BatteryMgr::HIGH_VOLTAGE_THRESHOLD = 4.0f; // Assume charging if voltage >= this
 const float BatteryMgr::SPIKE_REJECT_THRESHOLD = 0.5f; // Reject readings that jump > 0.5V
@@ -33,7 +31,6 @@ BatteryMgr::BatteryMgr()
       _lastDisplayedCharging(false), _lastIndicatorUpdate(0), _lastValidVoltage(0.0f), _criticalCount(0),
       _lastChargingTime(0) {
     _cachedStatus = {0.0f, 0, false};
-    // Initialize history
     for (int i = 0; i < 5; i++) {
         _voltageHistory[i] = 0.0f;
         _historyTimes[i] = 0;
@@ -52,13 +49,10 @@ void BatteryMgr::init() {
     pinMode(PIN_VBAT_SWITCH, OUTPUT);
     digitalWrite(PIN_VBAT_SWITCH, !VBAT_SWITCH_LEVEL); // Keep it off
 #endif
-    // ADC calibration/attentuation might be needed for S3
     analogSetAttenuation(ADC_11db);
 
-    // Perform initial read to populate cache
     updateCache();
 
-    // Initialize voltage history and previous voltage with current reading
     _previousVoltage = _cachedStatus.voltage;
     for (int i = 0; i < 5; i++) {
         _voltageHistory[i] = _cachedStatus.voltage;
@@ -66,80 +60,59 @@ void BatteryMgr::init() {
     }
     _lastHistoryUpdate = millis();
 
-    WebMgr::getInstance().sendLogf("Battery: Initial voltage %.2fV (%d%%)\n", _cachedStatus.voltage,
-                                   _cachedStatus.percentage);
+    Serial.printf("Battery: Initial voltage %.2fV (%d%%)\n", _cachedStatus.voltage, _cachedStatus.percentage);
 
-    // Load sleep settings from EbookFS
     loadSleepSettings();
-
-    // Initialize activity timer
     _lastActivityTime = millis();
 }
 
 void BatteryMgr::update() {
     unsigned long now = millis();
 
-    // Trend block: release the lock before checks that could result in e-ink drawing.
     {
         Book32Guard guard(_mutex);
 
-        // Update voltage history periodically for trend analysis
         if (now - _lastHistoryUpdate >= HISTORY_INTERVAL_MS) {
-            // Make sure cache is fresh
             if (now - _lastReadTime >= CACHE_DURATION_MS) {
                 updateCache();
             }
 
-            // Add current voltage to history
             _voltageHistory[_historyIndex] = _cachedStatus.voltage;
             _historyTimes[_historyIndex] = now;
             _historyIndex = (_historyIndex + 1) % 5;
             _lastHistoryUpdate = now;
 
-            // Check if voltage is trending upward (charging)
-            // Compare oldest reading to current
-            int oldestIndex = _historyIndex; // After increment, this points to oldest
+            int oldestIndex = _historyIndex;
             float oldestVoltage = _voltageHistory[oldestIndex];
             unsigned long oldestTime = _historyTimes[oldestIndex];
 
-            // Compare with oldest reading (at least 90 seconds old for slow charging detection)
             if (oldestTime > 0 && (now - oldestTime) >= 90000) {
                 float voltageChange = _cachedStatus.voltage - oldestVoltage;
 
-                // If voltage increased by more than threshold, we're charging
                 if (voltageChange > CHARGE_THRESHOLD) {
                     if (!_cachedStatus.charging) {
                         _cachedStatus.charging = true;
-                        WebMgr::getInstance().sendLogf(
-                            "Battery: Charging detected via trend (%.3fV -> %.3fV, +%.3fV)\n", oldestVoltage,
-                            _cachedStatus.voltage, voltageChange);
+                        Serial.printf("Battery: Charging detected via trend (%.3fV -> %.3fV, +%.3fV)\n",
+                                      oldestVoltage, _cachedStatus.voltage, voltageChange);
                     }
-                    _lastChargingTime = now; // Track when charging was last seen
+                    _lastChargingTime = now;
                 } else if (_cachedStatus.voltage < HIGH_VOLTAGE_THRESHOLD &&
                            voltageChange < -(CHARGE_THRESHOLD * 3.0f)) {
-                    // Require a significantly larger drop to declare discharge, avoiding false triggers from
-                    // e-ink load
                     if (_cachedStatus.charging) {
                         _cachedStatus.charging = false;
-                        WebMgr::getInstance().sendLogf(
-                            "Battery: Discharging detected (%.3fV -> %.3fV, %.3fV)\n", oldestVoltage,
-                            _cachedStatus.voltage, voltageChange);
+                        Serial.printf("Battery: Discharging detected (%.3fV -> %.3fV, %.3fV)\n",
+                                      oldestVoltage, _cachedStatus.voltage, voltageChange);
                     }
                 }
             }
         }
-    } // end of locked block
+    }
 
-    // Check for critical low battery
     if (isCriticallyLow()) {
-        WebMgr::getInstance().sendLog("CRITICAL: Battery voltage too low! Shutting down...");
+        Serial.println("CRITICAL: Battery voltage too low! Shutting down...");
         shutdownLowBattery();
     }
 
-    // Check for idle timeout (only if enabled and not charging). Values are
-    // copied under lock and the decision is taken outside: enterIdleSleep
-    // draws to the e-ink screen, and holding the mutex during that time would block
-    // /api/status and the input task.
     int sleepTimeoutMinutes;
     bool charging;
     unsigned long lastActivity;
@@ -151,42 +124,24 @@ void BatteryMgr::update() {
     }
 
     if (sleepTimeoutMinutes > 0 && !charging) {
-        // New millis() here, not the `now` captured at the top of this function:
-        // isCriticallyLow() above can block for tens of ms in updateCache()
-        // (delay(5) + 30 ADC reads). If a button press sets resetIdleTimer() during
-        // that window, _lastActivityTime becomes more recent than the captured `now`,
-        // and unsigned subtraction would wrap around near UINT32_MAX - triggering a
-        // false, instant "idle timeout" precisely on the click that should have reset
-        // the timer (idle=4294967260ms instead of expected ~timeoutMs). Reading millis()
-        // after lastActivity ensures idleNow >= lastActivity always, because millis() only grows.
         unsigned long idleNow = millis();
         unsigned long idleTime = idleNow - lastActivity;
         unsigned long timeoutMs = (unsigned long)sleepTimeoutMinutes * 60 * 1000;
         if (idleTime >= timeoutMs) {
-            // v1.9.1 diagnostics: distinguishes this path from the KEY2
-            // long press in the serial log.
-            WebMgr::getInstance().sendLogf("SLEEPDIAG: path=IDLE_TIMEOUT  idle=%lums  timeout=%lums\n",
-                                           idleTime, timeoutMs);
-            WebMgr::getInstance().sendLogf("Idle timeout reached (%d minutes). Entering sleep...\n",
-                                           sleepTimeoutMinutes);
+            Serial.printf("SLEEPDIAG: path=IDLE_TIMEOUT  idle=%lums  timeout=%lums\n", idleTime, timeoutMs);
+            Serial.printf("Idle timeout reached (%d minutes). Entering sleep...\n", sleepTimeoutMinutes);
             enterIdleSleep("idle_timeout");
         }
     }
 }
 
 void BatteryMgr::updateCache(bool clearStaleCharging) {
-    // Covers the measurement switch, the 30 ADC readings, and cache update as a single operation.
     Book32Guard guard(_mutex);
 #ifdef PIN_VBAT_SWITCH
     digitalWrite(PIN_VBAT_SWITCH, VBAT_SWITCH_LEVEL); // Turn on measurement
     delay(5);                                         // Wait for stabilization
 #endif
 
-    // Read ADC - average 30 samples for stability. analogReadMilliVolts() uses
-    // the factory eFuse calibration curve burned into each ESP32-S3, instead
-    // of analogRead()'s raw 12-bit count through a fixed linear formula, so it
-    // tracks the true pin voltage much more closely on its own. The discarded
-    // first read only primes the ADC (its output is unreliable otherwise).
     analogRead(PIN_BAT_VOLT);
     uint32_t raw_mv = 0;
     for (int i = 0; i < 30; i++) {
@@ -199,124 +154,85 @@ void BatteryMgr::updateCache(bool clearStaleCharging) {
     digitalWrite(PIN_VBAT_SWITCH, !VBAT_SWITCH_LEVEL); // Turn off to save power
 #endif
 
-    // Convert to battery voltage through the 2:1 divider, then apply the board
-    // calibration factor from Config.h.
     float voltage = (raw_mv / 1000.0f) * 2.0f;
     voltage *= BATTERY_VOLTAGE_CALIBRATION;
     if (voltage > BATTERY_FULL_VOLTAGE) {
         voltage = BATTERY_FULL_VOLTAGE;
     }
 
-    // Spike rejection: discard readings that jump too far from last valid reading
-    // This protects against ADC noise during heavy WiFi activity
     if (_lastValidVoltage > 0.0f && fabsf(voltage - _lastValidVoltage) > SPIKE_REJECT_THRESHOLD) {
-        WebMgr::getInstance().sendLogf(
-            "Battery: SPIKE REJECTED (%.3fV -> %.3fV, delta=%.3fV) - keeping %.3fV\n", _lastValidVoltage,
-            voltage, voltage - _lastValidVoltage, _lastValidVoltage);
-        voltage = _lastValidVoltage; // Keep previous valid reading
+        Serial.printf("Battery: SPIKE REJECTED (%.3fV -> %.3fV, delta=%.3fV) - keeping %.3fV\n",
+                      _lastValidVoltage, voltage, voltage - _lastValidVoltage, _lastValidVoltage);
+        voltage = _lastValidVoltage;
     } else {
-        _lastValidVoltage = voltage; // Accept as valid
+        _lastValidVoltage = voltage;
     }
 
-    // Calculate percentage (LiPo: 3.0V = 0%, 4.2V = 100%)
     int percentage = voltageToPercentage(voltage);
-
     float previousVoltage = _previousVoltage;
 
-    // Preserve charging state from trend analysis unless this is an explicit
-    // UI refresh, where a stale "charging" label is worse than showing full.
     bool currentCharging = _cachedStatus.charging;
     if (clearStaleCharging) {
         currentCharging = false;
     }
 
-    // Quick charging detection: if voltage increased since last read, we're likely charging
-
-    // The previous 20mV trigger was too sensitive to ADC noise and load spikes
-    // (e.g., the voltage recovering after an e-ink refresh), causing infinite redraw loops.
-    // We now rely on the 90-second trend analyzer in update() for standard charge detection.
-    // We only trigger an INSTANT state change if we see a massive voltage jump/drop
-    // indicative of physically plugging/unplugging a USB cable (> 100mV).
-
     if (previousVoltage > 0 && voltage > previousVoltage + 0.10f) {
-        // Massive jump (>100mV) - Cable was just plugged in
         if (!currentCharging) {
             currentCharging = true;
-            WebMgr::getInstance().sendLogf("Battery: Hard USB plug detected (%.3fV -> %.3fV, +%.3fV)\n",
-                                           previousVoltage, voltage, voltage - previousVoltage);
+            Serial.printf("Battery: Hard USB plug detected (%.3fV -> %.3fV, +%.3fV)\n", previousVoltage,
+                          voltage, voltage - previousVoltage);
         }
         _lastChargingTime = millis();
     } else if (previousVoltage > 0 && voltage < previousVoltage - 0.08f) {
-        // Massive drop (>80mV) - Cable was just unplugged
         if (currentCharging) {
             currentCharging = false;
-            WebMgr::getInstance().sendLogf("Battery: Hard USB unplug detected (%.3fV -> %.3fV, %.3fV)\n",
-                                           previousVoltage, voltage, voltage - previousVoltage);
+            Serial.printf("Battery: Hard USB unplug detected (%.3fV -> %.3fV, %.3fV)\n", previousVoltage,
+                          voltage, voltage - previousVoltage);
         }
     }
 
-    // Tiny fluctuations are ignored here. The 90-second trend analyzer in update()
-    // will gracefully handle slow voltage sags or slow charging over time.
-
-    // High voltage means "full", not necessarily connected to the charger. We
-    // only label it charging when voltage is actually rising.
-
-    // Update previous voltage for next comparison
     _previousVoltage = voltage;
-
-    // Update cache
     _cachedStatus = {voltage, percentage, currentCharging};
     _lastReadTime = millis();
 }
 
 bool BatteryMgr::isCriticallyLow() {
     Book32Guard guard(_mutex);
-    // Make sure we have a fresh reading
     if (millis() - _lastReadTime >= CACHE_DURATION_MS) {
         updateCache();
     }
 
-    // Charging grace period: if charging was detected recently, don't allow critical shutdown
-    // WiFi noise can simultaneously corrupt voltage AND flip charging state
     if (_lastChargingTime > 0 && (millis() - _lastChargingTime) < CHARGING_GRACE_MS) {
         _criticalCount = 0;
         return false;
     }
 
-    // Require consecutive critical readings to prevent single-spike shutdown
     if (_cachedStatus.voltage <= CRITICAL_VOLTAGE && !_cachedStatus.charging) {
         _criticalCount++;
-        WebMgr::getInstance().sendLogf("Battery: Critical reading #%d (%.2fV)\n", _criticalCount,
-                                       _cachedStatus.voltage);
+        Serial.printf("Battery: Critical reading #%d (%.2fV)\n", _criticalCount, _cachedStatus.voltage);
         if (_criticalCount >= CRITICAL_CONFIRM_COUNT) {
-            return true; // Confirmed critically low
+            return true;
         }
     } else {
         if (_criticalCount > 0) {
-            WebMgr::getInstance().sendLogf("Battery: Critical counter reset (voltage=%.2fV, charging=%s)\n",
-                                           _cachedStatus.voltage, _cachedStatus.charging ? "yes" : "no");
+            Serial.printf("Battery: Critical counter reset (voltage=%.2fV, charging=%s)\n",
+                          _cachedStatus.voltage, _cachedStatus.charging ? "yes" : "no");
         }
-        _criticalCount = 0; // Reset counter on any normal reading
+        _criticalCount = 0;
     }
     return false;
 }
 
 void BatteryMgr::shutdownLowBattery() {
-    WebMgr::getInstance().sendLog("Battery critically low - entering deep sleep");
-    WebMgr::getInstance().sendLogf("Voltage: %.2fV\n", _cachedStatus.voltage);
+    Serial.println("Battery critically low - entering deep sleep");
+    Serial.printf("Voltage: %.2fV\n", _cachedStatus.voltage);
     Serial.flush();
-
-    // Small delay to let serial finish
     delay(100);
-
-    // Enter deep sleep indefinitely (will wake on reset/power)
-    // This is the safest way to "power off" on ESP32
     esp_deep_sleep_start();
 }
 
 BatteryStatus BatteryMgr::getStatus() {
     Book32Guard guard(_mutex);
-    // Refresh cache if expired
     if (millis() - _lastReadTime >= CACHE_DURATION_MS) {
         updateCache();
     }
@@ -343,7 +259,6 @@ bool BatteryMgr::isCharging() {
 
 void BatteryMgr::loadSleepSettings() {
     Book32Guard guard(_mutex);
-    // Load from EbookFS partition
     if (EbookFS.exists("/sleep_config.json")) {
         File file = EbookFS.open("/sleep_config.json", "r");
         if (file) {
@@ -351,16 +266,15 @@ void BatteryMgr::loadSleepSettings() {
             if (!deserializeJson(doc, file)) {
                 _sleepTimeoutMinutes = doc.containsKey("sleepTimeout") ? doc["sleepTimeout"].as<int>() : 0;
                 _sleepMessage = doc["sleepMessage"] | "Press button to wake";
-                WebMgr::getInstance().sendLogf("Loaded sleep settings: timeout=%d min, message=%s\n",
-                                               _sleepTimeoutMinutes, _sleepMessage.c_str());
+                Serial.printf("Loaded sleep settings: timeout=%d min, message=%s\n", _sleepTimeoutMinutes,
+                              _sleepMessage.c_str());
             }
             file.close();
         }
     } else {
-        // Use defaults (sleep disabled)
         _sleepTimeoutMinutes = 0;
         _sleepMessage = "Press button to wake";
-        WebMgr::getInstance().sendLog("Using default sleep settings (sleep disabled)");
+        Serial.println("Using default sleep settings (sleep disabled)");
     }
 }
 
@@ -370,24 +284,17 @@ void BatteryMgr::resetIdleTimer() {
 }
 
 void BatteryMgr::enterIdleSleep(const char* reason) {
-    // Copy message under lock; the drawing that follows is slow and cannot
-    // hold the mutex. Also called from the input task (standby on KEY2),
-    // not just the main loop.
     String sleepMessage;
     {
         Book32Guard guard(_mutex);
         sleepMessage = _sleepMessage;
     }
 
-    // v1.9.1 diagnostics: single funnel for both sleep paths. The reason
-    // string identifies which caller decided to sleep.
-    WebMgr::getInstance().sendLogf("SLEEPDIAG: enterIdleSleep() reached  reason=%s\n",
-                                   reason ? reason : "null");
-    WebMgr::getInstance().sendLog("Entering idle sleep...");
-    WebMgr::getInstance().sendLogf("Sleep message: %s\n", sleepMessage.c_str());
+    Serial.printf("SLEEPDIAG: enterIdleSleep() reached  reason=%s\n", reason ? reason : "null");
+    Serial.println("Entering idle sleep...");
+    Serial.printf("Sleep message: %s\n", sleepMessage.c_str());
     Serial.flush();
 
-    // Display sleep message on e-ink
     KomaBonDisplay& display = DisplayMgr::getInstance().getDisplay();
     display.setFullWindow();
     display.firstPage();
@@ -396,12 +303,10 @@ void BatteryMgr::enterIdleSleep(const char* reason) {
         display.setFont(&FreeSans18pt8b);
         display.setTextColor(GxEPD_BLACK);
 
-        // Calculate text bounds for centering
         int16_t tbx, tby;
         uint16_t tbw, tbh;
         display.getTextBounds(sleepMessage.c_str(), 0, 0, &tbx, &tby, &tbw, &tbh);
 
-        // Center the text on screen
         int16_t x = (display.width() - tbw) / 2 - tbx;
         int16_t y = (display.height() - tbh) / 2 - tby;
 
@@ -409,17 +314,10 @@ void BatteryMgr::enterIdleSleep(const char* reason) {
         display.print(sleepMessage);
     } while (display.nextPage());
 
-    // Wait for display to finish updating
     delay(100);
+    esp_sleep_enable_ext0_wakeup((gpio_num_t)PIN_BUTTON_BACK, 0);
 
-    // Configure wake sources
-    // Wake on KEY3 press (PIN_BUTTON_BACK, active LOW). Whichever GPIO that is on
-    // this board - see the wiring note in Config.h - ext0 only supports a
-    // single pin, so KEY3 stays the one wake source.
-    esp_sleep_enable_ext0_wakeup((gpio_num_t)PIN_BUTTON_BACK, 0); // 0 = wake on LOW
-
-    // Enter deep sleep
-    WebMgr::getInstance().sendLog("Going to deep sleep...");
+    Serial.println("Going to deep sleep...");
     Serial.flush();
     delay(50);
     esp_deep_sleep_start();
@@ -432,7 +330,6 @@ void BatteryMgr::drawStatusBar(KomaBonDisplay& display, int startX, int startY) 
     int percentage = bat.percentage;
     bool currentCharging = bat.charging;
 
-    // Fix the coordinates and dimensions to be universal
     const int INDICATOR_WIDTH = 85;
     int cx = display.width() - INDICATOR_WIDTH - 5;
     int cy = 6;
@@ -479,7 +376,6 @@ void BatteryMgr::drawStatusIndicator() {
     static unsigned long lastIndicatorDrawTime = 0;
     unsigned long now = millis();
 
-    // Cooldown: prevent redraws more than once per minute
     if (lastIndicatorDrawTime > 0 && (now - lastIndicatorDrawTime < 60000)) {
         return;
     }
@@ -505,15 +401,11 @@ void BatteryMgr::drawStatusIndicator() {
     const int INDICATOR_X = display.width() - INDICATOR_WIDTH - 5;
     const int INDICATOR_Y = 5;
 
-    // Open hardware rendering cycle
     display.setPartialWindow(INDICATOR_X, INDICATOR_Y, INDICATOR_WIDTH, INDICATOR_HEIGHT);
     display.firstPage();
     do {
         display.fillScreen(GxEPD_WHITE);
-
-        // Unified drawing call
         drawStatusBar(display, 0, 0);
-
     } while (display.nextPage());
 
     {

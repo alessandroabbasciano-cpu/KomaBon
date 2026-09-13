@@ -1,6 +1,5 @@
 #include "AppMgr.h"
 #include "../../include/Config.h"
-#include "WebMgr.h"
 
 AppMgr::AppMgr() : currentApp(nullptr) {}
 
@@ -29,9 +28,9 @@ void AppMgr::switchTo(int index) {
 
         currentApp = targetApp;
 
-        // Mirror application transition to Serial and Web UI console
+        // Mirror application transition to Hardware Serial
         const char* appName = currentApp->getName() ? currentApp->getName() : "Unknown";
-        WebMgr::getInstance().sendLogf("AppMgr: Switched to application '%s'\n", appName);
+        Serial.printf("AppMgr: Switched to application '%s'\n", appName);
 
         currentApp->start(); // Launch application lifecycle
         currentApp->draw();  // Render initial application frame

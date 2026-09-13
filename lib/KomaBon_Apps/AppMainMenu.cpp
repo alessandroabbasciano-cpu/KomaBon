@@ -35,10 +35,10 @@ static MenuDirtyRect menuItemRect(int index, int screenW) {
 }
 
 static MenuDirtyRect unionRect(MenuDirtyRect a, MenuDirtyRect b) {
-    int x1 = min(a.x, b.x);
-    int y1 = min(a.y, b.y);
-    int x2 = max(a.x + a.w, b.x + b.w);
-    int y2 = max(a.y + a.h, b.y + b.h);
+    int x1 = std::min(a.x, b.x);
+    int y1 = std::min(a.y, b.y);
+    int x2 = std::max(a.x + a.w, b.x + b.w);
+    int y2 = std::max(a.y + a.h, b.y + b.h);
     return {x1, y1, x2 - x1, y2 - y1};
 }
 
@@ -51,20 +51,20 @@ String AppMainMenu::getWifiFooterText() const {
     if (WiFi.status() == WL_CONNECTED) {
         IPAddress ip = WiFi.localIP();
         if (ip != INADDR_NONE) {
-            return ip.toString();
+            return String("IP: ") + ip.toString() + " | Web UI Ready";
         }
     }
     if (_hotspotActive) {
-        return String("Wi-Fi: ") + AP_SSID + " / " + WebMgr::devicePassword() + "  ->  192.168.4.1";
+        return String("AP: ") + AP_SSID + " | Pwd: " + WebMgr::devicePassword() + " | 192.168.4.1";
     }
-    return "WiFi offline (Strict On-Demand)";
+    return "Wi-Fi Offline";
 }
 
 void AppMainMenu::startHotspot() {
     if (_hotspotActive) return;
     if (isReaderActive()) return;
 
-    WebMgr::getInstance().sendLog("Main menu: starting KomaBon management hotspot (offline)");
+    Serial.println("Main menu: starting KomaBon management hotspot (offline)");
     WiFi.mode(WIFI_AP_STA);
     WiFi.softAP(AP_SSID, WebMgr::devicePassword());
     delay(100);
@@ -80,7 +80,7 @@ void AppMainMenu::startHotspot() {
 void AppMainMenu::stopHotspot() {
     if (!_hotspotActive) return;
 
-    WebMgr::getInstance().sendLog("Main menu: stopping management hotspot");
+    Serial.println("Main menu: stopping management hotspot");
     WiFi.softAPdisconnect(true);
     WiFi.mode(WIFI_STA);
     _hotspotActive = false;
@@ -99,8 +99,6 @@ void AppMainMenu::start() {
     _lastBatteryPoll = millis();
     _lastBatteryStatus = BatteryMgr::getInstance().refreshNow();
     InputMgr::getInstance().setCallback(std::bind(&AppMainMenu::handleInput, this, std::placeholders::_1));
-
-    // Wi-Fi is strictly off on menu entry to protect battery life.
 }
 
 void AppMainMenu::stop() {
@@ -119,7 +117,7 @@ void AppMainMenu::handleInput(InputAction action) {
     AppMgr& appMgr = AppMgr::getInstance();
     std::vector<App*>& apps = appMgr.getApps();
 
-    WebMgr::getInstance().sendLogf("AppMainMenu::handleInput - action: %d\n", action);
+    Serial.printf("AppMainMenu::handleInput - action: %d\n", action);
 
     int maxSelectable = apps.size() - 1 + (_updateAvailable ? 1 : 0);
 
@@ -136,7 +134,7 @@ void AppMainMenu::handleInput(InputAction action) {
         _needsRedraw = true;
     } else if (action == INPUT_SELECT) {
         if (_updateAvailable && selectedIndex == (int)apps.size()) {
-            WebMgr::getInstance().sendLog("AppMainMenu: Launching OTA task...");
+            Serial.println("AppMainMenu: Launching OTA task...");
             xTaskCreatePinnedToCore(
                 [](void* param) {
                     GitHubMgr::getInstance().triggerUpdate(SYSTEM_VERSION);
@@ -147,7 +145,7 @@ void AppMainMenu::handleInput(InputAction action) {
             appMgr.switchTo(selectedIndex);
         }
     } else if (action == INPUT_GO_TO_MAIN_MENU) {
-        WebMgr::getInstance().sendLog("AppMainMenu: INPUT_GO_TO_MAIN_MENU - already at main menu");
+        Serial.println("AppMainMenu: INPUT_GO_TO_MAIN_MENU - already at main menu");
     }
 }
 
@@ -218,8 +216,8 @@ void AppMainMenu::draw() {
     } else if (_selectionOnlyRedraw) {
         MenuDirtyRect dirty =
             unionRect(menuItemRect(_previousSelectedIndex, screenW), menuItemRect(selectedIndex, screenW));
-        dirty.x = max(0, dirty.x);
-        dirty.y = max(0, dirty.y);
+        dirty.x = std::max(0, dirty.x);
+        dirty.y = std::max(0, dirty.y);
         if (dirty.x + dirty.w > screenW) dirty.w = screenW - dirty.x;
         if (dirty.y + dirty.h > screenH) dirty.h = screenH - dirty.y;
         display.setPartialWindow(dirty.x, dirty.y, dirty.w, dirty.h);
