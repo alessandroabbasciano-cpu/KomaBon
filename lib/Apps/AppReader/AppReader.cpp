@@ -10,7 +10,6 @@
 #include "BookMeta.h"
 #include "ProgressStore.h"
 #include "PageCountStore.h"
-#include "WebMgr.h"
 #include "BatteryMgr.h"
 #include "SDMgr.h"
 #include <WiFi.h>
@@ -95,7 +94,6 @@ void AppReader::resumeSavedBookOnStart() {
 void AppReader::start() {
     // Strict Offline Mode: Kill radio unconditionally to save battery life
     if (WiFi.getMode() != WIFI_OFF) {
-        WebMgr::getInstance().stopNetwork();
         delay(50);
         WiFi.disconnect(false);
         WiFi.mode(WIFI_OFF);
@@ -105,6 +103,7 @@ void AppReader::start() {
 
     loadSettings();
     if (_textRenderer) {
+        Book32Guard guard(_epubMutex);
         _textRenderer->setFontSize(_fontSizePt);
         _textRenderer->setFontFamily(_fontFamily);
     }
@@ -205,7 +204,7 @@ bool AppReader::openBook(const String& path, bool restoreProgress) {
             return false;
         }
 
-        // ALLOCATE ONCE: Lock 48KB in PSRAM for the entire reading session
+        // ALLOCATE ONCE: Lock buffer in PSRAM for the entire reading session
         size_t bufferSize = (_kbReader->getWidth() + 7) / 8 * _kbReader->getHeight();
         _comicPageBuffer = (uint8_t*)ps_malloc(bufferSize);
 
@@ -222,6 +221,8 @@ bool AppReader::openBook(const String& path, bool restoreProgress) {
 
     } else {
         _isComicMode = false;
+
+        Book32Guard guard(_epubMutex);
         _epubLoader = new EpubLoader();
 
         if (!_epubLoader->open(fullPath.c_str())) {
@@ -240,7 +241,6 @@ bool AppReader::openBook(const String& path, bool restoreProgress) {
         _textRenderer->calculateDimensions();
         _globalPageNumber = 1;
         _currentPageRenderValid = false;
-        startTotalPagesCounting();
     }
 
     int restoreChapter = 0;
@@ -272,6 +272,11 @@ bool AppReader::openBook(const String& path, bool restoreProgress) {
     saveReadingProgress(true);
     flushProgress();
     _needsRedraw = true;
+
+    if (!_isComicMode) {
+        startTotalPagesCounting();
+    }
+
     return true;
 }
 
@@ -330,10 +335,20 @@ void AppReader::markProgressInactive() {
 }
 
 void AppReader::closeBook(bool markInactive) {
+    // Terminate background FreeRTOS task cleanly
+    _killPageCountTask = true;
+    _countingActive = false;
+    if (_pageCountTaskHandle != nullptr) {
+        vTaskDelay(pdMS_TO_TICKS(30)); // Allow task to exit its loop
+        _pageCountTaskHandle = nullptr;
+    }
+
     if (markInactive && _state == VIEW_READING) {
         saveReadingProgress(false);
     }
     flushProgress();
+
+    Book32Guard guard(_epubMutex);
 
     if (_epubLoader) {
         _epubLoader->close();
@@ -359,7 +374,6 @@ void AppReader::closeBook(bool markInactive) {
     _isComicMode = false;
     _pageHistory.clear();
     _currentPageRenderValid = false;
-    _countingActive = false;
     _countChapterContent.clear();
     if (_countRenderer) {
         delete _countRenderer;
@@ -367,14 +381,34 @@ void AppReader::closeBook(bool markInactive) {
     }
 }
 
+void AppReader::pageCountTask(void* param) {
+    AppReader* app = static_cast<AppReader*>(param);
+
+    while (!app->_killPageCountTask && app->_countingActive) {
+        app->updateTotalPagesCount();
+        vTaskDelay(pdMS_TO_TICKS(15)); // Yield to watchdog and allow UI to acquire Mutex
+    }
+
+    app->_pageCountTaskHandle = nullptr;
+    vTaskDelete(NULL);
+}
+
 void AppReader::startTotalPagesCounting() {
+    if (_pageCountTaskHandle != nullptr) {
+        _killPageCountTask = true;
+        vTaskDelay(pdMS_TO_TICKS(30));
+    }
+
+    _killPageCountTask = false;
     _totalPages = 0;
     _countingActive = false;
     _countChapterContent.clear();
     _countChapter = 0;
     _countPointer = {0, 0};
     _countPagesSoFar = 0;
+
     if (_countRenderer) {
+        Book32Guard guard(_epubMutex);
         delete _countRenderer;
         _countRenderer = nullptr;
     }
@@ -393,68 +427,86 @@ void AppReader::startTotalPagesCounting() {
         _countChapter = checkpoint.chapter;
         _countPagesSoFar = checkpoint.pagesSoFar;
     }
+
     _countingActive = true;
+
+    // Spawn Background Pagination Task on Core 0
+    xTaskCreatePinnedToCore(AppReader::pageCountTask, "PageCountTask",
+                            16384, // High stack size for rendering algorithms
+                            this, 1, &_pageCountTaskHandle,
+                            0 // Bind exclusively to Core 0
+    );
 }
 
 void AppReader::updateTotalPagesCount() {
-    if (!_epubLoader) {
-        _countingActive = false;
-        return;
-    }
+    if (!_countingActive || _killPageCountTask) return;
 
     DisplayMgr& dispMgr = DisplayMgr::getInstance();
     KomaBonDisplay& display = dispMgr.getDisplay();
 
     if (!_countRenderer) {
+        Book32Guard guard(_epubMutex);
+        if (!_epubLoader) return;
         _countRenderer = new TextRenderer(display.width(), display.height(), _fontSizePt, _epubLoader);
         _countRenderer->setFontFamily(_fontFamily);
     }
 
     String key = getOriginalFilename(normalizedBookName(_currentBookPath));
 
-    unsigned long budgetEnd = millis() + TOTAL_PAGES_BUDGET_MS;
-    while (millis() < budgetEnd) {
-        if (_countChapterContent.empty()) {
-            if (_countChapter >= _epubLoader->getChapterCount()) {
-                int total = max(1, _countPagesSoFar);
-                _totalPages = total;
-                PageCountStore::getInstance().set(key, _fontSizePt, _fontFamily, total);
-                _countingActive = false;
-                delete _countRenderer;
-                _countRenderer = nullptr;
-                return;
-            }
-            _countChapterContent = _epubLoader->getChapterContentRich(_countChapter);
-            _countPointer = {0, 0};
-            if (_countChapterContent.empty()) {
-                _countChapter++;
-                PageCountCheckpoint checkpoint;
-                checkpoint.chapter = _countChapter;
-                checkpoint.pagesSoFar = _countPagesSoFar;
-                PageCountStore::getInstance().setCheckpoint(key, _fontSizePt, _fontFamily, checkpoint);
-                continue;
-            }
-            _countPagesSoFar++;
+    // Execute one single page extraction per cycle to ensure rapid mutex yielding
+    if (_countChapterContent.empty()) {
+        Book32Guard guard(_epubMutex);
+        if (!_epubLoader) return;
+
+        if (_countChapter >= _epubLoader->getChapterCount()) {
+            int total = max(1, _countPagesSoFar);
+            _totalPages = total;
+            PageCountStore::getInstance().set(key, _fontSizePt, _fontFamily, total);
+            _countingActive = false;
+            delete _countRenderer;
+            _countRenderer = nullptr;
+            return;
         }
 
-        RenderResult r = _countRenderer->renderRichPageDynamic(
-            display, _countChapterContent, _countPointer.nodeIndex, _countPointer.charOffset, 0, 0, false);
-        if (r.pageFull) {
-            _countPagesSoFar++;
-            _countPointer.nodeIndex = r.nextNodeIndex;
-            _countPointer.charOffset = r.nextCharOffset;
-        } else {
-            _countChapterContent.clear();
+        _countChapterContent = _epubLoader->getChapterContentRich(_countChapter);
+        _countPointer = {0, 0};
+
+        if (_countChapterContent.empty()) {
             _countChapter++;
             PageCountCheckpoint checkpoint;
             checkpoint.chapter = _countChapter;
             checkpoint.pagesSoFar = _countPagesSoFar;
             PageCountStore::getInstance().setCheckpoint(key, _fontSizePt, _fontFamily, checkpoint);
+            return;
         }
+        _countPagesSoFar++;
+    }
+
+    RenderResult r;
+    {
+        Book32Guard guard(_epubMutex);
+        if (!_countRenderer) return;
+        r = _countRenderer->renderRichPageDynamic(display, _countChapterContent, _countPointer.nodeIndex,
+                                                  _countPointer.charOffset, 0, 0, false);
+    }
+
+    if (r.pageFull) {
+        _countPagesSoFar++;
+        _countPointer.nodeIndex = r.nextNodeIndex;
+        _countPointer.charOffset = r.nextCharOffset;
+    } else {
+        _countChapterContent.clear();
+        _countChapter++;
+        PageCountCheckpoint checkpoint;
+        checkpoint.chapter = _countChapter;
+        checkpoint.pagesSoFar = _countPagesSoFar;
+        PageCountStore::getInstance().setCheckpoint(key, _fontSizePt, _fontFamily, checkpoint);
     }
 }
 
 void AppReader::loadChapter(int chapterIndex) {
+    Book32Guard guard(_epubMutex);
+
     if (!_epubLoader) return;
     if (chapterIndex < 0 || chapterIndex >= _epubLoader->getChapterCount()) return;
 
@@ -489,6 +541,7 @@ void AppReader::nextPage() {
         return;
     }
 
+    Book32Guard guard(_epubMutex);
     if (!_textRenderer) return;
 
     RenderResult result = _currentPageRender;
@@ -514,6 +567,7 @@ void AppReader::nextPage() {
         if (_currentChapter < _epubLoader->getChapterCount() - 1) {
             _pageHistory.push_back(_currentPagePointer);
             _globalPageNumber++;
+            // Re-entrant mutex safety natively supported by Book32Mutex implementation
             loadChapter(_currentChapter + 1);
             saveReadingProgress(true);
         }
@@ -529,6 +583,8 @@ void AppReader::prevPage() {
         }
         return;
     }
+
+    Book32Guard guard(_epubMutex);
 
     if (!_pageHistory.empty()) {
         _currentPagePointer = _pageHistory.back();
@@ -575,11 +631,13 @@ void AppReader::prevPage() {
 }
 
 void AppReader::nextChapter() {
+    Book32Guard guard(_epubMutex);
     if (!_epubLoader) return;
     if (_currentChapter < _epubLoader->getChapterCount() - 1) loadChapter(_currentChapter + 1);
 }
 
 void AppReader::prevChapter() {
+    Book32Guard guard(_epubMutex);
     if (!_epubLoader) return;
     if (_currentChapter > 0) {
         int tryChapter = _currentChapter - 1;
@@ -604,6 +662,8 @@ void AppReader::draw() {
 }
 
 void AppReader::drawReading() {
+    Book32Guard guard(_epubMutex);
+
     if (!_isComicMode && !_textRenderer) {
         _state = VIEW_LIBRARY;
         _librarySelectionOnlyRedraw = false;
@@ -690,9 +750,8 @@ void AppReader::update() {
         }
     }
 
-    if (_countingActive && !_needsRedraw) {
-        updateTotalPagesCount();
-    }
+    // Removed synchronous updateTotalPagesCount() logic from Core 1
+    // Task is now fully delegated to Core 0 via FreeRTOS pageCountTask
 
     if (_progressDirty && (millis() - _lastProgressChangeMs) >= PROGRESS_FLUSH_DELAY_MS) {
         flushProgress();
@@ -700,6 +759,8 @@ void AppReader::update() {
 }
 
 void AppReader::applyFontSize(int pt) {
+    Book32Guard guard(_epubMutex);
+
     int normalized = (pt >= 18) ? 18 : (pt >= 12 ? 12 : 9);
     _fontSizePt = normalized;
     if (_textRenderer) _textRenderer->setFontSize(normalized);
@@ -713,6 +774,8 @@ void AppReader::applyFontSize(int pt) {
 }
 
 void AppReader::applyFontFamily(int family) {
+    Book32Guard guard(_epubMutex);
+
     int normalized =
         (family >= READER_FONT_SANS && family <= READER_FONT_OPEN_SANS) ? family : READER_FONT_SANS;
     _fontFamily = normalized;

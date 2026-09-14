@@ -6,6 +6,9 @@
 #include "TextRenderer.h"
 #include "KBReader.h"
 #include "../../KomaBon_Core/InputMgr.h"
+#include "../../KomaBon_Core/Lock.h"
+#include <freertos/FreeRTOS.h>
+#include <freertos/task.h>
 #include <vector>
 #include <map>
 
@@ -103,15 +106,21 @@ class AppReader : public App {
     // Persistent DMA-ready buffer for KMB raw page data allocated in PSRAM
     uint8_t* _comicPageBuffer = nullptr;
 
+    // Thread-Safety and FreeRTOS Multi-Core Pagination
+    Book32Mutex _epubMutex;
+    TaskHandle_t _pageCountTaskHandle = nullptr;
+    volatile bool _killPageCountTask = false;
+
     // Asynchronous Total Page Counting
     int _totalPages;
-    bool _countingActive;
+    volatile bool _countingActive;
     TextRenderer* _countRenderer;
     int _countChapter;
     std::vector<ContentNode> _countChapterContent;
     PagePointer _countPointer;
     int _countPagesSoFar;
-    static const unsigned long TOTAL_PAGES_BUDGET_MS = 15;
+
+    static void pageCountTask(void* param);
     void startTotalPagesCounting();
     void updateTotalPagesCount();
 

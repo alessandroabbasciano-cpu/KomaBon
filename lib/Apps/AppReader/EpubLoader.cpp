@@ -401,31 +401,43 @@ static const int KOMABON_MAX_ZIP_TEXT_BYTES = 256 * 1024;
 String EpubLoader::readFileFromZip(const char* path) {
     if (zip->locateFile(path) != ZIP_SUCCESS) return "";
     if (zip->openCurrentFile() != ZIP_SUCCESS) return "";
+
     unz_file_info fileInfo;
     char szName[256];
     zip->getFileInfo(&fileInfo, szName, sizeof(szName), NULL, 0, NULL, 0);
     int size = fileInfo.uncompressed_size;
 
     if (size > KOMABON_MAX_ZIP_TEXT_BYTES) {
-        // Output through hardware serial instead of WebMgr
         Serial.printf("EpubLoader: %s has %d bytes; truncating to %d\n", path, size,
                       KOMABON_MAX_ZIP_TEXT_BYTES);
         size = KOMABON_MAX_ZIP_TEXT_BYTES;
     }
 
-    String str;
-    str.reserve(size + 1);
-    char buffer[513];
+    // --- PSRAM OPTIMIZATION ---
+    char* rawBuffer = (char*)ps_malloc(size + 1);
+    if (!rawBuffer) rawBuffer = (char*)malloc(size + 1); // Fallback to SRAM
+
+    if (!rawBuffer) {
+        Serial.println("EpubLoader: FATAL - Memory allocation failed for chapter text!");
+        zip->closeCurrentFile();
+        return "";
+    }
+
+    int totalRead = 0;
     int remaining = size;
     while (remaining > 0) {
-        int toRead = remaining > 512 ? 512 : remaining;
-        int bytesRead = zip->readCurrentFile((uint8_t*)buffer, toRead);
+        int toRead = remaining > 2048 ? 2048 : remaining;
+        int bytesRead = zip->readCurrentFile((uint8_t*)(rawBuffer + totalRead), toRead);
         if (bytesRead <= 0) break;
-        buffer[bytesRead] = '\0';
-        str += buffer;
+        totalRead += bytesRead;
         remaining -= bytesRead;
-        yield();
+        yield(); // Yield to FreeRTOS
     }
+
+    rawBuffer[totalRead] = '\0';
+
+    String str(rawBuffer);
+    free(rawBuffer);
 
     zip->closeCurrentFile();
     return str;
