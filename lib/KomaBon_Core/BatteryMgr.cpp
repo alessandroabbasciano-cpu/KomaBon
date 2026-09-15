@@ -319,7 +319,7 @@ void BatteryMgr::drawStatusBar(KomaBonDisplay& display, int startX, int startY) 
     // Tighter bounding box, pushed to the top-right corner
     const int INDICATOR_WIDTH = 110;
     int cx = display.width() - INDICATOR_WIDTH - 4; // Minimal right margin
-    int cy = 4; // Minimal top margin
+    int cy = 4;                                     // Minimal top margin
 
     display.setTextColor(GxEPD_BLACK);
 
@@ -338,7 +338,7 @@ void BatteryMgr::drawStatusBar(KomaBonDisplay& display, int startX, int startY) 
     if (currentSd) {
         display.fillRect(cx, cy, 12, 16, GxEPD_BLACK);
         display.fillRect(cx + 2, cy + 2, 8, 12, GxEPD_WHITE);
-        display.fillRect(cx + 2, cy, 3, 2, GxEPD_WHITE); // Corner notch
+        display.fillRect(cx + 2, cy, 3, 2, GxEPD_WHITE);     // Corner notch
         display.fillRect(cx + 2, cy + 5, 8, 6, GxEPD_BLACK); // Inner contacts
     }
     cx += 18;

@@ -1,22 +1,13 @@
 #include "AppReader.h"
 #include "CoverExtractor.h"
-#include "DisplayMgr.h"
-#include "InputMgr.h"
-#include "FontMgr.h"
 #include "AppMgr.h"
-#include "icon_reader.h"
 #include "KomaBonFS.h"
-#include "BookOrderLogic.h"
-#include "BookMeta.h"
 #include "ProgressStore.h"
-#include "PageCountStore.h"
-#include "BatteryMgr.h"
 #include "SDMgr.h"
+#include "BookMeta.h"
+#include "DisplayMgr.h"
 #include <WiFi.h>
-#include <LittleFS.h>
 #include <ArduinoJson.h>
-#include "Fonts/FreeSans.h"
-#include <map>
 
 AppReader::AppReader() {
     _state = VIEW_LIBRARY;
@@ -49,7 +40,17 @@ AppReader::AppReader() {
     _progressResumeOnBoot = false;
     _lastProgressChangeMs = 0;
 
+    _overlaySelectedIndex = 0;
+    _overlayScrollOffset = 0;
+
     loadSettings();
+}
+
+AppReader::~AppReader() {
+    closeBook(false);
+    if (_epubLoader) delete _epubLoader;
+    if (_textRenderer) delete _textRenderer;
+    if (_kbReader) delete _kbReader;
 }
 
 void AppReader::loadSettings() {
@@ -76,23 +77,15 @@ void AppReader::loadSettings() {
     }
 }
 
-AppReader::~AppReader() {
-    closeBook(false);
-    if (_epubLoader) delete _epubLoader;
-    if (_textRenderer) delete _textRenderer;
-    if (_kbReader) delete _kbReader;
-}
-
 bool AppReader::hasBootResume() {
     return false;
 }
-
 void AppReader::resumeSavedBookOnStart() {
     _resumeSavedBookOnStart = true;
 }
 
 void AppReader::start() {
-    // Strict Offline Mode: Kill radio unconditionally to save battery life
+    // Force offline mode to guarantee battery efficiency
     if (WiFi.getMode() != WIFI_OFF) {
         delay(50);
         WiFi.disconnect(false);
@@ -116,9 +109,7 @@ void AppReader::start() {
 
     if (_resumeSavedBookOnStart) {
         _resumeSavedBookOnStart = false;
-        if (!openSavedProgress()) {
-            markProgressInactive();
-        }
+        if (!openSavedProgress()) markProgressInactive();
     }
 }
 
@@ -127,61 +118,23 @@ void AppReader::stop() {
     InputMgr::getInstance().clearCallback();
 }
 
-const uint8_t* AppReader::getIconImage() {
-    return icon_reader_160x160;
-}
-
-void AppReader::handleInput(InputAction action) {
-    if (action == INPUT_NONE) return;
-
+void AppReader::update() {
     if (_state == VIEW_LIBRARY) {
-        int maxIndex = (int)_books.size() - 1;
-        if (action == INPUT_NEXT) {
-            _previousBookIndex = _selectedBookIndex;
-            _selectedBookIndex++;
-            if (_selectedBookIndex > maxIndex) _selectedBookIndex = -1;
-            _librarySelectionOnlyRedraw = _booksScanned;
-            updateLibraryScroll();
-            _needsRedraw = true;
-        } else if (action == INPUT_PREV) {
-            _previousBookIndex = _selectedBookIndex;
-            _selectedBookIndex--;
-            if (_selectedBookIndex < -1) _selectedBookIndex = maxIndex;
-            _librarySelectionOnlyRedraw = _booksScanned;
-            updateLibraryScroll();
-            _needsRedraw = true;
-        } else if (action == INPUT_SELECT) {
-            if (_selectedBookIndex == -1) {
-                markProgressInactive();
-                AppMgr::getInstance().switchTo(0);
-            } else if (!_books.empty() && _selectedBookIndex >= 0) {
-                openBook(_books[_selectedBookIndex].path.c_str());
-            }
-        } else if (action == INPUT_BACK || action == INPUT_GO_TO_MAIN_MENU) {
-            markProgressInactive();
-            AppMgr::getInstance().switchTo(0);
-        }
-    } else if (_state == VIEW_READING) {
-        if (action == INPUT_NEXT)
-            nextPage();
-        else if (action == INPUT_PREV)
-            prevPage();
-        else if (action == INPUT_SELECT || action == INPUT_BACK) {
-            closeBook();
-            _state = VIEW_LIBRARY;
-            _booksScanned = false;
+        if (CoverExtractor::processNextCover(_books)) {
             _librarySelectionOnlyRedraw = false;
             _needsRedraw = true;
-        } else if (action == INPUT_GO_TO_MAIN_MENU) {
-            closeBook();
-            _state = VIEW_LIBRARY;
-            _booksScanned = false;
-            _librarySelectionOnlyRedraw = false;
-            _needsRedraw = true;
-            markProgressInactive();
-            AppMgr::getInstance().switchTo(0);
         }
     }
+    if (_progressDirty && (millis() - _lastProgressChangeMs) >= PROGRESS_FLUSH_DELAY_MS) {
+        flushProgress();
+    }
+}
+
+void AppReader::forceRedraw() {
+    _librarySelectionOnlyRedraw = false;
+    _currentPageRenderValid = false;
+    _readingFirstDraw = true;
+    _needsRedraw = true;
 }
 
 bool AppReader::openBook(const String& path, bool restoreProgress) {
@@ -204,7 +157,6 @@ bool AppReader::openBook(const String& path, bool restoreProgress) {
             return false;
         }
 
-        // ALLOCATE ONCE: Lock buffer in PSRAM for the entire reading session
         size_t bufferSize = (_kbReader->getWidth() + 7) / 8 * _kbReader->getHeight();
         _comicPageBuffer = (uint8_t*)ps_malloc(bufferSize);
 
@@ -221,7 +173,6 @@ bool AppReader::openBook(const String& path, bool restoreProgress) {
 
     } else {
         _isComicMode = false;
-
         Book32Guard guard(_epubMutex);
         _epubLoader = new EpubLoader();
 
@@ -252,7 +203,7 @@ bool AppReader::openBook(const String& path, bool restoreProgress) {
 
     if (_isComicMode) {
         if (restored) {
-            _globalPageNumber = max(1, restorePage);
+            _globalPageNumber = std::max(1, restorePage);
             if (_globalPageNumber > _totalPages) _globalPageNumber = _totalPages;
         }
     } else {
@@ -262,7 +213,7 @@ bool AppReader::openBook(const String& path, bool restoreProgress) {
             if (restorePointer.nodeIndex >= 0 && restorePointer.nodeIndex <= maxNode &&
                 restorePointer.charOffset >= 0) {
                 _currentPagePointer = restorePointer;
-                _globalPageNumber = max(1, restorePage);
+                _globalPageNumber = std::max(1, restorePage);
                 _currentPageRenderValid = false;
             }
         }
@@ -273,9 +224,7 @@ bool AppReader::openBook(const String& path, bool restoreProgress) {
     flushProgress();
     _needsRedraw = true;
 
-    if (!_isComicMode) {
-        startTotalPagesCounting();
-    }
+    if (!_isComicMode) startTotalPagesCounting();
 
     return true;
 }
@@ -304,7 +253,7 @@ bool AppReader::loadBookProgress(const String& originalName, int& chapter, PageP
 }
 
 void AppReader::saveReadingProgress(bool resumeOnBoot) {
-    if (_currentBookPath.length() == 0 || _state != VIEW_READING) return;
+    if (_currentBookPath.length() == 0 || _state == VIEW_LIBRARY) return;
     _progressDirty = true;
     _progressResumeOnBoot = resumeOnBoot;
     _lastProgressChangeMs = millis();
@@ -314,7 +263,7 @@ void AppReader::flushProgress() {
     if (!_progressDirty) return;
     _progressDirty = false;
 
-    if (_currentBookPath.length() == 0 || _state != VIEW_READING) return;
+    if (_currentBookPath.length() == 0 || _state == VIEW_LIBRARY) return;
 
     String key = getOriginalFilename(normalizedBookName(_currentBookPath));
     if (key.length() == 0) return;
@@ -335,17 +284,14 @@ void AppReader::markProgressInactive() {
 }
 
 void AppReader::closeBook(bool markInactive) {
-    // Terminate background FreeRTOS task cleanly
     _killPageCountTask = true;
     _countingActive = false;
     if (_pageCountTaskHandle != nullptr) {
-        vTaskDelay(pdMS_TO_TICKS(30)); // Allow task to exit its loop
+        vTaskDelay(pdMS_TO_TICKS(30));
         _pageCountTaskHandle = nullptr;
     }
 
-    if (markInactive && _state == VIEW_READING) {
-        saveReadingProgress(false);
-    }
+    if (markInactive && _state != VIEW_LIBRARY) saveReadingProgress(false);
     flushProgress();
 
     Book32Guard guard(_epubMutex);
@@ -364,8 +310,6 @@ void AppReader::closeBook(bool markInactive) {
         delete _kbReader;
         _kbReader = nullptr;
     }
-
-    // FREE BUFFER: Release the PSRAM lock
     if (_comicPageBuffer) {
         free(_comicPageBuffer);
         _comicPageBuffer = nullptr;
@@ -379,419 +323,4 @@ void AppReader::closeBook(bool markInactive) {
         delete _countRenderer;
         _countRenderer = nullptr;
     }
-}
-
-void AppReader::pageCountTask(void* param) {
-    AppReader* app = static_cast<AppReader*>(param);
-
-    while (!app->_killPageCountTask && app->_countingActive) {
-        app->updateTotalPagesCount();
-        vTaskDelay(pdMS_TO_TICKS(15)); // Yield to watchdog and allow UI to acquire Mutex
-    }
-
-    app->_pageCountTaskHandle = nullptr;
-    vTaskDelete(NULL);
-}
-
-void AppReader::startTotalPagesCounting() {
-    if (_pageCountTaskHandle != nullptr) {
-        _killPageCountTask = true;
-        vTaskDelay(pdMS_TO_TICKS(30));
-    }
-
-    _killPageCountTask = false;
-    _totalPages = 0;
-    _countingActive = false;
-    _countChapterContent.clear();
-    _countChapter = 0;
-    _countPointer = {0, 0};
-    _countPagesSoFar = 0;
-
-    if (_countRenderer) {
-        Book32Guard guard(_epubMutex);
-        delete _countRenderer;
-        _countRenderer = nullptr;
-    }
-
-    if (!_epubLoader || _currentBookPath.length() == 0) return;
-
-    String key = getOriginalFilename(normalizedBookName(_currentBookPath));
-    int cached = PageCountStore::getInstance().get(key, _fontSizePt, _fontFamily);
-    if (cached > 0) {
-        _totalPages = cached;
-        return;
-    }
-
-    PageCountCheckpoint checkpoint;
-    if (PageCountStore::getInstance().getCheckpoint(key, _fontSizePt, _fontFamily, checkpoint)) {
-        _countChapter = checkpoint.chapter;
-        _countPagesSoFar = checkpoint.pagesSoFar;
-    }
-
-    _countingActive = true;
-
-    // Spawn Background Pagination Task on Core 0
-    xTaskCreatePinnedToCore(AppReader::pageCountTask, "PageCountTask",
-                            16384, // High stack size for rendering algorithms
-                            this, 1, &_pageCountTaskHandle,
-                            0 // Bind exclusively to Core 0
-    );
-}
-
-void AppReader::updateTotalPagesCount() {
-    if (!_countingActive || _killPageCountTask) return;
-
-    DisplayMgr& dispMgr = DisplayMgr::getInstance();
-    KomaBonDisplay& display = dispMgr.getDisplay();
-
-    if (!_countRenderer) {
-        Book32Guard guard(_epubMutex);
-        if (!_epubLoader) return;
-        _countRenderer = new TextRenderer(display.width(), display.height(), _fontSizePt, _epubLoader);
-        _countRenderer->setFontFamily(_fontFamily);
-    }
-
-    String key = getOriginalFilename(normalizedBookName(_currentBookPath));
-
-    // Execute one single page extraction per cycle to ensure rapid mutex yielding
-    if (_countChapterContent.empty()) {
-        Book32Guard guard(_epubMutex);
-        if (!_epubLoader) return;
-
-        if (_countChapter >= _epubLoader->getChapterCount()) {
-            int total = max(1, _countPagesSoFar);
-            _totalPages = total;
-            PageCountStore::getInstance().set(key, _fontSizePt, _fontFamily, total);
-            _countingActive = false;
-            delete _countRenderer;
-            _countRenderer = nullptr;
-            return;
-        }
-
-        _countChapterContent = _epubLoader->getChapterContentRich(_countChapter);
-        _countPointer = {0, 0};
-
-        if (_countChapterContent.empty()) {
-            _countChapter++;
-            PageCountCheckpoint checkpoint;
-            checkpoint.chapter = _countChapter;
-            checkpoint.pagesSoFar = _countPagesSoFar;
-            PageCountStore::getInstance().setCheckpoint(key, _fontSizePt, _fontFamily, checkpoint);
-            return;
-        }
-        _countPagesSoFar++;
-    }
-
-    RenderResult r;
-    {
-        Book32Guard guard(_epubMutex);
-        if (!_countRenderer) return;
-        r = _countRenderer->renderRichPageDynamic(display, _countChapterContent, _countPointer.nodeIndex,
-                                                  _countPointer.charOffset, 0, 0, false);
-    }
-
-    if (r.pageFull) {
-        _countPagesSoFar++;
-        _countPointer.nodeIndex = r.nextNodeIndex;
-        _countPointer.charOffset = r.nextCharOffset;
-    } else {
-        _countChapterContent.clear();
-        _countChapter++;
-        PageCountCheckpoint checkpoint;
-        checkpoint.chapter = _countChapter;
-        checkpoint.pagesSoFar = _countPagesSoFar;
-        PageCountStore::getInstance().setCheckpoint(key, _fontSizePt, _fontFamily, checkpoint);
-    }
-}
-
-void AppReader::loadChapter(int chapterIndex) {
-    Book32Guard guard(_epubMutex);
-
-    if (!_epubLoader) return;
-    if (chapterIndex < 0 || chapterIndex >= _epubLoader->getChapterCount()) return;
-
-    int originalIndex = chapterIndex;
-    while (chapterIndex < _epubLoader->getChapterCount()) {
-        _currentChapter = chapterIndex;
-        _pageHistory.clear();
-        _currentPagePointer = {0, 0};
-        _currentPageRenderValid = false;
-
-        _currentRichContent = _epubLoader->getChapterContentRich(chapterIndex);
-        if (_currentRichContent.size() > 0) {
-            if (_textRenderer) _textRenderer->clearCache();
-            _needsRedraw = true;
-            return;
-        }
-        chapterIndex++;
-    }
-    _currentChapter = originalIndex;
-    _currentPageRenderValid = false;
-    if (_textRenderer) _textRenderer->clearCache();
-    _needsRedraw = true;
-}
-
-void AppReader::nextPage() {
-    if (_isComicMode) {
-        if (_globalPageNumber < _totalPages) {
-            _globalPageNumber++;
-            saveReadingProgress(true);
-            _needsRedraw = true;
-        }
-        return;
-    }
-
-    Book32Guard guard(_epubMutex);
-    if (!_textRenderer) return;
-
-    RenderResult result = _currentPageRender;
-    if (!_currentPageRenderValid) {
-        DisplayMgr& dispMgr = DisplayMgr::getInstance();
-        KomaBonDisplay& display = dispMgr.getDisplay();
-        int currentPageNum = _pageHistory.size();
-        result =
-            _textRenderer->renderRichPageDynamic(display, _currentRichContent, _currentPagePointer.nodeIndex,
-                                                 _currentPagePointer.charOffset, currentPageNum, 0, false);
-    }
-
-    if (result.pageFull) {
-        _pageHistory.push_back(_currentPagePointer);
-        _currentPagePointer.nodeIndex = result.nextNodeIndex;
-        _currentPagePointer.charOffset = result.nextCharOffset;
-        _globalPageNumber++;
-        _textRenderer->clearCache();
-        _currentPageRenderValid = false;
-        saveReadingProgress(true);
-        _needsRedraw = true;
-    } else {
-        if (_currentChapter < _epubLoader->getChapterCount() - 1) {
-            _pageHistory.push_back(_currentPagePointer);
-            _globalPageNumber++;
-            // Re-entrant mutex safety natively supported by Book32Mutex implementation
-            loadChapter(_currentChapter + 1);
-            saveReadingProgress(true);
-        }
-    }
-}
-
-void AppReader::prevPage() {
-    if (_isComicMode) {
-        if (_globalPageNumber > 1) {
-            _globalPageNumber--;
-            saveReadingProgress(true);
-            _needsRedraw = true;
-        }
-        return;
-    }
-
-    Book32Guard guard(_epubMutex);
-
-    if (!_pageHistory.empty()) {
-        _currentPagePointer = _pageHistory.back();
-        _pageHistory.pop_back();
-        if (_globalPageNumber > 1) _globalPageNumber--;
-        if (_textRenderer) _textRenderer->clearCache();
-        _currentPageRenderValid = false;
-        saveReadingProgress(true);
-        _needsRedraw = true;
-    } else if (_currentChapter > 0) {
-        int prevChap = _currentChapter - 1;
-
-        while (prevChap >= 0) {
-            if (!_epubLoader->getChapterContentRich(prevChap).empty()) break;
-            prevChap--;
-        }
-
-        if (prevChap >= 0) {
-            loadChapter(prevChap);
-            DisplayMgr& dispMgr = DisplayMgr::getInstance();
-            KomaBonDisplay& display = dispMgr.getDisplay();
-
-            while (true) {
-                RenderResult r = _textRenderer->renderRichPageDynamic(
-                    display, _currentRichContent, _currentPagePointer.nodeIndex,
-                    _currentPagePointer.charOffset, _pageHistory.size(), 0, false);
-
-                if (r.pageFull) {
-                    _pageHistory.push_back(_currentPagePointer);
-                    _currentPagePointer.nodeIndex = r.nextNodeIndex;
-                    _currentPagePointer.charOffset = r.nextCharOffset;
-                } else {
-                    break;
-                }
-            }
-
-            if (_globalPageNumber > 1) _globalPageNumber--;
-            if (_textRenderer) _textRenderer->clearCache();
-            _currentPageRenderValid = false;
-            saveReadingProgress(true);
-            _needsRedraw = true;
-        }
-    }
-}
-
-void AppReader::nextChapter() {
-    Book32Guard guard(_epubMutex);
-    if (!_epubLoader) return;
-    if (_currentChapter < _epubLoader->getChapterCount() - 1) loadChapter(_currentChapter + 1);
-}
-
-void AppReader::prevChapter() {
-    Book32Guard guard(_epubMutex);
-    if (!_epubLoader) return;
-    if (_currentChapter > 0) {
-        int tryChapter = _currentChapter - 1;
-        while (tryChapter >= 0) {
-            String chapterText = _epubLoader->getChapterContent(tryChapter);
-            if (chapterText.length() > 0) {
-                loadChapter(tryChapter);
-                return;
-            }
-            tryChapter--;
-        }
-    }
-}
-
-void AppReader::draw() {
-    if (!_needsRedraw) return;
-    _needsRedraw = false;
-    if (_state == VIEW_LIBRARY)
-        drawLibrary();
-    else
-        drawReading();
-}
-
-void AppReader::drawReading() {
-    Book32Guard guard(_epubMutex);
-
-    if (!_isComicMode && !_textRenderer) {
-        _state = VIEW_LIBRARY;
-        _librarySelectionOnlyRedraw = false;
-        drawLibrary();
-        return;
-    }
-    if (_isComicMode && !_kbReader) {
-        _state = VIEW_LIBRARY;
-        _librarySelectionOnlyRedraw = false;
-        drawLibrary();
-        return;
-    }
-
-    DisplayMgr& dispMgr = DisplayMgr::getInstance();
-    KomaBonDisplay& display = dispMgr.getDisplay();
-
-    if (_readingFirstDraw || _pageTurnsSinceRefresh >= _refreshEveryNPages) {
-        display.setFullWindow();
-        _pageTurnsSinceRefresh = 0;
-        _readingFirstDraw = false;
-    } else {
-        display.setPartialWindow(0, 0, display.width(), display.height());
-        _pageTurnsSinceRefresh++;
-    }
-
-    int currentPageNum = _pageHistory.size();
-
-    // Load data into persistent buffer directly from SD
-    if (_isComicMode && _kbReader && _comicPageBuffer) {
-        if (!_kbReader->readPage(_globalPageNumber - 1, _comicPageBuffer)) {
-            Serial.println("AppReader: Failed to read KMB page data from SD.");
-        }
-    }
-
-    display.firstPage();
-    do {
-        display.fillScreen(GxEPD_WHITE);
-
-        if (_isComicMode) {
-            if (_comicPageBuffer) {
-                // Zero-overhead dump to display
-                display.drawBitmap(0, 0, _comicPageBuffer, _kbReader->getWidth(), _kbReader->getHeight(),
-                                   GxEPD_BLACK);
-            }
-        } else {
-            _currentPageRender = _textRenderer->renderRichPageDynamic(
-                display, _currentRichContent, _currentPagePointer.nodeIndex, _currentPagePointer.charOffset,
-                currentPageNum, _globalPageNumber, true);
-            _currentPageRenderValid = true;
-        }
-
-        display.setFont(&FreeSans9pt8b); // Or &FreeSansBold12pt8b
-        display.setTextColor(GxEPD_BLACK);
-        char footerText[40];
-        if (_totalPages > 0) {
-            snprintf(footerText, sizeof(footerText), "Page %d of %d", _globalPageNumber, _totalPages);
-        } else {
-            snprintf(footerText, sizeof(footerText), "Page %d", _globalPageNumber);
-        }
-
-        int16_t fx1, fy1;
-        uint16_t fw, fh;
-        display.getTextBounds(footerText, 0, 0, &fx1, &fy1, &fw, &fh);
-        int cursorX = display.width() / 2 - (int)fw / 2;
-        int cursorY = display.height() - 15;
-
-        if (_isComicMode) {
-            display.fillRect(cursorX - 2, cursorY - fh - 2, fw + 4, fh + 4, GxEPD_WHITE);
-        }
-
-        display.setCursor(cursorX, cursorY);
-        display.print(footerText);
-
-        BatteryMgr::getInstance().drawStatusBar(display, display.width() - 105, 10);
-
-    } while (display.nextPage());
-}
-
-void AppReader::update() {
-    if (_state == VIEW_LIBRARY) {
-        if (CoverExtractor::processNextCover(_books)) {
-            _librarySelectionOnlyRedraw = false;
-            _needsRedraw = true;
-        }
-    }
-
-    // Removed synchronous updateTotalPagesCount() logic from Core 1
-    // Task is now fully delegated to Core 0 via FreeRTOS pageCountTask
-
-    if (_progressDirty && (millis() - _lastProgressChangeMs) >= PROGRESS_FLUSH_DELAY_MS) {
-        flushProgress();
-    }
-}
-
-void AppReader::applyFontSize(int pt) {
-    Book32Guard guard(_epubMutex);
-
-    int normalized = (pt >= 18) ? 18 : (pt >= 12 ? 12 : 9);
-    _fontSizePt = normalized;
-    if (_textRenderer) _textRenderer->setFontSize(normalized);
-
-    _currentPageRenderValid = false;
-    _readingFirstDraw = true;
-    _pageTurnsSinceRefresh = 0;
-    _needsRedraw = true;
-
-    startTotalPagesCounting();
-}
-
-void AppReader::applyFontFamily(int family) {
-    Book32Guard guard(_epubMutex);
-
-    int normalized =
-        (family >= READER_FONT_SANS && family <= READER_FONT_OPEN_SANS) ? family : READER_FONT_SANS;
-    _fontFamily = normalized;
-    if (_textRenderer) _textRenderer->setFontFamily(normalized);
-
-    _currentPageRenderValid = false;
-    _readingFirstDraw = true;
-    _pageTurnsSinceRefresh = 0;
-    _needsRedraw = true;
-
-    startTotalPagesCounting();
-}
-
-void AppReader::forceRedraw() {
-    _librarySelectionOnlyRedraw = false;
-    _currentPageRenderValid = false;
-    _readingFirstDraw = true;
-    _needsRedraw = true;
 }

@@ -12,7 +12,7 @@
 #include <vector>
 #include <map>
 
-enum ReaderState { VIEW_LIBRARY, VIEW_READING };
+enum ReaderState { VIEW_LIBRARY, VIEW_READING, VIEW_OVERLAY_SETTINGS, VIEW_OVERLAY_TOC };
 
 // Utility function to extract the bare filename from a path (handling both / and \)
 inline String normalizedBookName(const String& path) {
@@ -56,7 +56,7 @@ class AppReader : public App {
     }
 
     bool allowsSystemStatusIndicator() override {
-        return _state != VIEW_READING;
+        return _state == VIEW_LIBRARY;
     }
 
     bool hasBootResume();
@@ -120,6 +120,9 @@ class AppReader : public App {
     PagePointer _countPointer;
     int _countPagesSoFar;
 
+    // Vector mapping each chapter index to its absolute starting page number
+    std::vector<int> _chapterStartPages;
+
     static void pageCountTask(void* param);
     void startTotalPagesCounting();
     void updateTotalPagesCount();
@@ -130,6 +133,16 @@ class AppReader : public App {
     std::vector<PagePointer> _pageHistory;
     RenderResult _currentPageRender;
     bool _currentPageRenderValid;
+
+    // Overlay Menus
+    int _overlaySelectedIndex;
+    int _overlayScrollOffset;
+    bool _settingsChanged; // NEW: Tracks unsaved changes in the overlay
+    void openSettingsOverlay();
+    void openTOCOverlay();
+    void closeOverlay();
+    void drawOverlaySettings();
+    void drawOverlayTOC();
 
     bool openBook(const String& path, bool restoreProgress = true);
     bool openSavedProgress();
