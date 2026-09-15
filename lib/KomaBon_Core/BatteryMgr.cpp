@@ -5,16 +5,14 @@
 #include "KomaBonFS.h"
 #include "DisplayMgr.h"
 #include <ArduinoJson.h>
-// Local FreeSans with Latin-1 Supplement (0x20-0xFF).
 #include "Fonts/FreeSans.h"
 #include "SDMgr.h"
 #include <WiFi.h>
 
-// Static constants
-const float BatteryMgr::CHARGE_THRESHOLD = 0.03f;      // 30mV increase = charging (avoid false positives)
-const float BatteryMgr::CRITICAL_VOLTAGE = 3.0f;       // Shutdown at 3.0V
-const float BatteryMgr::HIGH_VOLTAGE_THRESHOLD = 4.0f; // Assume charging if voltage >= this
-const float BatteryMgr::SPIKE_REJECT_THRESHOLD = 0.5f; // Reject readings that jump > 0.5V
+const float BatteryMgr::CHARGE_THRESHOLD = 0.03f;
+const float BatteryMgr::CRITICAL_VOLTAGE = 3.0f;
+const float BatteryMgr::HIGH_VOLTAGE_THRESHOLD = 4.0f;
+const float BatteryMgr::SPIKE_REJECT_THRESHOLD = 0.5f;
 
 static int voltageToPercentage(float voltage) {
     if (voltage >= BATTERY_FULL_VOLTAGE) return 100;
@@ -47,7 +45,7 @@ void BatteryMgr::init() {
     pinMode(PIN_BAT_VOLT, INPUT);
 #ifdef PIN_VBAT_SWITCH
     pinMode(PIN_VBAT_SWITCH, OUTPUT);
-    digitalWrite(PIN_VBAT_SWITCH, !VBAT_SWITCH_LEVEL); // Keep it off
+    digitalWrite(PIN_VBAT_SWITCH, !VBAT_SWITCH_LEVEL);
 #endif
     analogSetAttenuation(ADC_11db);
 
@@ -138,8 +136,8 @@ void BatteryMgr::update() {
 void BatteryMgr::updateCache(bool clearStaleCharging) {
     Book32Guard guard(_mutex);
 #ifdef PIN_VBAT_SWITCH
-    digitalWrite(PIN_VBAT_SWITCH, VBAT_SWITCH_LEVEL); // Turn on measurement
-    delay(5);                                         // Wait for stabilization
+    digitalWrite(PIN_VBAT_SWITCH, VBAT_SWITCH_LEVEL);
+    delay(5);
 #endif
 
     analogRead(PIN_BAT_VOLT);
@@ -151,7 +149,7 @@ void BatteryMgr::updateCache(bool clearStaleCharging) {
     raw_mv /= 30;
 
 #ifdef PIN_VBAT_SWITCH
-    digitalWrite(PIN_VBAT_SWITCH, !VBAT_SWITCH_LEVEL); // Turn off to save power
+    digitalWrite(PIN_VBAT_SWITCH, !VBAT_SWITCH_LEVEL);
 #endif
 
     float voltage = (raw_mv / 1000.0f) * 2.0f;
@@ -161,8 +159,6 @@ void BatteryMgr::updateCache(bool clearStaleCharging) {
     }
 
     if (_lastValidVoltage > 0.0f && fabsf(voltage - _lastValidVoltage) > SPIKE_REJECT_THRESHOLD) {
-        Serial.printf("Battery: SPIKE REJECTED (%.3fV -> %.3fV, delta=%.3fV) - keeping %.3fV\n",
-                      _lastValidVoltage, voltage, voltage - _lastValidVoltage, _lastValidVoltage);
         voltage = _lastValidVoltage;
     } else {
         _lastValidVoltage = voltage;
@@ -266,15 +262,12 @@ void BatteryMgr::loadSleepSettings() {
             if (!deserializeJson(doc, file)) {
                 _sleepTimeoutMinutes = doc.containsKey("sleepTimeout") ? doc["sleepTimeout"].as<int>() : 0;
                 _sleepMessage = doc["sleepMessage"] | "Press button to wake";
-                Serial.printf("Loaded sleep settings: timeout=%d min, message=%s\n", _sleepTimeoutMinutes,
-                              _sleepMessage.c_str());
             }
             file.close();
         }
     } else {
         _sleepTimeoutMinutes = 0;
         _sleepMessage = "Press button to wake";
-        Serial.println("Using default sleep settings (sleep disabled)");
     }
 }
 
@@ -289,11 +282,6 @@ void BatteryMgr::enterIdleSleep(const char* reason) {
         Book32Guard guard(_mutex);
         sleepMessage = _sleepMessage;
     }
-
-    Serial.printf("SLEEPDIAG: enterIdleSleep() reached  reason=%s\n", reason ? reason : "null");
-    Serial.println("Entering idle sleep...");
-    Serial.printf("Sleep message: %s\n", sleepMessage.c_str());
-    Serial.flush();
 
     KomaBonDisplay& display = DisplayMgr::getInstance().getDisplay();
     display.setFullWindow();
@@ -317,8 +305,6 @@ void BatteryMgr::enterIdleSleep(const char* reason) {
     delay(100);
     esp_sleep_enable_ext0_wakeup((gpio_num_t)PIN_BUTTON_BACK, 0);
 
-    Serial.println("Going to deep sleep...");
-    Serial.flush();
     delay(50);
     esp_deep_sleep_start();
 }
@@ -330,44 +316,49 @@ void BatteryMgr::drawStatusBar(KomaBonDisplay& display, int startX, int startY) 
     int percentage = bat.percentage;
     bool currentCharging = bat.charging;
 
-    const int INDICATOR_WIDTH = 85;
-    int cx = display.width() - INDICATOR_WIDTH - 5;
-    int cy = 6;
+    // Tighter bounding box, pushed to the top-right corner
+    const int INDICATOR_WIDTH = 110;
+    int cx = display.width() - INDICATOR_WIDTH - 4; // Minimal right margin
+    int cy = 4; // Minimal top margin
 
     display.setTextColor(GxEPD_BLACK);
 
-    // 1. Wi-Fi Icon
+    // 1. Wi-Fi Icon (Scaled down to 3px bars)
     if (currentWifi) {
-        display.fillRect(cx, cy + 6, 2, 4, GxEPD_BLACK);
-        display.fillRect(cx + 3, cy + 3, 2, 7, GxEPD_BLACK);
-        display.fillRect(cx + 6, cy, 2, 10, GxEPD_BLACK);
+        display.fillRect(cx, cy + 10, 3, 5, GxEPD_BLACK);
+        display.fillRect(cx + 5, cy + 5, 3, 10, GxEPD_BLACK);
+        display.fillRect(cx + 10, cy, 3, 15, GxEPD_BLACK);
     } else {
-        display.drawLine(cx, cy + 10, cx + 8, cy + 2, GxEPD_BLACK);
+        display.drawLine(cx, cy + 15, cx + 13, cy + 2, GxEPD_BLACK);
+        display.drawLine(cx, cy + 14, cx + 13, cy + 1, GxEPD_BLACK);
     }
-    cx += 12;
+    cx += 18;
 
-    // 2. SD Icon
+    // 2. SD Icon (Scaled down to 12x16)
     if (currentSd) {
-        display.drawRect(cx, cy, 8, 10, GxEPD_BLACK);
-        display.drawFastHLine(cx + 1, cy, 2, GxEPD_WHITE);
-        display.fillRect(cx + 1, cy + 3, 6, 4, GxEPD_BLACK);
+        display.fillRect(cx, cy, 12, 16, GxEPD_BLACK);
+        display.fillRect(cx + 2, cy + 2, 8, 12, GxEPD_WHITE);
+        display.fillRect(cx + 2, cy, 3, 2, GxEPD_WHITE); // Corner notch
+        display.fillRect(cx + 2, cy + 5, 8, 6, GxEPD_BLACK); // Inner contacts
     }
-    cx += 12;
+    cx += 18;
 
-    // 3. Battery Icon
-    int batW = 14;
-    int batH = 8;
-    display.drawRect(cx, cy + 1, batW, batH, GxEPD_BLACK);
-    display.fillRect(cx + batW, cy + 3, 2, 4, GxEPD_BLACK);
+    // 3. Battery Icon (Scaled down to 20x10)
+    int batW = 20;
+    int batH = 10;
+    display.fillRect(cx, cy + 3, batW, batH, GxEPD_BLACK);
+    display.fillRect(cx + 2, cy + 5, batW - 4, batH - 4, GxEPD_WHITE);
+    // Positive terminal
+    display.fillRect(cx + batW, cy + 5, 2, 6, GxEPD_BLACK);
 
     int fill = (percentage * (batW - 4)) / 100;
-    if (fill > 0) display.fillRect(cx + 2, cy + 3, fill, batH - 4, GxEPD_BLACK);
+    if (fill > 0) display.fillRect(cx + 2, cy + 5, fill, batH - 4, GxEPD_BLACK);
 
-    cx += batW + 4;
+    cx += batW + 6;
 
-    // 4. Percentage Text
-    display.setFont(NULL);
-    display.setCursor(cx, cy + 2);
+    // 4. Percentage Text (Baseline adjusted for new cy)
+    display.setFont(&FreeSans9pt8b);
+    display.setCursor(cx, cy + 13);
     display.printf("%d%%", percentage);
     if (currentCharging) display.print("+");
 }
@@ -396,10 +387,11 @@ void BatteryMgr::drawStatusIndicator() {
 
     KomaBonDisplay& display = DisplayMgr::getInstance().getDisplay();
 
-    const int INDICATOR_WIDTH = 65;
-    const int INDICATOR_HEIGHT = 12;
-    const int INDICATOR_X = display.width() - INDICATOR_WIDTH - 5;
-    const int INDICATOR_Y = 5;
+    // Adjusted partial refresh boundary to match the tighter layout
+    const int INDICATOR_WIDTH = 110;
+    const int INDICATOR_HEIGHT = 20;
+    const int INDICATOR_X = display.width() - INDICATOR_WIDTH - 4;
+    const int INDICATOR_Y = 2; // Clean close to the top edge
 
     display.setPartialWindow(INDICATOR_X, INDICATOR_Y, INDICATOR_WIDTH, INDICATOR_HEIGHT);
     display.firstPage();

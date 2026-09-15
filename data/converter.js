@@ -24,6 +24,115 @@ function logMessage(msg, isError = false) {
     terminal.scrollTop = terminal.scrollHeight;
 }
 
+// --- Image Processing Core ---
+
+// Analyzes the canvas to find the actual bounding box of the drawn content, ignoring pure white borders
+function getCropBounds(ctx, width, height) {
+    const imageData = ctx.getImageData(0, 0, width, height);
+    const data = imageData.data;
+    let minX = width, minY = height, maxX = 0, maxY = 0;
+    
+    for (let y = 0; y < height; y++) {
+        for (let x = 0; x < width; x++) {
+            const idx = (y * width + x) * 4;
+            const luma = (data[idx] * 0.299) + (data[idx + 1] * 0.587) + (data[idx + 2] * 0.114);
+            
+            if (luma < 245) { // Threshold allows detection despite scan impurities
+                if (x < minX) minX = x;
+                if (x > maxX) maxX = x;
+                if (y < minY) minY = y;
+                if (y > maxY) maxY = y;
+            }
+        }
+    }
+    
+    if (minX > maxX || minY > maxY) {
+        return { x: 0, y: 0, w: width, h: height };
+    }
+    
+    const padding = 4;
+    minX = Math.max(0, minX - padding);
+    minY = Math.max(0, minY - padding);
+    maxX = Math.min(width - 1, maxX + padding);
+    maxY = Math.min(height - 1, maxY + padding);
+    
+    return { x: minX, y: minY, w: maxX - minX + 1, h: maxY - minY + 1 };
+}
+
+// Atkinson Dithering algorithm (distributes 75% of error for higher contrast on 1-bit displays)
+function applyAtkinsonDithering(imageData, width, height) {
+    const data = imageData.data;
+
+    for (let i = 0; i < data.length; i += 4) {
+        const luma = (data[i] * 0.299) + (data[i + 1] * 0.587) + (data[i + 2] * 0.114);
+        data[i] = data[i + 1] = data[i + 2] = luma;
+    }
+
+    for (let py = 0; py < height; py++) {
+        for (let px = 0; px < width; px++) {
+            const pIdx = (py * width + px) * 4;
+            const oldPixel = data[pIdx];
+            const newPixel = oldPixel < 128 ? 0 : 255;
+            
+            data[pIdx] = data[pIdx + 1] = data[pIdx + 2] = newPixel;
+            
+            // Distribute 1/8th of error to 6 neighbors
+            const err = (oldPixel - newPixel) >> 3;
+
+            if (px + 1 < width) {
+                data[pIdx + 4] += err;
+                data[pIdx + 5] += err;
+                data[pIdx + 6] += err;
+            }
+            if (px + 2 < width) {
+                data[pIdx + 8] += err;
+                data[pIdx + 9] += err;
+                data[pIdx + 10] += err;
+            }
+            if (py + 1 < height) {
+                if (px - 1 >= 0) {
+                    data[pIdx + (width * 4) - 4] += err;
+                    data[pIdx + (width * 4) - 3] += err;
+                    data[pIdx + (width * 4) - 2] += err;
+                }
+                data[pIdx + (width * 4)] += err;
+                data[pIdx + (width * 4) + 1] += err;
+                data[pIdx + (width * 4) + 2] += err;
+                
+                if (px + 1 < width) {
+                    data[pIdx + (width * 4) + 4] += err;
+                    data[pIdx + (width * 4) + 5] += err;
+                    data[pIdx + (width * 4) + 6] += err;
+                }
+            }
+            if (py + 2 < height) {
+                data[pIdx + (width * 8)] += err;
+                data[pIdx + (width * 8) + 1] += err;
+                data[pIdx + (width * 8) + 2] += err;
+            }
+        }
+    }
+}
+
+// Converts a processed canvas into a 1-bit MSB packed binary payload for .kmb files
+function applyDitheringAndPack(ctx, kmbBytes, offset, width, height, bytesPerRow) {
+    const imageData = ctx.getImageData(0, 0, width, height);
+    applyAtkinsonDithering(imageData, width, height);
+    const pixels = imageData.data;
+
+    for (let py = 0; py < height; py++) {
+        for (let px = 0; px < width; px++) {
+            const pIdx = (py * width + px) * 4;
+            if (pixels[pIdx] === 0) {
+                const byteIdx = offset + (py * bytesPerRow) + Math.floor(px / 8);
+                const bitIdx = 7 - (px % 8);
+                kmbBytes[byteIdx] |= (1 << bitIdx);
+            }
+        }
+    }
+}
+
+
 // --- Drag and Drop Handlers ---
 document.addEventListener('DOMContentLoaded', () => {
     const setupDropzone = (zoneId, callback) => {
@@ -53,15 +162,12 @@ document.addEventListener('DOMContentLoaded', () => {
         }, false);
     };
 
-    // Bind Universal Converter Dropzone
     setupDropzone('converter-dropzone', (files) => {
         processInputFiles(files);
     });
 
-    // Bind Font Dropzone
     setupDropzone('font-dropzone', (files) => {
         const fileInput = document.getElementById('book-file');
-        // Manually assign files to the input element (requires DataTransfer workaround in JS)
         const dataTransfer = new DataTransfer();
         for (let i = 0; i < files.length; i++) dataTransfer.items.add(files[i]);
         fileInput.files = dataTransfer.files;
@@ -69,12 +175,9 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 });
 
-// Router for Universal Converter inputs (Batch Processing)
 async function processInputFiles(droppedFiles = null) {
     const fileInput = document.getElementById('universal-file');
     const terminal = document.getElementById('terminal-log');
-
-    // Use dropped files if available, otherwise use clicked input files
     const fileList = droppedFiles || fileInput.files;
 
     terminal.innerHTML = '';
@@ -84,7 +187,6 @@ async function processInputFiles(droppedFiles = null) {
         return;
     }
 
-    // Process files sequentially in a batch loop
     for (let i = 0; i < fileList.length; i++) {
         const file = fileList[i];
         const ext = file.name.split('.').pop().toLowerCase();
@@ -110,10 +212,9 @@ async function processInputFiles(droppedFiles = null) {
         logMessage(`--- Finished ${file.name} ---`);
     }
 
-    // Clear input after processing
     fileInput.value = '';
 }
-// Text document routing
+
 async function processTextDocument(file, ext) {
     if (ext === 'epub') {
         await optimizeEPUB(file);
@@ -182,27 +283,38 @@ async function processArchive(file) {
             const imgData = await zip.file(imgFiles[i]).async("blob");
             const bitmap = await createImageBitmap(imgData);
 
+            // Isolate image to calculate auto-crop boundaries
+            const tempCanvas = document.createElement('canvas');
+            tempCanvas.width = bitmap.width;
+            tempCanvas.height = bitmap.height;
+            const tempCtx = tempCanvas.getContext('2d', { willReadFrequently: true });
+            tempCtx.fillStyle = '#FFFFFF';
+            tempCtx.fillRect(0, 0, tempCanvas.width, tempCanvas.height);
+            tempCtx.drawImage(bitmap, 0, 0);
+
+            const crop = getCropBounds(tempCtx, tempCanvas.width, tempCanvas.height);
+
             ctx.fillStyle = '#FFFFFF';
             ctx.fillRect(0, 0, targetWidth, targetHeight);
 
-            // Rotate landscape splash pages 90 degrees counter-clockwise
-            if (bitmap.width > bitmap.height) {
-                const scale = Math.min(targetHeight / bitmap.width, targetWidth / bitmap.height);
-                const w = bitmap.width * scale;
-                const h = bitmap.height * scale;
+            // Rotate landscape splash pages and draw cropped area scaled to target size
+            if (crop.w > crop.h) {
+                const scale = Math.min(targetHeight / crop.w, targetWidth / crop.h);
+                const w = crop.w * scale;
+                const h = crop.h * scale;
 
                 ctx.save();
                 ctx.translate(targetWidth / 2, targetHeight / 2);
                 ctx.rotate(-Math.PI / 2);
-                ctx.drawImage(bitmap, -w / 2, -h / 2, w, h);
+                ctx.drawImage(tempCanvas, crop.x, crop.y, crop.w, crop.h, -w / 2, -h / 2, w, h);
                 ctx.restore();
             } else {
-                const scale = Math.min(targetWidth / bitmap.width, targetHeight / bitmap.height);
-                const w = bitmap.width * scale;
-                const h = bitmap.height * scale;
+                const scale = Math.min(targetWidth / crop.w, targetHeight / crop.h);
+                const w = crop.w * scale;
+                const h = crop.h * scale;
                 const x = (targetWidth - w) / 2;
                 const y = (targetHeight - h) / 2;
-                ctx.drawImage(bitmap, x, y, w, h);
+                ctx.drawImage(tempCanvas, crop.x, crop.y, crop.w, crop.h, x, y, w, h);
             }
 
             applyDitheringAndPack(ctx, kmbBytes, offset, targetWidth, targetHeight, bytesPerRow);
@@ -284,22 +396,39 @@ async function processPDF(file) {
             }
 
             let rotatedViewport = page.getViewport({ scale: 1.0, rotation: pageRotation });
-            const scale = Math.min(targetWidth / rotatedViewport.width, targetHeight / rotatedViewport.height);
-            const scaledViewport = page.getViewport({ scale: scale, rotation: pageRotation });
-
-            ctx.fillStyle = '#FFFFFF';
-            ctx.fillRect(0, 0, targetWidth, targetHeight);
-
-            const xOffset = (targetWidth - scaledViewport.width) / 2;
-            const yOffset = (targetHeight - scaledViewport.height) / 2;
+            
+            // Render at 2.0x base scale to ensure crisp lines before cropping
+            const baseScale = Math.min(targetWidth / rotatedViewport.width, targetHeight / rotatedViewport.height) * 2.0;
+            const hiResViewport = page.getViewport({ scale: baseScale, rotation: pageRotation });
+            
+            const tempCanvas = document.createElement('canvas');
+            tempCanvas.width = hiResViewport.width;
+            tempCanvas.height = hiResViewport.height;
+            const tempCtx = tempCanvas.getContext('2d', { willReadFrequently: true });
+            
+            tempCtx.fillStyle = '#FFFFFF';
+            tempCtx.fillRect(0, 0, tempCanvas.width, tempCanvas.height);
 
             const renderContext = {
-                canvasContext: ctx,
-                viewport: scaledViewport,
-                transform: [1, 0, 0, 1, xOffset, yOffset]
+                canvasContext: tempCtx,
+                viewport: hiResViewport
             };
 
             await page.render(renderContext).promise;
+            
+            const crop = getCropBounds(tempCtx, tempCanvas.width, tempCanvas.height);
+
+            ctx.fillStyle = '#FFFFFF';
+            ctx.fillRect(0, 0, targetWidth, targetHeight);
+            
+            const finalScale = Math.min(targetWidth / crop.w, targetHeight / crop.h);
+            const w = crop.w * finalScale;
+            const h = crop.h * finalScale;
+            const x = (targetWidth - w) / 2;
+            const y = (targetHeight - h) / 2;
+
+            ctx.drawImage(tempCanvas, crop.x, crop.y, crop.w, crop.h, x, y, w, h);
+
             applyDitheringAndPack(ctx, kmbBytes, offset, targetWidth, targetHeight, bytesPerRow);
 
             offset += bytesPerPage;
@@ -363,43 +492,7 @@ async function optimizeEPUB(file) {
             ctx.drawImage(bitmap, 0, 0, finalWidth, finalHeight);
 
             const imageData = ctx.getImageData(0, 0, finalWidth, finalHeight);
-            const data = imageData.data;
-
-            for (let i = 0; i < data.length; i += 4) {
-                const luma = (data[i] * 0.299) + (data[i + 1] * 0.587) + (data[i + 2] * 0.114);
-                data[i] = data[i + 1] = data[i + 2] = luma;
-            }
-
-            for (let py = 0; py < finalHeight; py++) {
-                for (let px = 0; px < finalWidth; px++) {
-                    const pIdx = (py * finalWidth + px) * 4;
-                    const oldPixel = data[pIdx];
-                    const newPixel = oldPixel < 128 ? 0 : 255;
-                    data[pIdx] = data[pIdx + 1] = data[pIdx + 2] = newPixel;
-                    const quantError = oldPixel - newPixel;
-
-                    if (px + 1 < finalWidth) {
-                        data[pIdx + 4] += quantError * (7 / 16);
-                        data[pIdx + 5] += quantError * (7 / 16);
-                        data[pIdx + 6] += quantError * (7 / 16);
-                    }
-                    if (py + 1 < finalHeight) {
-                        if (px - 1 >= 0) {
-                            data[pIdx + (finalWidth * 4) - 4] += quantError * (3 / 16);
-                            data[pIdx + (finalWidth * 4) - 3] += quantError * (3 / 16);
-                            data[pIdx + (finalWidth * 4) - 2] += quantError * (3 / 16);
-                        }
-                        data[pIdx + (finalWidth * 4)] += quantError * (5 / 16);
-                        data[pIdx + (finalWidth * 4) + 1] += quantError * (5 / 16);
-                        data[pIdx + (finalWidth * 4) + 2] += quantError * (5 / 16);
-                        if (px + 1 < finalWidth) {
-                            data[pIdx + (finalWidth * 4) + 4] += quantError * (1 / 16);
-                            data[pIdx + (finalWidth * 4) + 5] += quantError * (1 / 16);
-                            data[pIdx + (finalWidth * 4) + 6] += quantError * (1 / 16);
-                        }
-                    }
-                }
-            }
+            applyAtkinsonDithering(imageData, finalWidth, finalHeight);
             ctx.putImageData(imageData, 0, 0);
 
             const newImgBlob = await new Promise(resolve => canvas.toBlob(resolve, 'image/jpeg', 1.0));
@@ -489,7 +582,6 @@ img { max-width: 100%; height: auto; display: block; margin: 1em auto; }
         const bodyNode = xmlDoc.getElementsByTagNameNS("*", "body")[0]?.getElementsByTagNameNS("*", "text")[0];
         if (!bodyNode) throw new Error("Unable to locate document body in ODT.");
 
-        // Async recursive tree walker that explores nested sections, headings, paragraphs, and images
         async function extractTextRecursive(node) {
             if (!node || node.nodeType !== 1) return;
 
@@ -510,7 +602,6 @@ img { max-width: 100%; height: auto; display: block; margin: 1em auto; }
                     paragraphCount++;
                 }
             } else if (name === "p") {
-                // Extract and dither any images embedded in this paragraph FIRST
                 const drawImages = node.getElementsByTagNameNS("*", "image");
                 for (let i = 0; i < drawImages.length; i++) {
                     const imgEl = drawImages[i];
@@ -537,44 +628,7 @@ img { max-width: 100%; height: auto; display: block; margin: 1em auto; }
                         ctx.drawImage(bitmap, 0, 0, finalWidth, finalHeight);
 
                         const imgData = ctx.getImageData(0, 0, finalWidth, finalHeight);
-                        const data = imgData.data;
-
-                        // Floyd-Steinberg Dithering
-                        for (let p = 0; p < data.length; p += 4) {
-                            const luma = (data[p] * 0.299) + (data[p + 1] * 0.587) + (data[p + 2] * 0.114);
-                            data[p] = data[p + 1] = data[p + 2] = luma;
-                        }
-
-                        for (let py = 0; py < finalHeight; py++) {
-                            for (let px = 0; px < finalWidth; px++) {
-                                const pIdx = (py * finalWidth + px) * 4;
-                                const oldPixel = data[pIdx];
-                                const newPixel = oldPixel < 128 ? 0 : 255;
-                                data[pIdx] = data[pIdx + 1] = data[pIdx + 2] = newPixel;
-                                const err = oldPixel - newPixel;
-
-                                if (px + 1 < finalWidth) {
-                                    data[pIdx + 4] += err * (7 / 16);
-                                    data[pIdx + 5] += err * (7 / 16);
-                                    data[pIdx + 6] += err * (7 / 16);
-                                }
-                                if (py + 1 < finalHeight) {
-                                    if (px - 1 >= 0) {
-                                        data[pIdx + (finalWidth * 4) - 4] += err * (3 / 16);
-                                        data[pIdx + (finalWidth * 4) - 3] += err * (3 / 16);
-                                        data[pIdx + (finalWidth * 4) - 2] += err * (3 / 16);
-                                    }
-                                    data[pIdx + (finalWidth * 4)] += err * (5 / 16);
-                                    data[pIdx + (finalWidth * 4) + 1] += err * (5 / 16);
-                                    data[pIdx + (finalWidth * 4) + 2] += err * (5 / 16);
-                                    if (px + 1 < finalWidth) {
-                                        data[pIdx + (finalWidth * 4) + 4] += err * (1 / 16);
-                                        data[pIdx + (finalWidth * 4) + 5] += err * (1 / 16);
-                                        data[pIdx + (finalWidth * 4) + 6] += err * (1 / 16);
-                                    }
-                                }
-                            }
-                        }
+                        applyAtkinsonDithering(imgData, finalWidth, finalHeight);
                         ctx.putImageData(imgData, 0, 0);
 
                         const newJpgBlob = await new Promise(res => canvas.toBlob(res, "image/jpeg", 0.9));
@@ -589,7 +643,6 @@ img { max-width: 100%; height: auto; display: block; margin: 1em auto; }
                     }
                 }
 
-                // Add the paragraph text
                 const text = node.textContent.trim();
                 if (text.length > 0) {
                     currentXhtml += `<p>${escapeHtml(text)}</p>\n`;
@@ -706,41 +759,6 @@ ${navMapItems}  </navMap>
 
     } catch (err) {
         logMessage("ODT Conversion Error: " + err.message, true);
-    }
-}
-// Grayscale conversion, Floyd-Steinberg dithering and 1-bit MSB packing
-function applyDitheringAndPack(ctx, kmbBytes, offset, width, height, bytesPerRow) {
-    const imageData = ctx.getImageData(0, 0, width, height);
-    const pixels = imageData.data;
-
-    for (let i = 0; i < pixels.length; i += 4) {
-        const luma = (pixels[i] * 0.299) + (pixels[i + 1] * 0.587) + (pixels[i + 2] * 0.114);
-        pixels[i] = pixels[i + 1] = pixels[i + 2] = luma;
-    }
-
-    for (let py = 0; py < height; py++) {
-        for (let px = 0; px < width; px++) {
-            const pIdx = (py * width + px) * 4;
-            const oldPixel = pixels[pIdx];
-
-            const newPixel = oldPixel < 128 ? 0 : 255;
-            pixels[pIdx] = newPixel;
-
-            const quantError = oldPixel - newPixel;
-
-            if (newPixel === 0) {
-                const byteIdx = offset + (py * bytesPerRow) + Math.floor(px / 8);
-                const bitIdx = 7 - (px % 8);
-                kmbBytes[byteIdx] |= (1 << bitIdx);
-            }
-
-            if (px + 1 < width) pixels[pIdx + 4] += quantError * (7 / 16);
-            if (py + 1 < height) {
-                if (px - 1 >= 0) pixels[pIdx + (width * 4) - 4] += quantError * (3 / 16);
-                pixels[pIdx + (width * 4)] += quantError * (5 / 16);
-                if (px + 1 < width) pixels[pIdx + (width * 4) + 4] += quantError * (1 / 16);
-            }
-        }
     }
 }
 

@@ -715,7 +715,7 @@ void AppReader::drawReading() {
             _currentPageRenderValid = true;
         }
 
-        display.setFont(NULL);
+        display.setFont(&FreeSans9pt8b); // Or &FreeSansBold12pt8b
         display.setTextColor(GxEPD_BLACK);
         char footerText[40];
         if (_totalPages > 0) {

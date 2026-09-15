@@ -73,10 +73,10 @@ static int libraryItemsPerPage(int screenHeight) {
 }
 
 static LibraryDirtyRect unionLibraryRect(LibraryDirtyRect a, LibraryDirtyRect b) {
-    int x1 = min(a.x, b.x);
-    int y1 = min(a.y, b.y);
-    int x2 = max(a.x + a.w, b.x + b.w);
-    int y2 = max(a.y + a.h, b.y + b.h);
+    int x1 = std::min(a.x, b.x);
+    int y1 = std::min(a.y, b.y);
+    int x2 = std::max(a.x + a.w, b.x + b.w);
+    int y2 = std::max(a.y + a.h, b.y + b.h);
     return {x1, y1, x2 - x1, y2 - y1};
 }
 
@@ -124,6 +124,22 @@ void AppReader::scanBooks() {
             entry.hasCoverThumb = SystemFS.exists(thumbPath);
             entry.coverAttempted = entry.hasCoverThumb;
 
+            // Fast parsing of KMB metadata header for total pages
+            if (fileNameLower.endsWith(".kmb")) {
+                File kmbFile = EbookFS.open(entry.path, "r");
+                if (kmbFile) {
+                    char magic[5] = {0};
+                    kmbFile.readBytes(magic, 4);
+                    if (strcmp(magic, "KMB1") == 0) {
+                        kmbFile.seek(10);
+                        uint16_t pages = 0;
+                        kmbFile.read((uint8_t*)&pages, 2);
+                        entry.totalPages = pages;
+                    }
+                    kmbFile.close();
+                }
+            }
+
             _books.push_back(entry);
         }
         file.close();
@@ -145,7 +161,13 @@ void AppReader::scanBooks() {
                 b.hasProgress = true;
                 b.globalPage = p.globalPage;
             }
-            b.totalPages = PageCountStore::getInstance().get(b.originalName, _fontSizePt, _fontFamily);
+
+            // Only query PageCountStore for EPUBs, preserve extracted KMB count
+            String pathLower = b.path;
+            pathLower.toLowerCase();
+            if (!pathLower.endsWith(".kmb")) {
+                b.totalPages = PageCountStore::getInstance().get(b.originalName, _fontSizePt, _fontFamily);
+            }
         }
     }
 
@@ -218,7 +240,7 @@ void AppReader::drawLibrary() {
         _booksScanned = true;
     }
 
-    int maxOffset = max(0, (int)_books.size() - 1);
+    int maxOffset = std::max(0, (int)_books.size() - 1);
     if (_libraryScrollOffset > maxOffset) _libraryScrollOffset = 0;
     DisplayMgr& dispMgr = DisplayMgr::getInstance();
     KomaBonDisplay& display = dispMgr.getDisplay();
@@ -237,8 +259,8 @@ void AppReader::drawLibrary() {
                              libraryItemRect(_selectedBookIndex, _libraryScrollOffset, display.width()));
         LibraryDirtyRect footer = {18, display.height() - 48, display.width() - 36, 46};
         dirty = unionLibraryRect(dirty, footer);
-        dirty.x = max(0, dirty.x);
-        dirty.y = max(0, dirty.y);
+        dirty.x = std::max(0, dirty.x);
+        dirty.y = std::max(0, dirty.y);
         if (dirty.x + dirty.w > display.width()) dirty.w = display.width() - dirty.x;
         if (dirty.y + dirty.h > display.height()) dirty.h = display.height() - dirty.y;
         display.setPartialWindow(dirty.x, dirty.y, dirty.w, dirty.h);

@@ -9,13 +9,10 @@ static int g_jpegY = 0;
 static int drawJpegCallback(JPEGDRAW* pDraw) {
     if (!g_jpegDisplay) return 0;
 
-    // FIX: Properly calculate bytes per row for 1-bit packed image data.
-    // Adds +7 before dividing to round up, preventing severe buffer underruns.
     int bytesPerRow = (pDraw->iWidth + 7) / 8;
     int bufferSize = bytesPerRow * pDraw->iHeight;
 
     uint8_t* invertedPixels = (uint8_t*)malloc(bufferSize);
-    // Return 1 instead of 0 to allow decoder to safely continue even if memory fails
     if (!invertedPixels) return 1;
 
     uint8_t* src = (uint8_t*)pDraw->pPixels;
@@ -208,7 +205,10 @@ RenderResult TextRenderer::renderRichPageDynamic(KomaBonDisplay& display,
         if (node.type == CONTENT_TEXT) {
             int nodeLineHeight = 0;
             const GFXfont* font = getGFXFont(node.textNode.style, nodeLineHeight);
-            display.setFont(font);
+
+            if (draw) {
+                display.setFont(font);
+            }
 
             if (font != _lastGFXFont) {
                 for (int c = 32; c < 256; c++) {
@@ -317,7 +317,6 @@ RenderResult TextRenderer::renderRichPageDynamic(KomaBonDisplay& display,
                         currentX = x_margin;
                         segment_width = 0;
                         lineBuf[0] = '\0';
-
                         spaceWidth = 0;
                     }
 
@@ -361,6 +360,8 @@ RenderResult TextRenderer::renderRichPageDynamic(KomaBonDisplay& display,
                     line_width = 0;
                     currentX = x_margin;
                 }
+
+                // Allow watchdog to breathe during heavy text processing
                 yield();
             }
 
@@ -385,6 +386,7 @@ RenderResult TextRenderer::renderRichPageDynamic(KomaBonDisplay& display,
             } else if (node.textNode.style == STYLE_HEADER3) {
                 y += 10;
             }
+
         } else if (node.type == CONTENT_IMAGE) {
             if (_epubLoader) {
                 size_t imgSize = 0;
@@ -393,6 +395,7 @@ RenderResult TextRenderer::renderRichPageDynamic(KomaBonDisplay& display,
                 if (imgData) {
                     JPEGDEC* jpeg = new JPEGDEC();
 
+                    // Parse header to get dimensions regardless of draw flag
                     if (jpeg->openRAM(imgData, imgSize, drawJpegCallback)) {
                         int imgW = jpeg->getWidth();
                         int imgH = jpeg->getHeight();
@@ -439,24 +442,26 @@ RenderResult TextRenderer::renderRichPageDynamic(KomaBonDisplay& display,
                             return result;
                         }
 
-                        int alignedW = (actualW + 15) & ~15;
-                        int ditherBufferSize = alignedW * 16;
+                        // FAST PATH: Bypass PSRAM allocation and decoding if we are only calculating geometry
+                        if (draw) {
+                            int alignedW = (actualW + 15) & ~15;
+                            int ditherBufferSize = alignedW * 16;
 
-                        uint8_t* ditherBuffer = (uint8_t*)ps_malloc(ditherBufferSize);
-                        if (!ditherBuffer) ditherBuffer = (uint8_t*)malloc(ditherBufferSize);
+                            uint8_t* ditherBuffer = (uint8_t*)ps_malloc(ditherBufferSize);
+                            if (!ditherBuffer) ditherBuffer = (uint8_t*)malloc(ditherBufferSize);
 
-                        if (ditherBuffer) {
-                            g_jpegDisplay = &display;
-                            g_jpegX = (_width - actualW) / 2;
-                            if (g_jpegX < 0) g_jpegX = 0;
-                            g_jpegY = y;
+                            if (ditherBuffer) {
+                                g_jpegDisplay = &display;
+                                g_jpegX = (_width - actualW) / 2;
+                                if (g_jpegX < 0) g_jpegX = 0;
+                                g_jpegY = y;
 
-                            if (draw) {
                                 jpeg->decodeDither(ditherBuffer, scale);
+                                free(ditherBuffer);
                             }
-                            free(ditherBuffer);
                         }
 
+                        // Always advance Y coordinate geometry
                         y += actualH + 20;
                         jpeg->close();
                     } else {
