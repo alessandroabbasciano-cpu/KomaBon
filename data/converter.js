@@ -30,12 +30,12 @@ function getCropBounds(ctx, width, height) {
     const imageData = ctx.getImageData(0, 0, width, height);
     const data = imageData.data;
     let minX = width, minY = height, maxX = 0, maxY = 0;
-    
+
     for (let y = 0; y < height; y++) {
         for (let x = 0; x < width; x++) {
             const idx = (y * width + x) * 4;
             const luma = (data[idx] * 0.299) + (data[idx + 1] * 0.587) + (data[idx + 2] * 0.114);
-            
+
             if (luma < 245) {
                 if (x < minX) minX = x;
                 if (x > maxX) maxX = x;
@@ -44,17 +44,17 @@ function getCropBounds(ctx, width, height) {
             }
         }
     }
-    
+
     if (minX > maxX || minY > maxY) {
         return { x: 0, y: 0, w: width, h: height };
     }
-    
+
     const padding = 4;
     minX = Math.max(0, minX - padding);
     minY = Math.max(0, minY - padding);
     maxX = Math.min(width - 1, maxX + padding);
     maxY = Math.min(height - 1, maxY + padding);
-    
+
     return { x: minX, y: minY, w: maxX - minX + 1, h: maxY - minY + 1 };
 }
 
@@ -71,7 +71,7 @@ function applyAtkinsonDithering(imageData, width, height) {
             const pIdx = (py * width + px) * 4;
             const oldPixel = data[pIdx];
             const newPixel = oldPixel < 128 ? 0 : 255;
-            
+
             data[pIdx] = data[pIdx + 1] = data[pIdx + 2] = newPixel;
             const err = (oldPixel - newPixel) >> 3;
 
@@ -94,7 +94,7 @@ function applyAtkinsonDithering(imageData, width, height) {
                 data[pIdx + (width * 4)] += err;
                 data[pIdx + (width * 4) + 1] += err;
                 data[pIdx + (width * 4) + 2] += err;
-                
+
                 if (px + 1 < width) {
                     data[pIdx + (width * 4) + 4] += err;
                     data[pIdx + (width * 4) + 5] += err;
@@ -127,7 +127,6 @@ function applyDitheringAndPack(ctx, kmbBytes, offset, width, height, bytesPerRow
     }
 }
 
-// Generates a 1-bit `.raw` payload with a 4-byte header [W_lo, W_hi, H_lo, H_hi]
 async function createRawImageBlob(bitmap, maxWidth, maxHeight) {
     let scale = Math.min(maxWidth / bitmap.width, maxHeight / bitmap.height);
     if (scale > 1.0) scale = 1.0;
@@ -146,13 +145,11 @@ async function createRawImageBlob(bitmap, maxWidth, maxHeight) {
 
     const bytesPerRow = Math.ceil(finalWidth / 8);
     const payloadSize = bytesPerRow * finalHeight;
-    
-    // 4-byte Header + Image Data
+
     const buffer = new ArrayBuffer(4 + payloadSize);
     const view = new DataView(buffer);
     const bytes = new Uint8Array(buffer);
 
-    // Write dimensions (Little Endian)
     view.setUint16(0, finalWidth, true);
     view.setUint16(2, finalHeight, true);
 
@@ -161,32 +158,31 @@ async function createRawImageBlob(bitmap, maxWidth, maxHeight) {
     return new Blob([buffer], { type: 'application/octet-stream' });
 }
 
-// Generates exactly 640 bytes (60x80) for the library thumbnail
 async function createThumbBlob(bitmap) {
     const w = 60;
     const h = 80;
-    
+
     const canvas = document.createElement('canvas');
     canvas.width = w;
     canvas.height = h;
     const ctx = canvas.getContext('2d', { willReadFrequently: true });
-    
+
     ctx.fillStyle = '#FFFFFF';
     ctx.fillRect(0, 0, w, h);
-    
+
     const scale = Math.min(w / bitmap.width, h / bitmap.height);
     const drawW = bitmap.width * scale;
     const drawH = bitmap.height * scale;
     const drawX = (w - drawW) / 2;
     const drawY = (h - drawH) / 2;
-    
+
     ctx.drawImage(bitmap, drawX, drawY, drawW, drawH);
-    
+
     const buffer = new ArrayBuffer(640);
     const bytes = new Uint8Array(buffer);
-    
+
     applyDitheringAndPack(ctx, bytes, 0, w, h, Math.ceil(w / 8));
-    
+
     return new Blob([buffer], { type: 'application/octet-stream' });
 }
 
@@ -272,7 +268,6 @@ async function processInputFiles(droppedFiles = null) {
     fileInput.value = '';
 }
 
-// CBZ and ZIP comic converter (generates raw .kmb)
 async function processArchive(file) {
     const targetWidth = parseInt(document.getElementById('eink-width').value);
     const targetHeight = parseInt(document.getElementById('eink-height').value);
@@ -380,7 +375,6 @@ async function processArchive(file) {
     }
 }
 
-// Vector PDF parser (generates raw .kmb)
 async function processPDF(file) {
     const targetWidth = parseInt(document.getElementById('eink-width').value);
     const targetHeight = parseInt(document.getElementById('eink-height').value);
@@ -483,7 +477,7 @@ async function processPDF(file) {
     }
 }
 
-// EPUB Optimizer (Zero-Decoding Architecture: converts all images to .raw 1-bit)
+// EPUB Optimizer (Zero-Decoding Architecture with Smart Cover Detection)
 async function optimizeEPUB(file) {
     const targetWidth = parseInt(document.getElementById('eink-width').value);
     const targetHeight = parseInt(document.getElementById('eink-height').value);
@@ -500,6 +494,7 @@ async function optimizeEPUB(file) {
 
         let author = "Unknown";
         let title = "Unknown";
+        let coverHref = "";
 
         try {
             const containerXml = await zip.file("META-INF/container.xml").async("text");
@@ -508,6 +503,7 @@ async function optimizeEPUB(file) {
             const rootfiles = containerDoc.getElementsByTagNameNS("*", "rootfile");
             if (rootfiles.length > 0) {
                 const opfPath = rootfiles[0].getAttribute("full-path");
+                const opfDir = opfPath.includes('/') ? opfPath.substring(0, opfPath.lastIndexOf('/') + 1) : "";
                 const opfXml = await zip.file(opfPath).async("text");
                 const opfDoc = parser.parseFromString(opfXml, "application/xml");
 
@@ -516,9 +512,35 @@ async function optimizeEPUB(file) {
 
                 const titleNode = opfDoc.getElementsByTagNameNS("*", "title")[0];
                 if (titleNode) title = titleNode.textContent.trim();
+
+                // Smart Cover Detection from OPF manifest
+                let epub2CoverId = "";
+                const metaTags = opfDoc.getElementsByTagNameNS("*", "meta");
+                for (let i = 0; i < metaTags.length; i++) {
+                    if (metaTags[i].getAttribute("name") === "cover") {
+                        epub2CoverId = metaTags[i].getAttribute("content");
+                        break;
+                    }
+                }
+
+                const manifestItems = opfDoc.getElementsByTagNameNS("*", "item");
+                for (let i = 0; i < manifestItems.length; i++) {
+                    const item = manifestItems[i];
+                    const id = item.getAttribute("id");
+                    const href = item.getAttribute("href");
+                    const properties = item.getAttribute("properties");
+
+                    if (properties && properties.includes("cover-image")) {
+                        coverHref = opfDir + href;
+                        break;
+                    } else if (epub2CoverId && id === epub2CoverId) {
+                        coverHref = opfDir + href;
+                        break;
+                    }
+                }
             }
         } catch (e) {
-            console.warn("Metadata extraction failed", e);
+            console.warn("Metadata or cover detection from OPF failed", e);
         }
 
         author = author.replace(/-/g, " ").replace(/[^a-zA-Z0-9_\s]/gi, "").trim();
@@ -531,30 +553,41 @@ async function optimizeEPUB(file) {
         logMessage(`Resolved device filename: ${safeName}`);
 
         const imageFiles = Object.keys(zip.files).filter(name =>
-            name.match(/\.(jpg|jpeg|png|gif|webp)$/i)
+            name.match(/\.(jpg|jpeg|png|gif|webp)$/i) && !name.startsWith('__MACOSX')
         );
 
         logMessage(`Found ${imageFiles.length} images. Generating RAW buffers...`);
 
+        // Resolve cover file path if not found in OPF manifest via keywords
+        if (!coverHref || !zip.files[coverHref]) {
+            const lowerImages = imageFiles.map(f => ({ path: f, lower: f.toLowerCase() }));
+            const match = lowerImages.find(img =>
+                img.lower.includes("cover") || img.lower.includes("copertina") || img.lower.includes("front") || img.lower.includes("titlepage")
+            );
+            coverHref = match ? match.path : imageFiles[0]; // Absolute fallback to very first image
+        }
+
+        logMessage(`Selected cover image for thumbnail: ${coverHref}`);
+
+        // Generate and inject cover_thumb.raw using the REAL cover image
+        if (coverHref && zip.files[coverHref]) {
+            const coverData = await zip.file(coverHref).async("blob");
+            const coverBitmap = await createImageBitmap(coverData);
+            const thumbBlob = await createThumbBlob(coverBitmap);
+            zip.file("cover_thumb.raw", thumbBlob);
+            coverBitmap.close();
+            logMessage(`Accurate cover thumbnail successfully injected.`);
+        }
+
         const fileReplacements = {};
         let processed = 0;
-        let isFirstImage = true;
 
         for (let imgPath of imageFiles) {
             const imgData = await zip.file(imgPath).async("blob");
             const bitmap = await createImageBitmap(imgData);
 
-            // 1. Inject the Cover Thumbnail (exactly 640 bytes) directly into the zip root
-            if (isFirstImage) {
-                const thumbBlob = await createThumbBlob(bitmap);
-                zip.file("cover_thumb.raw", thumbBlob);
-                logMessage(`Cover thumbnail generated and injected.`);
-                isFirstImage = false;
-            }
-
-            // 2. Process image to 1-bit RAW with header
             const rawBlob = await createRawImageBlob(bitmap, targetWidth, targetHeight);
-            
+
             const newPath = imgPath.replace(/\.(jpg|jpeg|gif|png|webp)$/i, '.raw');
             if (newPath !== imgPath) {
                 zip.remove(imgPath);
@@ -567,7 +600,6 @@ async function optimizeEPUB(file) {
             progressBar.style.width = `${5 + (processed / imageFiles.length * 80)}%`;
         }
 
-        // --- Rewriting internal HTML/OPF references ---
         if (Object.keys(fileReplacements).length > 0) {
             logMessage(`Updating internal EPUB references to .raw format...`);
             const textFiles = Object.keys(zip.files).filter(name => name.match(/\.(html|xhtml|opf|ncx)$/i));
@@ -586,7 +618,6 @@ async function optimizeEPUB(file) {
                 }
 
                 if (changed) {
-                    // Update media-types for compatibility, even though it's raw binary
                     content = content.replace(/media-type="image\/(jpeg|png|gif)"/gi, 'media-type="application/octet-stream"');
                     zip.file(path, content);
                 }
@@ -610,7 +641,6 @@ async function optimizeEPUB(file) {
     }
 }
 
-// Convert OpenDocument Text (.odt) to Zero-Decoding EPUB
 async function convertODTtoEPUB(file) {
     const targetWidth = parseInt(document.getElementById('eink-width').value);
     const targetHeight = parseInt(document.getElementById('eink-height').value);
@@ -833,14 +863,13 @@ ${navMapItems}  </navMap>
     }
 }
 
-// Multipart upload transmission engine
 function uploadKMB(blob, filename, bar) {
     return new Promise((resolve, reject) => {
         const xhr = new XMLHttpRequest();
         const formData = new FormData();
         formData.append('file', blob, filename);
 
-        logMessage(`Starting transmission of ${filename} to KomaBon...`);
+        logMessage(`Standard transmission of ${filename} to KomaBon...`);
 
         xhr.upload.onprogress = e => {
             if (e.lengthComputable) {

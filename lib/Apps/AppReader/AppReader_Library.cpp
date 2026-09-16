@@ -300,12 +300,10 @@ void AppReader::drawLibrary() {
         bool backSelected = (_selectedBookIndex == -1);
         if (backSelected) {
             display.fillRect(14, y + 5, 4, BACK_ITEM_HEIGHT - 10, GxEPD_BLACK);
-            display.drawRoundRect(10, y + 2, display.width() - 20, BACK_ITEM_HEIGHT - 4, 5, GxEPD_BLACK);
         }
         drawTextWithFont(display, "<  Back to Menu", ITEM_PADDING + 10, y + 28,
                          backSelected ? &FreeSansBold12pt8b : &FreeSans12pt8b, GxEPD_BLACK);
-        display.drawFastHLine(ITEM_PADDING, y + BACK_ITEM_HEIGHT - 1, display.width() - (ITEM_PADDING * 2),
-                              GxEPD_BLACK);
+        // Removed horizontal divider under Back to Menu
         y += BACK_ITEM_HEIGHT;
 
         if (_books.empty()) {
@@ -320,11 +318,8 @@ void AppReader::drawLibrary() {
                 bool isSelected = ((int)idx == _selectedBookIndex);
                 if (isSelected) {
                     display.fillRect(14, y + 6, 4, ITEM_HEIGHT - 12, GxEPD_BLACK);
-                    display.drawRoundRect(10, y + 2, display.width() - 20, ITEM_HEIGHT - 4, 5, GxEPD_BLACK);
-                } else {
-                    display.drawFastHLine(ITEM_PADDING, y + ITEM_HEIGHT - 1,
-                                          display.width() - (ITEM_PADDING * 2), GxEPD_BLACK);
                 }
+                // Removed horizontal divider (drawFastHLine) between book items
 
                 int coverW = COVER_WIDTH;
                 int coverH = COVER_HEIGHT;
@@ -338,10 +333,14 @@ void AppReader::drawLibrary() {
 
                 drawBookTile(display, book, coverX, coverY, coverW, coverH, isSelected, tData);
 
-                // --- TWO-LINE AUTHOR / TITLE LAYOUT ---
+                // --- TWO-LINE AUTHOR & WRAPPED TITLE LAYOUT ---
                 uint16_t textColor = GxEPD_BLACK;
                 String title = book.title;
                 int textX = ITEM_PADDING + COVER_WIDTH + 24;
+
+                // Define safe horizontal width to prevent collision with progress bar
+                int barX = display.width() - 125;
+                int maxTextWidth = barX - textX - 10;
 
                 int dashPos = title.indexOf(" - ");
                 String author = "";
@@ -353,23 +352,53 @@ void AppReader::drawLibrary() {
                 }
 
                 if (author.length() > 36) author = author.substring(0, 33) + "...";
-                if (bookName.length() > 36) bookName = bookName.substring(0, 33) + "...";
-
                 if (dashPos != -1) {
-                    drawTextWithFont(display, author.c_str(), textX, y + 32, &FreeSans9pt8b, textColor);
-                    drawTextWithFont(display, bookName.c_str(), textX, y + 62, &FreeSansBold12pt8b,
-                                     textColor);
-                } else {
-                    drawTextWithFont(display, bookName.c_str(), textX, y + 50, &FreeSansBold12pt8b,
-                                     textColor);
+                    drawTextWithFont(display, author.c_str(), textX, y + 26, &FreeSans9pt8b, textColor);
                 }
 
-                // --- VECTOR PROGRESS BAR ---
+                const GFXfont* titleFont = &FreeSansBold12pt8b;
+                int currentLineY = dashPos != -1 ? (y + 52) : (y + 42);
+                int lineHeight = 22;
+                int maxLines = 2;
+                int lineCount = 0;
+
+                String currentLine = "";
+                int pos = 0;
+                int bookNameLen = bookName.length();
+
+                while (pos < bookNameLen && lineCount < maxLines) {
+                    int nextSpace = bookName.indexOf(' ', pos);
+                    if (nextSpace == -1) nextSpace = bookNameLen;
+                    String word = bookName.substring(pos, nextSpace);
+                    String testLine = currentLine.length() > 0 ? currentLine + " " + word : word;
+
+                    if (textWidthForFont(display, testLine.c_str(), titleFont) > maxTextWidth &&
+                        currentLine.length() > 0) {
+                        drawTextWithFont(display, currentLine.c_str(), textX, currentLineY, titleFont,
+                                         textColor);
+                        currentLineY += lineHeight;
+                        lineCount++;
+                        currentLine = word;
+                        if (lineCount >= maxLines) break;
+                    } else {
+                        currentLine = testLine;
+                    }
+                    pos = nextSpace + 1;
+                    if (pos > bookNameLen) break;
+                }
+
+                if (currentLine.length() > 0 && lineCount < maxLines) {
+                    if (pos < bookNameLen && currentLine.length() > 3) {
+                        currentLine = currentLine.substring(0, currentLine.length() - 3) + "...";
+                    }
+                    drawTextWithFont(display, currentLine.c_str(), textX, currentLineY, titleFont, textColor);
+                }
+
+                // --- VECTOR PROGRESS BAR & TOTAL PAGES INFO ---
                 if (book.hasProgress) {
-                    int barX = display.width() - 115;
                     int barY = y + (ITEM_HEIGHT / 2) - 4;
-                    int barW = 90;
-                    int barH = 8;
+                    int barW = 95;
+                    int barH = 6;
 
                     display.drawRect(barX, barY, barW, barH, GxEPD_BLACK);
                     if (book.totalPages > 0) {
@@ -379,9 +408,9 @@ void AppReader::drawLibrary() {
                         if (fillW > 0) {
                             display.fillRect(barX + 1, barY + 1, fillW, barH - 2, GxEPD_BLACK);
                         }
-                        char percStr[16];
-                        snprintf(percStr, sizeof(percStr), "%d%%", (int)(progress * 100));
-                        drawTextWithFont(display, percStr, barX, barY - 12, &FreeSans9pt8b, textColor);
+                        char infoStr[24];
+                        snprintf(infoStr, sizeof(infoStr), "%d / %d", book.globalPage, book.totalPages);
+                        drawTextWithFont(display, infoStr, barX, barY - 12, &FreeSans9pt8b, textColor);
                     } else {
                         char pageStr[16];
                         snprintf(pageStr, sizeof(pageStr), "p. %d", book.globalPage);

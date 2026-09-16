@@ -5,8 +5,13 @@
 #include "../KomaBon_Core/BatteryMgr.h"
 #include "../KomaBon_Core/InputMgr.h"
 #include "../KomaBon_Core/FontMgr.h"
+#include "../KomaBon_Core/BookMeta.h"
 #include "../Book32_Web/WebMgr.h"
 #include "../KomaBon_Core/DeviceCred.h"
+#include "../KomaBon_Core/KomaBonFS.h"
+#include "../Apps/AppReader/AppReader.h"
+#include "../Apps/AppReader/EpubLoader.h"
+#include "../Apps/AppReader/KBReader.h"
 #include "../../include/Config.h"
 #include "../../include/NetworkState.h"
 #include <WiFi.h>
@@ -20,16 +25,16 @@ struct MenuDirtyRect {
     int h;
 };
 
-// Dynamic bounds calculation for partial E-ink refresh
+// Dynamic bounds calculation for partial E-ink refresh (Hero Card + Shifted App List)
 static MenuDirtyRect menuItemRect(int index, int screenW) {
     if (index == 0) {
-        // Widget "Currently Reading" bounds
-        return {10, 50, screenW - 20, 110};
+        // Widget "Currently Reading" bounds (Height 165)
+        return {10, 50, screenW - 20, 175};
     }
 
-    // Vertical List App bounds
+    // Vertical List App bounds (Shifted down to START_Y = 230)
     const int ROW_HEIGHT = 75;
-    const int START_Y = 175;
+    const int START_Y = 230;
     int idx = index - 1;
     int y = START_Y + idx * ROW_HEIGHT;
     return {10, y - 5, screenW - 20, ROW_HEIGHT + 10};
@@ -41,6 +46,24 @@ static MenuDirtyRect unionRect(MenuDirtyRect a, MenuDirtyRect b) {
     int x2 = std::max(a.x + a.w, b.x + b.w);
     int y2 = std::max(a.y + a.h, b.y + b.h);
     return {x1, y1, x2 - x1, y2 - y1};
+}
+
+static int textWidthForFont(KomaBonDisplay& display, const char* text, const GFXfont* font) {
+    int16_t x1, y1;
+    uint16_t w, h;
+    display.setFont(font);
+    display.setTextSize(1);
+    display.getTextBounds(text, 0, 0, &x1, &y1, &w, &h);
+    return w;
+}
+
+static void drawTextWithFont(KomaBonDisplay& display, const char* text, int x, int y, const GFXfont* font,
+                             uint16_t color) {
+    display.setFont(font);
+    display.setTextColor(color);
+    display.setTextSize(1);
+    display.setCursor(x, y);
+    display.print(text);
 }
 
 static bool isReaderActive() {
@@ -140,7 +163,6 @@ void AppMainMenu::handleInput(InputAction action) {
     int minSelectable = _hasResume ? 0 : 1;
     int maxSelectable = apps.size() - 1 + (_updateAvailable ? 1 : 0);
 
-    // FIX: Using strictly defined logical inputs mapping to the physical joystick
     if (action == INPUT_NEXT || action == INPUT_RIGHT) {
         selectedIndex++;
         if (selectedIndex > maxSelectable) selectedIndex = minSelectable;
@@ -153,7 +175,13 @@ void AppMainMenu::handleInput(InputAction action) {
         _needsRedraw = true;
     } else if (action == INPUT_SELECT) {
         if (selectedIndex == 0 && _hasResume) {
-            // Signal the eReader to auto-resume, then switch to it (Index 1)
+            // Direct resume using static_cast (fully compatible with -fno-rtti)
+            for (App* app : apps) {
+                if (app && strcmp(app->getName(), "Bookshelf") == 0) {
+                    AppReader* reader = static_cast<AppReader*>(app);
+                    reader->resumeSavedBookOnStart();
+                }
+            }
             ProgressStore::getInstance().setResumeOnBoot(true);
             appMgr.switchTo(1);
         } else if (_updateAvailable && selectedIndex == (int)apps.size()) {
@@ -262,15 +290,14 @@ void AppMainMenu::draw() {
         snprintf(versionStr, sizeof(versionStr), " v%s", SYSTEM_VERSION);
         fontMgr.drawText(display, versionStr, 15 + komaBonWidth, 35, FONT_SIZE_SMALL, GxEPD_BLACK);
 
-        // Fixed Synchronous Battery Drawing
         BatteryMgr::getInstance().drawStatusBar(display, 0, 0);
 
-        // --- 2. WIDGET: CURRENTLY READING ---
+        // --- 2. WIDGET: CURRENTLY READING (Hero Card & Cover Resolution) ---
         if (_hasResume) {
             int wx = 15;
-            int wy = 55;
+            int wy = 50;
             int ww = screenW - 30;
-            int wh = 100;
+            int wh = 165;
 
             uint16_t fgColor = (selectedIndex == 0) ? GxEPD_WHITE : GxEPD_BLACK;
             uint16_t bgColor = (selectedIndex == 0) ? GxEPD_BLACK : GxEPD_WHITE;
@@ -281,20 +308,169 @@ void AppMainMenu::draw() {
                 display.drawRect(wx + 1, wy + 1, ww - 2, wh - 2, GxEPD_BLACK);
             }
 
-            fontMgr.drawText(display, "Currently Reading", wx + 20, wy + 35, FONT_SIZE_SMALL, fgColor);
+            drawTextWithFont(display, "Currently Reading", wx + 18, wy + 24, &FreeSans9pt8b, fgColor);
 
-            // Truncate title if too long to fit widget width
-            String safeTitle = _lastBookTitle;
-            if (safeTitle.length() > 35) safeTitle = safeTitle.substring(0, 32) + "...";
-            fontMgr.drawText(display, safeTitle.c_str(), wx + 20, wy + 65, FONT_SIZE_BODY, fgColor);
+            String realFilename = findFilenameForOriginal(_lastBookTitle);
+            if (realFilename.length() == 0) realFilename = _lastBookTitle;
 
-            String pageStr = "Page " + String(_lastBookPage);
-            fontMgr.drawText(display, pageStr.c_str(), wx + 20, wy + 85, FONT_SIZE_SMALL, fgColor);
+            String baseName = realFilename;
+            int dot = baseName.lastIndexOf('.');
+            if (dot > 0) baseName = baseName.substring(0, dot);
+            String thumbPath = "/covers/" + baseName + ".thumb";
+
+            if (!SystemFS.exists(thumbPath)) {
+                if (!SystemFS.exists("/covers")) SystemFS.mkdir("/covers");
+                if (realFilename.endsWith(".kmb")) {
+                    KBReader* kb = new KBReader();
+                    if (kb->open(("/ebooks/" + realFilename).c_str()) || kb->open(realFilename.c_str())) {
+                        uint16_t w = kb->getWidth();
+                        uint16_t h = kb->getHeight();
+                        size_t bufSize = (w + 7) / 8 * h;
+                        uint8_t* pageBuf = (uint8_t*)ps_malloc(bufSize);
+                        if (pageBuf && kb->readPage(0, pageBuf)) {
+                            uint8_t thumb[640] = {0};
+                            for (int ty = 0; ty < 80; ty++) {
+                                int sy = ty * h / 80;
+                                for (int tx = 0; tx < 60; tx++) {
+                                    int sx = tx * w / 60;
+                                    int srcByte = sy * ((w + 7) / 8) + (sx / 8);
+                                    int srcBit = 7 - (sx % 8);
+                                    bool isBlack = (pageBuf[srcByte] & (1 << srcBit)) != 0;
+                                    if (isBlack) {
+                                        int dstByte = ty * 8 + (tx / 8);
+                                        int dstBit = 7 - (tx % 8);
+                                        thumb[dstByte] |= (1 << dstBit);
+                                    }
+                                }
+                            }
+                            File f = SystemFS.open(thumbPath, "w");
+                            if (f) {
+                                f.write(thumb, 640);
+                                f.close();
+                            }
+                        }
+                        if (pageBuf) free(pageBuf);
+                    }
+                    delete kb;
+                } else {
+                    EpubLoader* epub = new EpubLoader();
+                    if (epub->open(("/ebooks/" + realFilename).c_str()) || epub->open(realFilename.c_str())) {
+                        size_t thumbSize = 0;
+                        uint8_t* thumbData = epub->getFontData("cover_thumb.raw", &thumbSize);
+                        if (thumbData && thumbSize == 640) {
+                            File f = SystemFS.open(thumbPath, "w");
+                            if (f) {
+                                f.write(thumbData, 640);
+                                f.close();
+                            }
+                        }
+                        if (thumbData) free(thumbData);
+                    }
+                    delete epub;
+                }
+            }
+
+            int coverX = wx + 18;
+            int coverY = wy + 34;
+            int coverW = 60 * 2;
+            int coverH = 80 * 2;
+
+            bool coverDrawn = false;
+            if (SystemFS.exists(thumbPath)) {
+                File f = SystemFS.open(thumbPath, "r");
+                if (f) {
+                    uint8_t thumbBuf[640];
+                    if (f.read(thumbBuf, 640) == 640) {
+                        coverDrawn = true;
+                        for (int ty = 0; ty < coverH && (coverY + ty) < (wy + wh - 8); ty++) {
+                            int sy = ty / 2;
+                            if (sy >= 80) break;
+                            for (int tx = 0; tx < coverW; tx++) {
+                                int sx = tx / 2;
+                                if (sx >= 60) break;
+                                int srcByte = sy * 8 + (sx / 8);
+                                int srcBit = 7 - (sx % 8);
+                                if (thumbBuf[srcByte] & (1 << srcBit)) {
+                                    display.drawPixel(coverX + tx, coverY + ty, fgColor);
+                                }
+                            }
+                        }
+                    }
+                    f.close();
+                }
+            }
+
+            if (!coverDrawn) {
+                display.drawRect(coverX, coverY, coverW, coverH, fgColor);
+                drawTextWithFont(display, "No Cover", coverX + 22, coverY + 75, &FreeSans9pt8b, fgColor);
+            }
+
+            int textX = coverX + coverW + 25;
+            int textMaxWidth = wx + ww - textX - 20;
+
+            String cleanTitle = _lastBookTitle;
+            if (cleanTitle.lastIndexOf('.') > 0) {
+                cleanTitle = cleanTitle.substring(0, cleanTitle.lastIndexOf('.'));
+            }
+            cleanTitle.replace('_', ' ');
+
+            int dashPos = cleanTitle.indexOf(" - ");
+            String author = "";
+            String bookName = cleanTitle;
+
+            if (dashPos != -1) {
+                author = cleanTitle.substring(0, dashPos);
+                bookName = cleanTitle.substring(dashPos + 3);
+            }
+
+            if (author.length() > 38) author = author.substring(0, 35) + "...";
+            if (dashPos != -1) {
+                drawTextWithFont(display, author.c_str(), textX, wy + 55, &FreeSans9pt8b, fgColor);
+            }
+
+            const GFXfont* titleFont = &FreeSansBold12pt8b;
+            int titleY = dashPos != -1 ? (wy + 85) : (wy + 70);
+            int maxLines = 2;
+            int lineCount = 0;
+            String currentLine = "";
+            int pos = 0;
+            int bookNameLen = bookName.length();
+
+            while (pos < bookNameLen && lineCount < maxLines) {
+                int nextSpace = bookName.indexOf(' ', pos);
+                if (nextSpace == -1) nextSpace = bookNameLen;
+                String word = bookName.substring(pos, nextSpace);
+                String testLine = currentLine.length() > 0 ? currentLine + " " + word : word;
+
+                if (textWidthForFont(display, testLine.c_str(), titleFont) > textMaxWidth &&
+                    currentLine.length() > 0) {
+                    drawTextWithFont(display, currentLine.c_str(), textX, titleY, titleFont, fgColor);
+                    titleY += 26;
+                    lineCount++;
+                    currentLine = word;
+                    if (lineCount >= maxLines) break;
+                } else {
+                    currentLine = testLine;
+                }
+                pos = nextSpace + 1;
+                if (pos > bookNameLen) break;
+            }
+
+            if (currentLine.length() > 0 && lineCount < maxLines) {
+                if (pos < bookNameLen && currentLine.length() > 3) {
+                    currentLine = currentLine.substring(0, currentLine.length() - 3) + "...";
+                }
+                drawTextWithFont(display, currentLine.c_str(), textX, titleY, titleFont, fgColor);
+            }
+
+            char pageInfo[32];
+            snprintf(pageInfo, sizeof(pageInfo), "Page %d", _lastBookPage);
+            drawTextWithFont(display, pageInfo, textX, wy + 142, &FreeSans9pt8b, fgColor);
         }
 
         // --- 3. VERTICAL LIST APPS ---
         const int ROW_HEIGHT = 75;
-        const int START_Y = 175;
+        const int START_Y = 230;
 
         for (size_t i = 1; i < apps.size(); i++) {
             App* app = apps[i];
@@ -305,12 +481,10 @@ void AppMainMenu::draw() {
             uint16_t fgColor = ((int)i == selectedIndex) ? GxEPD_WHITE : GxEPD_BLACK;
             uint16_t bgColor = ((int)i == selectedIndex) ? GxEPD_BLACK : GxEPD_WHITE;
 
-            // Highlight Background
             if ((int)i == selectedIndex) {
                 display.fillRect(15, y - 5, screenW - 30, ROW_HEIGHT, bgColor);
             }
 
-            // Real-Time Nearest-Neighbor Downscaling (160x160 -> 64x64)
             const uint8_t* icon = app->getIconImage();
             int iconSize = 64;
 
@@ -322,19 +496,16 @@ void AppMainMenu::draw() {
                         int byteIdx = (srcY * 160 + srcX) / 8;
                         int bitIdx = 7 - ((srcY * 160 + srcX) % 8);
 
-                        // Extract bit and draw if it's foreground
                         if (icon[byteIdx] & (1 << bitIdx)) {
                             display.drawPixel(x + cx, y + cy, fgColor);
                         }
                     }
                 }
             } else {
-                // Fallback placeholder box
                 display.drawRect(x, y, iconSize, iconSize, fgColor);
             }
 
-            // App Name Text aligned to the right of the icon
-            int textY = y + (iconSize / 2) + 8; // Vertically centered
+            int textY = y + (iconSize / 2) + 8;
             fontMgr.drawText(display, app->getName(), x + iconSize + 25, textY, FONT_SIZE_BODY, fgColor);
         }
 
@@ -352,7 +523,6 @@ void AppMainMenu::draw() {
                 display.fillRect(15, y - 5, screenW - 30, ROW_HEIGHT, bgColor);
             }
 
-            // Downscale OTA Icon
             int iconSize = 64;
             for (int cy = 0; cy < iconSize; cy++) {
                 int srcY = (cy * 160) / iconSize;
