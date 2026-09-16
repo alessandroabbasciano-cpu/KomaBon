@@ -26,8 +26,7 @@ static int voltageToPercentage(float voltage) {
 BatteryMgr::BatteryMgr()
     : _lastReadTime(0), _historyIndex(0), _lastHistoryUpdate(0), _previousVoltage(0.0f),
       _sleepTimeoutMinutes(0), _sleepMessage("Press button to wake"), _lastActivityTime(0),
-      _lastDisplayedCharging(false), _lastIndicatorUpdate(0), _lastValidVoltage(0.0f), _criticalCount(0),
-      _lastChargingTime(0) {
+      _lastValidVoltage(0.0f), _criticalCount(0), _lastChargingTime(0) {
     _cachedStatus = {0.0f, 0, false};
     for (int i = 0; i < 5; i++) {
         _voltageHistory[i] = 0.0f;
@@ -361,50 +360,4 @@ void BatteryMgr::drawStatusBar(KomaBonDisplay& display, int startX, int startY) 
     display.setCursor(cx, cy + 13);
     display.printf("%d%%", percentage);
     if (currentCharging) display.print("+");
-}
-
-void BatteryMgr::drawStatusIndicator() {
-    static unsigned long lastIndicatorDrawTime = 0;
-    unsigned long now = millis();
-
-    if (lastIndicatorDrawTime > 0 && (now - lastIndicatorDrawTime < 60000)) {
-        return;
-    }
-
-    bool currentCharging;
-    bool currentWifi = (WiFi.status() == WL_CONNECTED);
-    bool currentSd = SDMgr::getInstance().isMounted();
-
-    {
-        Book32Guard guard(_mutex);
-        currentCharging = _cachedStatus.charging;
-
-        if (currentCharging == _lastDisplayedCharging && currentWifi == _lastDisplayedWifi &&
-            currentSd == _lastDisplayedSd) {
-            return;
-        }
-    }
-
-    KomaBonDisplay& display = DisplayMgr::getInstance().getDisplay();
-
-    // Adjusted partial refresh boundary to match the tighter layout
-    const int INDICATOR_WIDTH = 110;
-    const int INDICATOR_HEIGHT = 20;
-    const int INDICATOR_X = display.width() - INDICATOR_WIDTH - 4;
-    const int INDICATOR_Y = 2; // Clean close to the top edge
-
-    display.setPartialWindow(INDICATOR_X, INDICATOR_Y, INDICATOR_WIDTH, INDICATOR_HEIGHT);
-    display.firstPage();
-    do {
-        display.fillScreen(GxEPD_WHITE);
-        drawStatusBar(display, 0, 0);
-    } while (display.nextPage());
-
-    {
-        Book32Guard guard(_mutex);
-        _lastDisplayedCharging = currentCharging;
-        _lastDisplayedWifi = currentWifi;
-        _lastDisplayedSd = currentSd;
-        lastIndicatorDrawTime = millis();
-    }
 }

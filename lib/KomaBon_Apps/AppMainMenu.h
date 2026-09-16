@@ -3,6 +3,7 @@
 #include "../KomaBon_Core/InputMgr.h"
 #include "../KomaBon_Core/BatteryMgr.h"
 #include "../KomaBon_Core/Lock.h"
+#include "../KomaBon_Core/ProgressStore.h"
 
 class AppMainMenu : public App {
   public:
@@ -18,19 +19,18 @@ class AppMainMenu : public App {
 
     void handleInput(InputAction action);
 
-    // Offline management hotspot (SoftAP). Public so the WiFi wake task can
-    // trigger it when a station connection can't be established.
     void startHotspot();
     void stopHotspot();
 
   private:
-    int selectedIndex = 0;
+    int selectedIndex = 1;
     bool _needsRedraw = false;
     bool _firstDraw = true;
     bool _selectionOnlyRedraw = false;
     bool _batteryOnlyRedraw = false;
     bool _footerOnlyRedraw = false;
     int _previousSelectedIndex = 1;
+
     bool _lastWifiConnected = false;
     bool _wifiStarting = false;
     String _lastIp = "";
@@ -40,10 +40,12 @@ class AppMainMenu : public App {
     unsigned long _lastBatteryPoll = 0;
     BatteryStatus _lastBatteryStatus = {0.0f, -1, false};
 
-    // Update Notification.
-    // Written by the updateCheckTask task and read by draw() in the main loop.
-    // _updateVersion is a String: a write in the middle of a read would change
-    // the pointer underneath the reader, not just an outdated value. See Lock.h.
+    // Widget State
+    bool _hasResume = false;
+    String _lastBookTitle = "";
+    int _lastBookPage = 0;
+    void loadResumeData();
+
     Book32Mutex _updateMutex;
     bool _updateAvailable = false;
     String _updateVersion = "";

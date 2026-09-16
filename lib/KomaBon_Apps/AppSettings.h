@@ -34,14 +34,12 @@ class AppSettings : public App {
     void saveDraftIfDirty();
 
   private:
-    // Moved here so both CPP files can share the layout definitions
     enum SettingsRow {
         ROW_FONT_SIZE = 0,
         ROW_FONT_FAMILY,
         ROW_ROTATION,
         ROW_REFRESH,
         ROW_SLEEP,
-        ROW_WIFI,
         ROW_NETWORK,
         ROW_SYSTEM,
         ROW_JOYSTICK,
@@ -81,11 +79,8 @@ class AppSettings : public App {
     void recomputeDirty();
     void setStatus(const String& msg, unsigned long durationMs = 2500);
 
-    void toggleWifi();
-    bool isWifiOn() const;
     void forgetNetwork();
 
-    // UI Rendering declarations (Implemented in AppSettings_UI.cpp)
     void drawMainScreen();
     void drawFontScreen();
     void drawNetworkScreen();

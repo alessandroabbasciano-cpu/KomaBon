@@ -103,24 +103,6 @@ void AppSettings::setStatus(const String& msg, unsigned long durationMs) {
     _needsRedraw = true;
 }
 
-bool AppSettings::isWifiOn() const {
-    wifi_mode_t mode = WiFi.getMode();
-    return mode != WIFI_OFF && mode != WIFI_MODE_NULL;
-}
-
-void AppSettings::toggleWifi() {
-    if (isWifiOn()) {
-        WebMgr::getInstance().stopNetwork();
-        WiFi.disconnect(false);
-        WiFi.mode(WIFI_OFF);
-        setStatus("Wi-Fi off");
-    } else {
-        WebMgr::getInstance().startNetwork();
-        String statusMsg = "AP: " + String(AP_SSID) + " | Pwd: " + WebMgr::devicePassword();
-        setStatus(statusMsg.c_str(), 4000);
-    }
-}
-
 void AppSettings::forgetNetwork() {
     saveDraftIfDirty();
     setStatus("Forgetting network...", 1000);
@@ -159,9 +141,6 @@ void AppSettings::cycleValue(int index, bool forward) {
             _sleep.timeout = forward ? cycleIntForward(SLEEP_TIMEOUTS, 5, _sleep.timeout)
                                      : cycleIntBackward(SLEEP_TIMEOUTS, 5, _sleep.timeout);
             break;
-        case ROW_WIFI:
-            toggleWifi();
-            return;
         default:
             return;
     }
@@ -411,7 +390,7 @@ void AppSettings::update() {
         if (digitalRead(PIN_BUTTON_BACK) == LOW) {
             Serial.println("AppSettings: Calibration aborted via physical button.");
 
-            if (!EbookFS.exists("/joy_cal.json")) {
+            if (!SystemFS.exists("/joy_cal.json")) {
                 Serial.println("AppSettings: No calibration found. Saving defaults.");
                 JoystickMgr::getInstance().saveCalibration(0, 3350, 1250, 2650, 1950);
             }

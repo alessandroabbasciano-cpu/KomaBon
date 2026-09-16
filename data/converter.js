@@ -26,7 +26,6 @@ function logMessage(msg, isError = false) {
 
 // --- Image Processing Core ---
 
-// Analyzes the canvas to find the actual bounding box of the drawn content, ignoring pure white borders
 function getCropBounds(ctx, width, height) {
     const imageData = ctx.getImageData(0, 0, width, height);
     const data = imageData.data;
@@ -37,7 +36,7 @@ function getCropBounds(ctx, width, height) {
             const idx = (y * width + x) * 4;
             const luma = (data[idx] * 0.299) + (data[idx + 1] * 0.587) + (data[idx + 2] * 0.114);
             
-            if (luma < 245) { // Threshold allows detection despite scan impurities
+            if (luma < 245) {
                 if (x < minX) minX = x;
                 if (x > maxX) maxX = x;
                 if (y < minY) minY = y;
@@ -59,7 +58,6 @@ function getCropBounds(ctx, width, height) {
     return { x: minX, y: minY, w: maxX - minX + 1, h: maxY - minY + 1 };
 }
 
-// Atkinson Dithering algorithm (distributes 75% of error for higher contrast on 1-bit displays)
 function applyAtkinsonDithering(imageData, width, height) {
     const data = imageData.data;
 
@@ -75,8 +73,6 @@ function applyAtkinsonDithering(imageData, width, height) {
             const newPixel = oldPixel < 128 ? 0 : 255;
             
             data[pIdx] = data[pIdx + 1] = data[pIdx + 2] = newPixel;
-            
-            // Distribute 1/8th of error to 6 neighbors
             const err = (oldPixel - newPixel) >> 3;
 
             if (px + 1 < width) {
@@ -114,7 +110,6 @@ function applyAtkinsonDithering(imageData, width, height) {
     }
 }
 
-// Converts a processed canvas into a 1-bit MSB packed binary payload for .kmb files
 function applyDitheringAndPack(ctx, kmbBytes, offset, width, height, bytesPerRow) {
     const imageData = ctx.getImageData(0, 0, width, height);
     applyAtkinsonDithering(imageData, width, height);
@@ -132,6 +127,68 @@ function applyDitheringAndPack(ctx, kmbBytes, offset, width, height, bytesPerRow
     }
 }
 
+// Generates a 1-bit `.raw` payload with a 4-byte header [W_lo, W_hi, H_lo, H_hi]
+async function createRawImageBlob(bitmap, maxWidth, maxHeight) {
+    let scale = Math.min(maxWidth / bitmap.width, maxHeight / bitmap.height);
+    if (scale > 1.0) scale = 1.0;
+
+    const finalWidth = Math.round(bitmap.width * scale);
+    const finalHeight = Math.round(bitmap.height * scale);
+
+    const canvas = document.createElement('canvas');
+    canvas.width = finalWidth;
+    canvas.height = finalHeight;
+    const ctx = canvas.getContext('2d', { willReadFrequently: true });
+
+    ctx.fillStyle = '#FFFFFF';
+    ctx.fillRect(0, 0, finalWidth, finalHeight);
+    ctx.drawImage(bitmap, 0, 0, finalWidth, finalHeight);
+
+    const bytesPerRow = Math.ceil(finalWidth / 8);
+    const payloadSize = bytesPerRow * finalHeight;
+    
+    // 4-byte Header + Image Data
+    const buffer = new ArrayBuffer(4 + payloadSize);
+    const view = new DataView(buffer);
+    const bytes = new Uint8Array(buffer);
+
+    // Write dimensions (Little Endian)
+    view.setUint16(0, finalWidth, true);
+    view.setUint16(2, finalHeight, true);
+
+    applyDitheringAndPack(ctx, bytes, 4, finalWidth, finalHeight, bytesPerRow);
+
+    return new Blob([buffer], { type: 'application/octet-stream' });
+}
+
+// Generates exactly 640 bytes (60x80) for the library thumbnail
+async function createThumbBlob(bitmap) {
+    const w = 60;
+    const h = 80;
+    
+    const canvas = document.createElement('canvas');
+    canvas.width = w;
+    canvas.height = h;
+    const ctx = canvas.getContext('2d', { willReadFrequently: true });
+    
+    ctx.fillStyle = '#FFFFFF';
+    ctx.fillRect(0, 0, w, h);
+    
+    const scale = Math.min(w / bitmap.width, h / bitmap.height);
+    const drawW = bitmap.width * scale;
+    const drawH = bitmap.height * scale;
+    const drawX = (w - drawW) / 2;
+    const drawY = (h - drawH) / 2;
+    
+    ctx.drawImage(bitmap, drawX, drawY, drawW, drawH);
+    
+    const buffer = new ArrayBuffer(640);
+    const bytes = new Uint8Array(buffer);
+    
+    applyDitheringAndPack(ctx, bytes, 0, w, h, Math.ceil(w / 8));
+    
+    return new Blob([buffer], { type: 'application/octet-stream' });
+}
 
 // --- Drag and Drop Handlers ---
 document.addEventListener('DOMContentLoaded', () => {
@@ -198,10 +255,10 @@ async function processInputFiles(droppedFiles = null) {
                 await processArchive(file);
             } else if (ext === 'pdf') {
                 await processPDF(file);
-            } else if (ext === 'epub' || ext === 'odt' || ext === 'rtf') {
-                await processTextDocument(file, ext);
-            } else if (['jpg', 'jpeg', 'png'].includes(ext)) {
-                logMessage("Single image processing logic pending implementation.", true);
+            } else if (ext === 'epub') {
+                await optimizeEPUB(file);
+            } else if (ext === 'odt' || ext === 'rtf') {
+                await convertODTtoEPUB(file);
             } else {
                 logMessage(`Unsupported extension: ${ext}`, true);
             }
@@ -213,16 +270,6 @@ async function processInputFiles(droppedFiles = null) {
     }
 
     fileInput.value = '';
-}
-
-async function processTextDocument(file, ext) {
-    if (ext === 'epub') {
-        await optimizeEPUB(file);
-    } else if (ext === 'odt') {
-        await convertODTtoEPUB(file);
-    } else {
-        logMessage(`Conversion from ${ext.toUpperCase()} to EPUB pending implementation.`, true);
-    }
 }
 
 // CBZ and ZIP comic converter (generates raw .kmb)
@@ -248,18 +295,16 @@ async function processArchive(file) {
         }
 
         const pageCount = imgFiles.length;
-        logMessage(`Found ${pageCount} pages. Starting conversion...`);
+        logMessage(`Found ${pageCount} pages. Starting KMB conversion...`);
 
         const bytesPerRow = Math.ceil(targetWidth / 8);
         const bytesPerPage = bytesPerRow * targetHeight;
         const totalSize = 16 + (bytesPerPage * pageCount);
 
-        logMessage(`Allocating KMB binary buffer: ${Math.round(totalSize / 1024)} KB.`);
         const kmbBuffer = new ArrayBuffer(totalSize);
         const kmbView = new DataView(kmbBuffer);
         const kmbBytes = new Uint8Array(kmbBuffer);
 
-        // Header signature: KMB1
         kmbView.setUint8(0, 'K'.charCodeAt(0));
         kmbView.setUint8(1, 'M'.charCodeAt(0));
         kmbView.setUint8(2, 'B'.charCodeAt(0));
@@ -278,12 +323,11 @@ async function processArchive(file) {
 
         for (let i = 0; i < pageCount; i++) {
             progressBar.style.width = `${10 + (i / pageCount * 80)}%`;
-            logMessage(`Processing page ${i + 1}/${pageCount} (${imgFiles[i]})`);
+            logMessage(`Processing page ${i + 1}/${pageCount}`);
 
             const imgData = await zip.file(imgFiles[i]).async("blob");
             const bitmap = await createImageBitmap(imgData);
 
-            // Isolate image to calculate auto-crop boundaries
             const tempCanvas = document.createElement('canvas');
             tempCanvas.width = bitmap.width;
             tempCanvas.height = bitmap.height;
@@ -297,7 +341,6 @@ async function processArchive(file) {
             ctx.fillStyle = '#FFFFFF';
             ctx.fillRect(0, 0, targetWidth, targetHeight);
 
-            // Rotate landscape splash pages and draw cropped area scaled to target size
             if (crop.w > crop.h) {
                 const scale = Math.min(targetHeight / crop.w, targetWidth / crop.h);
                 const w = crop.w * scale;
@@ -326,11 +369,8 @@ async function processArchive(file) {
         progressBar.style.width = '95%';
         logMessage("Conversion completed. Preparing upload...");
 
-        let rawName = file.name.replace(/\.(zip|cbz|pdf)$/i, '');
-        let safeName = rawName
-            .normalize("NFD").replace(/[\u0300-\u036f]/g, "")
-            .replace(/[^a-zA-Z0-9_\-]/g, "_")
-            + '.kmb';
+        let rawName = file.name.replace(/\.(zip|cbz)$/i, '');
+        let safeName = rawName.normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-zA-Z0-9_\-\s]/g, "") + '.kmb';
 
         const kmbBlob = new Blob([kmbBuffer], { type: 'application/octet-stream' });
         await uploadKMB(kmbBlob, safeName, progressBar);
@@ -362,7 +402,6 @@ async function processPDF(file) {
         const bytesPerPage = bytesPerRow * targetHeight;
         const totalSize = 16 + (bytesPerPage * pageCount);
 
-        logMessage(`Allocating KMB binary buffer: ${Math.round(totalSize / 1024)} KB.`);
         const kmbBuffer = new ArrayBuffer(totalSize);
         const kmbView = new DataView(kmbBuffer);
         const kmbBytes = new Uint8Array(kmbBuffer);
@@ -385,7 +424,7 @@ async function processPDF(file) {
 
         for (let i = 1; i <= pageCount; i++) {
             progressBar.style.width = `${10 + (i / pageCount * 80)}%`;
-            logMessage(`Rendering and dithering PDF page ${i}/${pageCount}...`);
+            logMessage(`Rendering PDF page ${i}/${pageCount}...`);
 
             const page = await pdf.getPage(i);
             let baseViewport = page.getViewport({ scale: 1.0 });
@@ -396,16 +435,14 @@ async function processPDF(file) {
             }
 
             let rotatedViewport = page.getViewport({ scale: 1.0, rotation: pageRotation });
-            
-            // Render at 2.0x base scale to ensure crisp lines before cropping
             const baseScale = Math.min(targetWidth / rotatedViewport.width, targetHeight / rotatedViewport.height) * 2.0;
             const hiResViewport = page.getViewport({ scale: baseScale, rotation: pageRotation });
-            
+
             const tempCanvas = document.createElement('canvas');
             tempCanvas.width = hiResViewport.width;
             tempCanvas.height = hiResViewport.height;
             const tempCtx = tempCanvas.getContext('2d', { willReadFrequently: true });
-            
+
             tempCtx.fillStyle = '#FFFFFF';
             tempCtx.fillRect(0, 0, tempCanvas.width, tempCanvas.height);
 
@@ -415,12 +452,11 @@ async function processPDF(file) {
             };
 
             await page.render(renderContext).promise;
-            
             const crop = getCropBounds(tempCtx, tempCanvas.width, tempCanvas.height);
 
             ctx.fillStyle = '#FFFFFF';
             ctx.fillRect(0, 0, targetWidth, targetHeight);
-            
+
             const finalScale = Math.min(targetWidth / crop.w, targetHeight / crop.h);
             const w = crop.w * finalScale;
             const h = crop.h * finalScale;
@@ -430,7 +466,6 @@ async function processPDF(file) {
             ctx.drawImage(tempCanvas, crop.x, crop.y, crop.w, crop.h, x, y, w, h);
 
             applyDitheringAndPack(ctx, kmbBytes, offset, targetWidth, targetHeight, bytesPerRow);
-
             offset += bytesPerPage;
         }
 
@@ -438,10 +473,7 @@ async function processPDF(file) {
         logMessage("PDF Conversion completed. Preparing upload...");
 
         let rawName = file.name.replace(/\.pdf$/i, '');
-        let safeName = rawName
-            .normalize("NFD").replace(/[\u0300-\u036f]/g, "")
-            .replace(/[^a-zA-Z0-9_\-]/g, "_")
-            + '.kmb';
+        let safeName = rawName.normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-zA-Z0-9_\-\s]/g, "") + '.kmb';
 
         const kmbBlob = new Blob([kmbBuffer], { type: 'application/octet-stream' });
         await uploadKMB(kmbBlob, safeName, progressBar);
@@ -451,7 +483,7 @@ async function processPDF(file) {
     }
 }
 
-// EPUB Optimizer (maintains text reflow, scales and dithers images)
+// EPUB Optimizer (Zero-Decoding Architecture: converts all images to .raw 1-bit)
 async function optimizeEPUB(file) {
     const targetWidth = parseInt(document.getElementById('eink-width').value);
     const targetHeight = parseInt(document.getElementById('eink-height').value);
@@ -461,49 +493,107 @@ async function optimizeEPUB(file) {
     progressContainer.classList.remove('hidden');
     progressBar.style.width = '5%';
 
-    logMessage(`Optimizing EPUB images: ${file.name}...`);
+    logMessage(`Extracting metadata and converting EPUB images to RAW: ${file.name}...`);
 
     try {
         const zip = await JSZip.loadAsync(file);
+
+        let author = "Unknown";
+        let title = "Unknown";
+
+        try {
+            const containerXml = await zip.file("META-INF/container.xml").async("text");
+            const parser = new DOMParser();
+            const containerDoc = parser.parseFromString(containerXml, "application/xml");
+            const rootfiles = containerDoc.getElementsByTagNameNS("*", "rootfile");
+            if (rootfiles.length > 0) {
+                const opfPath = rootfiles[0].getAttribute("full-path");
+                const opfXml = await zip.file(opfPath).async("text");
+                const opfDoc = parser.parseFromString(opfXml, "application/xml");
+
+                const creatorNode = opfDoc.getElementsByTagNameNS("*", "creator")[0];
+                if (creatorNode) author = creatorNode.textContent.trim();
+
+                const titleNode = opfDoc.getElementsByTagNameNS("*", "title")[0];
+                if (titleNode) title = titleNode.textContent.trim();
+            }
+        } catch (e) {
+            console.warn("Metadata extraction failed", e);
+        }
+
+        author = author.replace(/-/g, " ").replace(/[^a-zA-Z0-9_\s]/gi, "").trim();
+        title = title.replace(/-/g, " ").replace(/[^a-zA-Z0-9_\s]/gi, "").trim();
+
+        if (!author) author = "Unknown";
+        if (!title) title = file.name.replace(/\.epub$/i, "");
+
+        let safeName = `${author} - ${title}.epub`.replace(/\s+/g, " ");
+        logMessage(`Resolved device filename: ${safeName}`);
+
         const imageFiles = Object.keys(zip.files).filter(name =>
             name.match(/\.(jpg|jpeg|png|gif|webp)$/i)
         );
 
-        logMessage(`Found ${imageFiles.length} images. Processing...`);
+        logMessage(`Found ${imageFiles.length} images. Generating RAW buffers...`);
 
+        const fileReplacements = {};
         let processed = 0;
+        let isFirstImage = true;
+
         for (let imgPath of imageFiles) {
             const imgData = await zip.file(imgPath).async("blob");
             const bitmap = await createImageBitmap(imgData);
 
-            let scale = Math.min(targetWidth / bitmap.width, targetHeight / bitmap.height);
-            if (scale > 1.0) scale = 1.0;
+            // 1. Inject the Cover Thumbnail (exactly 640 bytes) directly into the zip root
+            if (isFirstImage) {
+                const thumbBlob = await createThumbBlob(bitmap);
+                zip.file("cover_thumb.raw", thumbBlob);
+                logMessage(`Cover thumbnail generated and injected.`);
+                isFirstImage = false;
+            }
 
-            const finalWidth = Math.round(bitmap.width * scale);
-            const finalHeight = Math.round(bitmap.height * scale);
-
-            const canvas = document.createElement('canvas');
-            canvas.width = finalWidth;
-            canvas.height = finalHeight;
-            const ctx = canvas.getContext('2d', { willReadFrequently: true });
-
-            ctx.fillStyle = '#FFFFFF';
-            ctx.fillRect(0, 0, finalWidth, finalHeight);
-            ctx.drawImage(bitmap, 0, 0, finalWidth, finalHeight);
-
-            const imageData = ctx.getImageData(0, 0, finalWidth, finalHeight);
-            applyAtkinsonDithering(imageData, finalWidth, finalHeight);
-            ctx.putImageData(imageData, 0, 0);
-
-            const newImgBlob = await new Promise(resolve => canvas.toBlob(resolve, 'image/jpeg', 1.0));
-            zip.file(imgPath, newImgBlob);
+            // 2. Process image to 1-bit RAW with header
+            const rawBlob = await createRawImageBlob(bitmap, targetWidth, targetHeight);
+            
+            const newPath = imgPath.replace(/\.(jpg|jpeg|gif|png|webp)$/i, '.raw');
+            if (newPath !== imgPath) {
+                zip.remove(imgPath);
+                fileReplacements[imgPath] = newPath;
+            }
+            zip.file(newPath, rawBlob);
 
             bitmap.close();
             processed++;
             progressBar.style.width = `${5 + (processed / imageFiles.length * 80)}%`;
         }
 
-        logMessage(`Repackaging optimized EPUB...`);
+        // --- Rewriting internal HTML/OPF references ---
+        if (Object.keys(fileReplacements).length > 0) {
+            logMessage(`Updating internal EPUB references to .raw format...`);
+            const textFiles = Object.keys(zip.files).filter(name => name.match(/\.(html|xhtml|opf|ncx)$/i));
+
+            for (let path of textFiles) {
+                let content = await zip.file(path).async("text");
+                let changed = false;
+
+                for (let oldPath in fileReplacements) {
+                    const oldName = oldPath.split('/').pop();
+                    const newName = fileReplacements[oldPath].split('/').pop();
+                    if (content.includes(oldName)) {
+                        content = content.split(oldName).join(newName);
+                        changed = true;
+                    }
+                }
+
+                if (changed) {
+                    // Update media-types for compatibility, even though it's raw binary
+                    content = content.replace(/media-type="image\/(jpeg|png|gif)"/gi, 'media-type="application/octet-stream"');
+                    zip.file(path, content);
+                }
+            }
+        }
+
+        logMessage(`Repackaging Zero-Decoding EPUB...`);
         const newEpubBlob = await zip.generateAsync({
             type: "blob",
             compression: "DEFLATE",
@@ -513,12 +603,6 @@ async function optimizeEPUB(file) {
         progressBar.style.width = '95%';
         logMessage(`Uploading to KomaBon...`);
 
-        let rawName = file.name.replace(/\.epub$/i, '');
-        let safeName = rawName
-            .normalize("NFD").replace(/[\u0300-\u036f]/g, "")
-            .replace(/[^a-zA-Z0-9_\-]/g, "_")
-            + '.epub';
-
         await uploadKMB(newEpubBlob, safeName, progressBar);
 
     } catch (err) {
@@ -526,7 +610,7 @@ async function optimizeEPUB(file) {
     }
 }
 
-// Convert OpenDocument Text (.odt) to valid standard .epub handling nested sections and images
+// Convert OpenDocument Text (.odt) to Zero-Decoding EPUB
 async function convertODTtoEPUB(file) {
     const targetWidth = parseInt(document.getElementById('eink-width').value);
     const targetHeight = parseInt(document.getElementById('eink-height').value);
@@ -578,6 +662,7 @@ img { max-width: 100%; height: auto; display: block; margin: 1em auto; }
         let currentXhtml = "";
         let paragraphCount = 0;
         let imageCounter = 1;
+        let isFirstImage = true;
 
         const bodyNode = xmlDoc.getElementsByTagNameNS("*", "body")[0]?.getElementsByTagNameNS("*", "text")[0];
         if (!bodyNode) throw new Error("Unable to locate document body in ODT.");
@@ -608,32 +693,19 @@ img { max-width: 100%; height: auto; display: block; margin: 1em auto; }
                     const rawHref = imgEl.getAttributeNS("*", "href") || imgEl.getAttribute("xlink:href");
 
                     if (rawHref && odtZip.file(rawHref)) {
-                        logMessage(`Dithering ODT image: ${rawHref}`);
+                        logMessage(`Converting ODT image to RAW: ${rawHref}`);
                         const imgBlob = await odtZip.file(rawHref).async("blob");
                         const bitmap = await createImageBitmap(imgBlob);
 
-                        let scale = Math.min(targetWidth / bitmap.width, targetHeight / bitmap.height);
-                        if (scale > 1.0) scale = 1.0;
+                        if (isFirstImage) {
+                            const thumbBlob = await createThumbBlob(bitmap);
+                            epub.file("cover_thumb.raw", thumbBlob);
+                            isFirstImage = false;
+                        }
 
-                        const finalWidth = Math.round(bitmap.width * scale);
-                        const finalHeight = Math.round(bitmap.height * scale);
-
-                        const canvas = document.createElement("canvas");
-                        canvas.width = finalWidth;
-                        canvas.height = finalHeight;
-                        const ctx = canvas.getContext("2d", { willReadFrequently: true });
-
-                        ctx.fillStyle = "#FFFFFF";
-                        ctx.fillRect(0, 0, finalWidth, finalHeight);
-                        ctx.drawImage(bitmap, 0, 0, finalWidth, finalHeight);
-
-                        const imgData = ctx.getImageData(0, 0, finalWidth, finalHeight);
-                        applyAtkinsonDithering(imgData, finalWidth, finalHeight);
-                        ctx.putImageData(imgData, 0, 0);
-
-                        const newJpgBlob = await new Promise(res => canvas.toBlob(res, "image/jpeg", 0.9));
-                        const imgFilename = `image_${imageCounter}.jpg`;
-                        imagesFolder.file(imgFilename, newJpgBlob);
+                        const rawBinaryBlob = await createRawImageBlob(bitmap, targetWidth, targetHeight);
+                        const imgFilename = `image_${imageCounter}.raw`;
+                        imagesFolder.file(imgFilename, rawBinaryBlob);
 
                         manifestImages.push({ id: `img${imageCounter}`, filename: imgFilename });
                         currentXhtml += `<div class="img-wrapper"><img src="../Images/${imgFilename}" alt="Image" /></div>\n`;
@@ -673,7 +745,12 @@ img { max-width: 100%; height: auto; display: block; margin: 1em auto; }
 
         logMessage(`Extracted ${chaptersHtml.length} chapters and ${manifestImages.length} images from ODT structure.`);
 
-        const bookTitle = file.name.replace(/\.odt$/i, "").replace(/[_-]/g, " ");
+        const rawName = file.name.replace(/\.odt$/i, "");
+        const safeTitle = rawName.replace(/-/g, " ").replace(/[^a-zA-Z0-9_\s]/gi, "").trim();
+        const safeName = `Unknown - ${safeTitle}.epub`.replace(/\s+/g, " ");
+
+        const bookTitle = safeTitle;
+
         let manifestItems = "";
         let spineItems = "";
         let navMapItems = "";
@@ -704,7 +781,7 @@ ${chaptersHtml[i]}
         }
 
         for (let img of manifestImages) {
-            manifestItems += `    <item id="${img.id}" href="Images/${img.filename}" media-type="image/jpeg"/>\n`;
+            manifestItems += `    <item id="${img.id}" href="Images/${img.filename}" media-type="application/octet-stream"/>\n`;
         }
 
         oebps.file("content.opf",
@@ -738,7 +815,7 @@ ${navMapItems}  </navMap>
 </ncx>`);
 
         progressBar.style.width = '85%';
-        logMessage(`Compiling generated EPUB package...`);
+        logMessage(`Compiling generated Zero-Decoding EPUB package...`);
 
         const newEpubBlob = await epub.generateAsync({
             type: "blob",
@@ -748,12 +825,6 @@ ${navMapItems}  </navMap>
 
         progressBar.style.width = '95%';
         logMessage(`Uploading converted EPUB to KomaBon...`);
-
-        const rawName = file.name.replace(/\.odt$/i, "");
-        const safeName = rawName
-            .normalize("NFD").replace(/[\u0300-\u036f]/g, "")
-            .replace(/[^a-zA-Z0-9_\-]/g, "_")
-            + ".epub";
 
         await uploadKMB(newEpubBlob, safeName, progressBar);
 

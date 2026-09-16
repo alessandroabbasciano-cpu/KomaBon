@@ -1,30 +1,5 @@
 #include "TextRenderer.h"
 #include "WordFitLogic.h"
-#include <JPEGDEC.h>
-
-static KomaBonDisplay* g_jpegDisplay = nullptr;
-static int g_jpegX = 0;
-static int g_jpegY = 0;
-
-static int drawJpegCallback(JPEGDRAW* pDraw) {
-    if (!g_jpegDisplay) return 0;
-
-    int bytesPerRow = (pDraw->iWidth + 7) / 8;
-    int bufferSize = bytesPerRow * pDraw->iHeight;
-
-    uint8_t* invertedPixels = (uint8_t*)malloc(bufferSize);
-    if (!invertedPixels) return 1;
-
-    uint8_t* src = (uint8_t*)pDraw->pPixels;
-    for (int i = 0; i < bufferSize; i++) {
-        invertedPixels[i] = ~src[i];
-    }
-
-    g_jpegDisplay->drawBitmap(g_jpegX + pDraw->x, g_jpegY + pDraw->y, invertedPixels, pDraw->iWidth,
-                              pDraw->iHeight, GxEPD_BLACK);
-    free(invertedPixels);
-    return 1;
-}
 
 TextRenderer::TextRenderer(int width, int height, int fontSize, EpubLoader* epubLoader) {
     _width = width;
@@ -389,51 +364,24 @@ RenderResult TextRenderer::renderRichPageDynamic(KomaBonDisplay& display,
 
         } else if (node.type == CONTENT_IMAGE) {
             if (_epubLoader) {
-                size_t imgSize = 0;
-                uint8_t* imgData = _epubLoader->getFileData(node.imageNode.imagePath, &imgSize);
+                if (!node.imageNode.imagePath.endsWith(".raw")) {
+                    if (draw) {
+                        display.setCursor(currentX, y + 20);
+                        display.print("[Legacy image omitted]");
+                    }
+                    y += 40;
+                } else {
+                    size_t rawSize = 0;
+                    uint8_t* rawData = _epubLoader->getFileData(node.imageNode.imagePath, &rawSize);
 
-                if (imgData) {
-                    JPEGDEC* jpeg = new JPEGDEC();
-
-                    // Parse header to get dimensions regardless of draw flag
-                    if (jpeg->openRAM(imgData, imgSize, drawJpegCallback)) {
-                        int imgW = jpeg->getWidth();
-                        int imgH = jpeg->getHeight();
-
-                        if (imgH > (_height * 0.3) && y > 50) {
-                            jpeg->close();
-                            delete jpeg;
-                            free(imgData);
-
-                            result.pageFull = true;
-                            result.nextNodeIndex = currentNode;
-                            result.nextCharOffset = 0;
-                            _cachedResult = result;
-                            _hasCachedResult = true;
-                            return result;
-                        }
+                    if (rawData && rawSize >= 4) {
+                        uint16_t imgW = rawData[0] | (rawData[1] << 8);
+                        uint16_t imgH = rawData[2] | (rawData[3] << 8);
 
                         int availableH = maxY - y;
-                        jpeg->setPixelType(ONE_BIT_DITHERED);
 
-                        int scale = 0;
-                        if (imgW > _width || imgH > availableH) {
-                            if (imgW / 2 <= _width && imgH / 2 <= availableH)
-                                scale = JPEG_SCALE_HALF;
-                            else if (imgW / 4 <= _width && imgH / 4 <= availableH)
-                                scale = JPEG_SCALE_QUARTER;
-                            else
-                                scale = JPEG_SCALE_EIGHTH;
-                        }
-
-                        int actualW = imgW >> scale;
-                        int actualH = imgH >> scale;
-
-                        if (actualH > availableH && y > 50) {
-                            jpeg->close();
-                            delete jpeg;
-                            free(imgData);
-
+                        if (imgH > availableH && y > 50) {
+                            free(rawData);
                             result.pageFull = true;
                             result.nextNodeIndex = currentNode;
                             result.nextCharOffset = 0;
@@ -442,41 +390,26 @@ RenderResult TextRenderer::renderRichPageDynamic(KomaBonDisplay& display,
                             return result;
                         }
 
-                        // FAST PATH: Bypass PSRAM allocation and decoding if we are only calculating geometry
                         if (draw) {
-                            int alignedW = (actualW + 15) & ~15;
-                            int ditherBufferSize = alignedW * 16;
-
-                            uint8_t* ditherBuffer = (uint8_t*)ps_malloc(ditherBufferSize);
-                            if (!ditherBuffer) ditherBuffer = (uint8_t*)malloc(ditherBufferSize);
-
-                            if (ditherBuffer) {
-                                g_jpegDisplay = &display;
-                                g_jpegX = (_width - actualW) / 2;
-                                if (g_jpegX < 0) g_jpegX = 0;
-                                g_jpegY = y;
-
-                                jpeg->decodeDither(ditherBuffer, scale);
-                                free(ditherBuffer);
-                            }
+                            int drawX = (_width - imgW) / 2;
+                            if (drawX < 0) drawX = 0;
+                            // Offset by 4 to skip the Little Endian dimension header [W_lo, W_hi, H_lo, H_hi]
+                            display.drawBitmap(drawX, y, rawData + 4, imgW, imgH, GxEPD_BLACK);
                         }
 
-                        // Always advance Y coordinate geometry
-                        y += actualH + 20;
-                        jpeg->close();
+                        y += imgH + 20;
+                        free(rawData);
                     } else {
                         if (draw) {
                             display.setCursor(currentX, y + 20);
-                            display.print("[Unsupported Image]");
+                            display.print("[Image Missing]");
                         }
                         y += 40;
+                        if (rawData) free(rawData);
                     }
-
-                    delete jpeg;
-                    free(imgData);
-                } else {
-                    y += 40;
                 }
+            } else {
+                y += 40;
             }
             currentX = x_margin;
         }

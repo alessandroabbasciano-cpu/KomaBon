@@ -49,23 +49,23 @@ struct LibraryDirtyRect {
 };
 
 static LibraryDirtyRect libraryItemRect(int index, int scrollOffset, int screenW) {
-    const int HEADER_H = 76;
-    const int BACK_ITEM_HEIGHT = 48;
-    const int ITEM_HEIGHT = 110;
+    const int HEADER_H = 60;
+    const int BACK_ITEM_HEIGHT = 42;
+    const int ITEM_HEIGHT = 88;
     if (index < 0) {
-        return {14, HEADER_H, screenW - 28, BACK_ITEM_HEIGHT + 4};
+        return {12, HEADER_H, screenW - 24, BACK_ITEM_HEIGHT + 4};
     }
     int visibleRow = index - scrollOffset;
-    return {14, HEADER_H + BACK_ITEM_HEIGHT + (visibleRow * ITEM_HEIGHT), screenW - 28, ITEM_HEIGHT + 4};
+    return {12, HEADER_H + BACK_ITEM_HEIGHT + (visibleRow * ITEM_HEIGHT), screenW - 24, ITEM_HEIGHT + 4};
 }
 
 static int libraryItemsPerPage(int screenHeight) {
-    const int HEADER_H = 76;
-    const int BACK_ITEM_HEIGHT = 48;
-    const int ITEM_HEIGHT = 110;
+    const int HEADER_H = 60;
+    const int BACK_ITEM_HEIGHT = 42;
+    const int ITEM_HEIGHT = 88;
     int y = HEADER_H + BACK_ITEM_HEIGHT;
     int count = 0;
-    while (y <= screenHeight - 70) {
+    while (y <= screenHeight - 50) {
         count++;
         y += ITEM_HEIGHT;
     }
@@ -91,7 +91,6 @@ void AppReader::scanBooks() {
     std::map<String, String> metadata;
     loadBookMetadata(metadata);
 
-    // Initialize covers directory safely on the internal memory
     File coversDir = SystemFS.open("/covers");
     if (!coversDir) {
         SystemFS.mkdir("/covers");
@@ -119,12 +118,10 @@ void AppReader::scanBooks() {
             int dot = fileName.lastIndexOf('.');
             entry.baseName = (dot > 0) ? fileName.substring(0, dot) : fileName;
 
-            // Check thumbnails in SystemFS
             String thumbPath = "/covers/" + entry.baseName + ".thumb";
             entry.hasCoverThumb = SystemFS.exists(thumbPath);
             entry.coverAttempted = entry.hasCoverThumb;
 
-            // Fast parsing of KMB metadata header for total pages
             if (fileNameLower.endsWith(".kmb")) {
                 File kmbFile = EbookFS.open(entry.path, "r");
                 if (kmbFile) {
@@ -162,7 +159,6 @@ void AppReader::scanBooks() {
                 b.globalPage = p.globalPage;
             }
 
-            // Only query PageCountStore for EPUBs, preserve extracted KMB count
             String pathLower = b.path;
             pathLower.toLowerCase();
             if (!pathLower.endsWith(".kmb")) {
@@ -246,18 +242,18 @@ void AppReader::drawLibrary() {
     KomaBonDisplay& display = dispMgr.getDisplay();
     FontMgr& fontMgr = FontMgr::getInstance();
 
-    const int HEADER_H = 76;
-    const int BACK_ITEM_HEIGHT = 48;
+    const int HEADER_H = 60;
+    const int BACK_ITEM_HEIGHT = 42;
     const int COVER_WIDTH = 60;
     const int COVER_HEIGHT = 80;
-    const int ITEM_HEIGHT = 110;
-    const int ITEM_PADDING = 24;
+    const int ITEM_HEIGHT = 88;
+    const int ITEM_PADDING = 20;
 
     if (_librarySelectionOnlyRedraw) {
         LibraryDirtyRect dirty =
             unionLibraryRect(libraryItemRect(_previousBookIndex, _libraryScrollOffset, display.width()),
                              libraryItemRect(_selectedBookIndex, _libraryScrollOffset, display.width()));
-        LibraryDirtyRect footer = {18, display.height() - 48, display.width() - 36, 46};
+        LibraryDirtyRect footer = {12, display.height() - 45, display.width() - 24, 42};
         dirty = unionLibraryRect(dirty, footer);
         dirty.x = std::max(0, dirty.x);
         dirty.y = std::max(0, dirty.y);
@@ -269,11 +265,10 @@ void AppReader::drawLibrary() {
     }
     _librarySelectionOnlyRedraw = false;
 
-    // Load thumbnails into RAM from internal SystemFS
     std::map<int, std::vector<uint8_t>> thumbCache;
     int preLoadY = HEADER_H + BACK_ITEM_HEIGHT;
     for (size_t idx = (size_t)_libraryScrollOffset; idx < _books.size(); idx++) {
-        if (preLoadY > display.height() - 70) break;
+        if (preLoadY > display.height() - 50) break;
         if (_books[idx].hasCoverThumb) {
             String thumbPath = "/covers/" + _books[idx].baseName + ".thumb";
             File f = SystemFS.open(thumbPath, "r");
@@ -292,40 +287,40 @@ void AppReader::drawLibrary() {
     do {
         display.fillScreen(GxEPD_WHITE);
 
-        drawTextWithFont(display, "Library", 20, 40, &FreeSansBold12pt8b, GxEPD_BLACK);
+        drawTextWithFont(display, "Library", 16, 36, &FreeSansBold12pt8b, GxEPD_BLACK);
 
         char countText[24];
         snprintf(countText, sizeof(countText), "%d books", (int)_books.size());
-        fontMgr.drawTextRight(display, countText, display.width() - 20, 48, FONT_SIZE_SMALL, GxEPD_BLACK);
+        fontMgr.drawTextRight(display, countText, display.width() - 16, 38, FONT_SIZE_SMALL, GxEPD_BLACK);
 
-        display.drawFastHLine(20, 56, display.width() - 40, GxEPD_BLACK);
-        display.drawFastHLine(20, 58, 72, GxEPD_BLACK);
+        display.drawFastHLine(16, 46, display.width() - 32, GxEPD_BLACK);
 
         int y = HEADER_H;
 
         bool backSelected = (_selectedBookIndex == -1);
         if (backSelected) {
-            display.fillRect(20, y + 6, 5, BACK_ITEM_HEIGHT - 12, GxEPD_BLACK);
-            display.drawRoundRect(16, y + 2, display.width() - 32, BACK_ITEM_HEIGHT - 4, 6, GxEPD_BLACK);
+            display.fillRect(14, y + 5, 4, BACK_ITEM_HEIGHT - 10, GxEPD_BLACK);
+            display.drawRoundRect(10, y + 2, display.width() - 20, BACK_ITEM_HEIGHT - 4, 5, GxEPD_BLACK);
         }
-        drawTextWithFont(display, "<  Back to Menu", ITEM_PADDING + 14, y + 32,
+        drawTextWithFont(display, "<  Back to Menu", ITEM_PADDING + 10, y + 28,
                          backSelected ? &FreeSansBold12pt8b : &FreeSans12pt8b, GxEPD_BLACK);
         display.drawFastHLine(ITEM_PADDING, y + BACK_ITEM_HEIGHT - 1, display.width() - (ITEM_PADDING * 2),
                               GxEPD_BLACK);
         y += BACK_ITEM_HEIGHT;
 
         if (_books.empty()) {
-            drawTextWithFont(display, "No books found.", 28, y + 54, &FreeSansBold12pt8b, GxEPD_BLACK);
-            fontMgr.drawText(display, "Upload EPUBs via web.", 28, y + 88, FONT_SIZE_BODY, GxEPD_BLACK);
+            drawTextWithFont(display, "No books found.", 20, y + 45, &FreeSansBold12pt8b, GxEPD_BLACK);
+            fontMgr.drawText(display, "Upload books via web interface.", 20, y + 70, FONT_SIZE_BODY,
+                             GxEPD_BLACK);
         } else {
             for (size_t idx = (size_t)_libraryScrollOffset; idx < _books.size(); idx++) {
-                if (y > display.height() - 70) break;
+                if (y > display.height() - 50) break;
 
                 const auto& book = _books[idx];
                 bool isSelected = ((int)idx == _selectedBookIndex);
                 if (isSelected) {
-                    display.fillRect(20, y + 12, 5, ITEM_HEIGHT - 24, GxEPD_BLACK);
-                    display.drawRoundRect(16, y + 4, display.width() - 32, ITEM_HEIGHT - 8, 6, GxEPD_BLACK);
+                    display.fillRect(14, y + 6, 4, ITEM_HEIGHT - 12, GxEPD_BLACK);
+                    display.drawRoundRect(10, y + 2, display.width() - 20, ITEM_HEIGHT - 4, 5, GxEPD_BLACK);
                 } else {
                     display.drawFastHLine(ITEM_PADDING, y + ITEM_HEIGHT - 1,
                                           display.width() - (ITEM_PADDING * 2), GxEPD_BLACK);
@@ -333,7 +328,7 @@ void AppReader::drawLibrary() {
 
                 int coverW = COVER_WIDTH;
                 int coverH = COVER_HEIGHT;
-                int coverX = ITEM_PADDING + 12;
+                int coverX = ITEM_PADDING + 8;
                 int coverY = y + (ITEM_HEIGHT - coverH) / 2;
 
                 const uint8_t* tData = nullptr;
@@ -343,48 +338,55 @@ void AppReader::drawLibrary() {
 
                 drawBookTile(display, book, coverX, coverY, coverW, coverH, isSelected, tData);
 
+                // --- TWO-LINE AUTHOR / TITLE LAYOUT ---
                 uint16_t textColor = GxEPD_BLACK;
                 String title = book.title;
-                const GFXfont* titleFont = isSelected ? &FreeSansBold12pt8b : &FreeSans12pt8b;
-                int textX = ITEM_PADDING + COVER_WIDTH + 44;
-                int textY = y + (isSelected ? 36 : 34);
-                int lineCount = 0;
-                const int MAX_LINES = isSelected ? 3 : 2;
-                const int LINE_HEIGHT = isSelected ? 27 : 25;
-                const int MAX_WIDTH = display.width() - textX - 28;
+                int textX = ITEM_PADDING + COVER_WIDTH + 24;
 
-                int pos = 0;
-                while (pos < (int)title.length() && lineCount < MAX_LINES) {
-                    String line = "";
-                    while (pos < (int)title.length()) {
-                        int nextSpace = title.indexOf(' ', pos);
-                        if (nextSpace == -1) nextSpace = title.length();
-                        String word = title.substring(pos, nextSpace);
-                        String testLine = line.length() > 0 ? line + " " + word : word;
-                        if (textWidthForFont(display, testLine.c_str(), titleFont) > MAX_WIDTH &&
-                            line.length() > 0)
-                            break;
-                        line = testLine;
-                        pos = nextSpace + 1;
-                    }
-                    if (lineCount == MAX_LINES - 1 && pos < (int)title.length() && line.length() > 3) {
-                        line = line.substring(0, line.length() - 3) + "...";
-                    }
-                    drawTextWithFont(display, line.c_str(), textX, textY, titleFont, textColor);
-                    textY += LINE_HEIGHT;
-                    lineCount++;
+                int dashPos = title.indexOf(" - ");
+                String author = "";
+                String bookName = title;
+
+                if (dashPos != -1) {
+                    author = title.substring(0, dashPos);
+                    bookName = title.substring(dashPos + 3);
                 }
 
-                if (book.hasProgress) {
-                    char pageLabel[32];
-                    if (book.totalPages > 0) {
-                        snprintf(pageLabel, sizeof(pageLabel), "pag. %d/%d", book.globalPage,
-                                 book.totalPages);
-                    } else {
-                        snprintf(pageLabel, sizeof(pageLabel), "pag. %d", book.globalPage);
-                    }
-                    drawTextWithFont(display, pageLabel, textX, y + ITEM_HEIGHT - 22, &FreeSans9pt8b,
+                if (author.length() > 36) author = author.substring(0, 33) + "...";
+                if (bookName.length() > 36) bookName = bookName.substring(0, 33) + "...";
+
+                if (dashPos != -1) {
+                    drawTextWithFont(display, author.c_str(), textX, y + 32, &FreeSans9pt8b, textColor);
+                    drawTextWithFont(display, bookName.c_str(), textX, y + 62, &FreeSansBold12pt8b,
                                      textColor);
+                } else {
+                    drawTextWithFont(display, bookName.c_str(), textX, y + 50, &FreeSansBold12pt8b,
+                                     textColor);
+                }
+
+                // --- VECTOR PROGRESS BAR ---
+                if (book.hasProgress) {
+                    int barX = display.width() - 115;
+                    int barY = y + (ITEM_HEIGHT / 2) - 4;
+                    int barW = 90;
+                    int barH = 8;
+
+                    display.drawRect(barX, barY, barW, barH, GxEPD_BLACK);
+                    if (book.totalPages > 0) {
+                        float progress = (float)book.globalPage / (float)book.totalPages;
+                        if (progress > 1.0f) progress = 1.0f;
+                        int fillW = (int)(progress * (barW - 2));
+                        if (fillW > 0) {
+                            display.fillRect(barX + 1, barY + 1, fillW, barH - 2, GxEPD_BLACK);
+                        }
+                        char percStr[16];
+                        snprintf(percStr, sizeof(percStr), "%d%%", (int)(progress * 100));
+                        drawTextWithFont(display, percStr, barX, barY - 12, &FreeSans9pt8b, textColor);
+                    } else {
+                        char pageStr[16];
+                        snprintf(pageStr, sizeof(pageStr), "p. %d", book.globalPage);
+                        drawTextWithFont(display, pageStr, barX, barY - 12, &FreeSans9pt8b, textColor);
+                    }
                 }
 
                 y += ITEM_HEIGHT;
@@ -397,15 +399,15 @@ void AppReader::drawLibrary() {
         } else {
             snprintf(pageStr, sizeof(pageStr), "%d/%d", _selectedBookIndex + 1, (int)_books.size());
         }
-        display.drawFastHLine(20, display.height() - 42, display.width() - 40, GxEPD_BLACK);
+        display.drawFastHLine(12, display.height() - 40, display.width() - 24, GxEPD_BLACK);
 
-        fontMgr.drawText(display, "Joy: Move  |  Center: Open  |  Hold Left: Menu", 22, display.height() - 18,
+        fontMgr.drawText(display, "Joy: Move  |  Center: Open  |  Hold Left: Menu", 16, display.height() - 16,
                          FONT_SIZE_SMALL, GxEPD_BLACK);
 
-        fontMgr.drawTextRight(display, pageStr, display.width() - 20, display.height() - 18, FONT_SIZE_SMALL,
+        fontMgr.drawTextRight(display, pageStr, display.width() - 16, display.height() - 16, FONT_SIZE_SMALL,
                               GxEPD_BLACK);
 
-        BatteryMgr::getInstance().drawStatusBar(display, display.width() - 105, 10);
+        BatteryMgr::getInstance().drawStatusBar(display, display.width() - 105, 6);
 
     } while (display.nextPage());
 }

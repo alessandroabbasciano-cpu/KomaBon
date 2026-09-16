@@ -20,18 +20,19 @@ struct MenuDirtyRect {
     int h;
 };
 
+// Dynamic bounds calculation for partial E-ink refresh
 static MenuDirtyRect menuItemRect(int index, int screenW) {
-    const int ICON_SIZE = 160;
-    const int COLS = 2;
-    const int ROW_HEIGHT = 240;
-    const int START_Y = 180;
-    int colWidth = screenW / COLS;
+    if (index == 0) {
+        // Widget "Currently Reading" bounds
+        return {10, 50, screenW - 20, 110};
+    }
+
+    // Vertical List App bounds
+    const int ROW_HEIGHT = 75;
+    const int START_Y = 175;
     int idx = index - 1;
-    int col = idx % COLS;
-    int row = idx / COLS;
-    int x = col * colWidth + (colWidth - ICON_SIZE) / 2;
-    int y = START_Y + row * ROW_HEIGHT;
-    return {x - 14, y - 14, ICON_SIZE + 15, ICON_SIZE + 40};
+    int y = START_Y + idx * ROW_HEIGHT;
+    return {10, y - 5, screenW - 20, ROW_HEIGHT + 10};
 }
 
 static MenuDirtyRect unionRect(MenuDirtyRect a, MenuDirtyRect b) {
@@ -45,6 +46,21 @@ static MenuDirtyRect unionRect(MenuDirtyRect a, MenuDirtyRect b) {
 static bool isReaderActive() {
     App* current = AppMgr::getInstance().getCurrentApp();
     return current && strcmp(current->getName(), "eReader") == 0;
+}
+
+void AppMainMenu::loadResumeData() {
+    String lastKey = ProgressStore::getInstance().lastBook();
+    if (lastKey.length() > 0) {
+        _hasResume = true;
+        _lastBookTitle = lastKey;
+
+        BookProgress prog;
+        if (ProgressStore::getInstance().get(lastKey, prog)) {
+            _lastBookPage = prog.globalPage;
+        }
+    } else {
+        _hasResume = false;
+    }
 }
 
 String AppMainMenu::getWifiFooterText() const {
@@ -82,22 +98,26 @@ void AppMainMenu::stopHotspot() {
 
     Serial.println("Main menu: stopping management hotspot");
     WiFi.softAPdisconnect(true);
-    WiFi.mode(WIFI_STA);
+    WiFi.mode(WIFI_OFF);
     _hotspotActive = false;
 }
 
 void AppMainMenu::start() {
-    selectedIndex = 1;
+    loadResumeData();
+    selectedIndex = _hasResume ? 0 : 1;
+
     _needsRedraw = true;
     _firstDraw = true;
     _selectionOnlyRedraw = false;
     _batteryOnlyRedraw = false;
     _previousSelectedIndex = selectedIndex;
+
     _lastWifiConnected = WiFi.status() == WL_CONNECTED;
     _lastIp = _lastWifiConnected ? WiFi.localIP().toString() : "";
     _lastWifiFooterText = "";
     _lastBatteryPoll = millis();
     _lastBatteryStatus = BatteryMgr::getInstance().refreshNow();
+
     InputMgr::getInstance().setCallback(std::bind(&AppMainMenu::handleInput, this, std::placeholders::_1));
 }
 
@@ -117,23 +137,26 @@ void AppMainMenu::handleInput(InputAction action) {
     AppMgr& appMgr = AppMgr::getInstance();
     std::vector<App*>& apps = appMgr.getApps();
 
-    Serial.printf("AppMainMenu::handleInput - action: %d\n", action);
-
+    int minSelectable = _hasResume ? 0 : 1;
     int maxSelectable = apps.size() - 1 + (_updateAvailable ? 1 : 0);
 
+    // FIX: Using strictly defined logical inputs mapping to the physical joystick
     if (action == INPUT_NEXT || action == INPUT_RIGHT) {
         selectedIndex++;
-        if (selectedIndex > maxSelectable) selectedIndex = 1;
-        if (selectedIndex == 0) selectedIndex = 1;
+        if (selectedIndex > maxSelectable) selectedIndex = minSelectable;
         _selectionOnlyRedraw = !_firstDraw;
         _needsRedraw = true;
     } else if (action == INPUT_PREV || action == INPUT_LEFT) {
         selectedIndex--;
-        if (selectedIndex < 1) selectedIndex = maxSelectable;
+        if (selectedIndex < minSelectable) selectedIndex = maxSelectable;
         _selectionOnlyRedraw = !_firstDraw;
         _needsRedraw = true;
     } else if (action == INPUT_SELECT) {
-        if (_updateAvailable && selectedIndex == (int)apps.size()) {
+        if (selectedIndex == 0 && _hasResume) {
+            // Signal the eReader to auto-resume, then switch to it (Index 1)
+            ProgressStore::getInstance().setResumeOnBoot(true);
+            appMgr.switchTo(1);
+        } else if (_updateAvailable && selectedIndex == (int)apps.size()) {
             Serial.println("AppMainMenu: Launching OTA task...");
             xTaskCreatePinnedToCore(
                 [](void* param) {
@@ -144,8 +167,6 @@ void AppMainMenu::handleInput(InputAction action) {
         } else if (selectedIndex > 0 && selectedIndex < (int)apps.size()) {
             appMgr.switchTo(selectedIndex);
         }
-    } else if (action == INPUT_GO_TO_MAIN_MENU) {
-        Serial.println("AppMainMenu: INPUT_GO_TO_MAIN_MENU - already at main menu");
     }
 }
 
@@ -205,11 +226,6 @@ void AppMainMenu::draw() {
         updateVersion = _updateVersion;
     }
 
-    const int ICON_SIZE = 160;
-    const int COLS = 2;
-    const int ROW_HEIGHT = 240;
-    const int START_Y = 180;
-
     if (_firstDraw) {
         display.setFullWindow();
         _firstDraw = false;
@@ -228,6 +244,7 @@ void AppMainMenu::draw() {
     } else {
         display.setPartialWindow(0, 0, screenW, screenH);
     }
+
     _selectionOnlyRedraw = false;
     _batteryOnlyRedraw = false;
     _footerOnlyRedraw = false;
@@ -238,66 +255,125 @@ void AppMainMenu::draw() {
         display.fillScreen(GxEPD_WHITE);
         display.setTextColor(GxEPD_BLACK);
 
+        // --- 1. HEADER ---
         fontMgr.drawText(display, "KomaBon", 15, 35, FONT_SIZE_SUBTITLE, GxEPD_BLACK);
         int komaBonWidth = fontMgr.getTextWidth("KomaBon", FONT_SIZE_SUBTITLE);
         char versionStr[16];
         snprintf(versionStr, sizeof(versionStr), " v%s", SYSTEM_VERSION);
         fontMgr.drawText(display, versionStr, 15 + komaBonWidth, 35, FONT_SIZE_SMALL, GxEPD_BLACK);
 
-        BatteryMgr::getInstance().drawStatusBar(display, screenW - 105, 10);
-        int colWidth = screenW / COLS;
+        // Fixed Synchronous Battery Drawing
+        BatteryMgr::getInstance().drawStatusBar(display, 0, 0);
 
-        for (size_t i = 0; i < apps.size(); i++) {
-            if (i == 0) continue;
+        // --- 2. WIDGET: CURRENTLY READING ---
+        if (_hasResume) {
+            int wx = 15;
+            int wy = 55;
+            int ww = screenW - 30;
+            int wh = 100;
 
-            App* app = apps[i];
-            int idx = i - 1;
-            int col = idx % COLS;
-            int row = idx / COLS;
+            uint16_t fgColor = (selectedIndex == 0) ? GxEPD_WHITE : GxEPD_BLACK;
+            uint16_t bgColor = (selectedIndex == 0) ? GxEPD_BLACK : GxEPD_WHITE;
 
-            int x = col * colWidth + (colWidth - ICON_SIZE) / 2;
-            int y = START_Y + row * ROW_HEIGHT;
-
-            if ((int)i == selectedIndex) {
-                display.fillRect(x, y + ICON_SIZE + 20, ICON_SIZE, 6, GxEPD_BLACK);
+            display.fillRect(wx, wy, ww, wh, bgColor);
+            if (selectedIndex != 0) {
+                display.drawRect(wx, wy, ww, wh, GxEPD_BLACK);
+                display.drawRect(wx + 1, wy + 1, ww - 2, wh - 2, GxEPD_BLACK);
             }
 
-            const uint8_t* icon = app->getIconImage();
-            if (icon) {
-                display.drawBitmap(x, y, icon, ICON_SIZE, ICON_SIZE, GxEPD_BLACK);
-            } else {
-                display.drawRect(x, y, ICON_SIZE, ICON_SIZE, GxEPD_BLACK);
-            }
+            fontMgr.drawText(display, "Currently Reading", wx + 20, wy + 35, FONT_SIZE_SMALL, fgColor);
 
-            const char* name = app->getName();
-            int nameWidth = fontMgr.getTextWidth(name, FONT_SIZE_MENU);
-            int nameX = x + (ICON_SIZE - nameWidth) / 2;
-            fontMgr.drawText(display, name, nameX, y + ICON_SIZE + 15, FONT_SIZE_MENU, GxEPD_BLACK);
+            // Truncate title if too long to fit widget width
+            String safeTitle = _lastBookTitle;
+            if (safeTitle.length() > 35) safeTitle = safeTitle.substring(0, 32) + "...";
+            fontMgr.drawText(display, safeTitle.c_str(), wx + 20, wy + 65, FONT_SIZE_BODY, fgColor);
+
+            String pageStr = "Page " + String(_lastBookPage);
+            fontMgr.drawText(display, pageStr.c_str(), wx + 20, wy + 85, FONT_SIZE_SMALL, fgColor);
         }
 
+        // --- 3. VERTICAL LIST APPS ---
+        const int ROW_HEIGHT = 75;
+        const int START_Y = 175;
+
+        for (size_t i = 1; i < apps.size(); i++) {
+            App* app = apps[i];
+            int idx = i - 1;
+            int y = START_Y + idx * ROW_HEIGHT;
+            int x = 25;
+
+            uint16_t fgColor = ((int)i == selectedIndex) ? GxEPD_WHITE : GxEPD_BLACK;
+            uint16_t bgColor = ((int)i == selectedIndex) ? GxEPD_BLACK : GxEPD_WHITE;
+
+            // Highlight Background
+            if ((int)i == selectedIndex) {
+                display.fillRect(15, y - 5, screenW - 30, ROW_HEIGHT, bgColor);
+            }
+
+            // Real-Time Nearest-Neighbor Downscaling (160x160 -> 64x64)
+            const uint8_t* icon = app->getIconImage();
+            int iconSize = 64;
+
+            if (icon) {
+                for (int cy = 0; cy < iconSize; cy++) {
+                    int srcY = (cy * 160) / iconSize;
+                    for (int cx = 0; cx < iconSize; cx++) {
+                        int srcX = (cx * 160) / iconSize;
+                        int byteIdx = (srcY * 160 + srcX) / 8;
+                        int bitIdx = 7 - ((srcY * 160 + srcX) % 8);
+
+                        // Extract bit and draw if it's foreground
+                        if (icon[byteIdx] & (1 << bitIdx)) {
+                            display.drawPixel(x + cx, y + cy, fgColor);
+                        }
+                    }
+                }
+            } else {
+                // Fallback placeholder box
+                display.drawRect(x, y, iconSize, iconSize, fgColor);
+            }
+
+            // App Name Text aligned to the right of the icon
+            int textY = y + (iconSize / 2) + 8; // Vertically centered
+            fontMgr.drawText(display, app->getName(), x + iconSize + 25, textY, FONT_SIZE_BODY, fgColor);
+        }
+
+        // --- 4. OTA UPDATE WIDGET ---
         if (updateAvailable) {
             int i = apps.size();
             int idx = i - 1;
-            int col = idx % COLS;
-            int row = idx / COLS;
+            int y = START_Y + idx * ROW_HEIGHT;
+            int x = 25;
 
-            int x = col * colWidth + (colWidth - ICON_SIZE) / 2;
-            int y = START_Y + row * ROW_HEIGHT;
+            uint16_t fgColor = ((int)i == selectedIndex) ? GxEPD_WHITE : GxEPD_BLACK;
+            uint16_t bgColor = ((int)i == selectedIndex) ? GxEPD_BLACK : GxEPD_WHITE;
 
             if ((int)i == selectedIndex) {
-                display.fillRect(x, y + ICON_SIZE + 20, ICON_SIZE, 6, GxEPD_BLACK);
+                display.fillRect(15, y - 5, screenW - 30, ROW_HEIGHT, bgColor);
             }
 
-            display.drawBitmap(x, y, icon_update_160x160, ICON_SIZE, ICON_SIZE, GxEPD_BLACK);
+            // Downscale OTA Icon
+            int iconSize = 64;
+            for (int cy = 0; cy < iconSize; cy++) {
+                int srcY = (cy * 160) / iconSize;
+                for (int cx = 0; cx < iconSize; cx++) {
+                    int srcX = (cx * 160) / iconSize;
+                    int byteIdx = (srcY * 160 + srcX) / 8;
+                    int bitIdx = 7 - ((srcY * 160 + srcX) % 8);
 
-            String updateText = "Update " + updateVersion;
-            int nameWidth = fontMgr.getTextWidth(updateText.c_str(), FONT_SIZE_MENU);
-            int nameX = x + (ICON_SIZE - nameWidth) / 2;
-            fontMgr.drawText(display, updateText.c_str(), nameX, y + ICON_SIZE + 15, FONT_SIZE_MENU,
-                             GxEPD_BLACK);
+                    if (icon_update_160x160[byteIdx] & (1 << bitIdx)) {
+                        display.drawPixel(x + cx, y + cy, fgColor);
+                    }
+                }
+            }
+
+            String updateText = "Update to " + updateVersion;
+            int textY = y + (iconSize / 2) + 8;
+            fontMgr.drawText(display, updateText.c_str(), x + iconSize + 25, textY, FONT_SIZE_BODY, fgColor);
         }
 
-        fontMgr.drawTextCentered(display, "Joy: Move  |  Center: Select", screenH - 45, FONT_SIZE_SMALL,
+        // --- 5. FOOTER ---
+        fontMgr.drawTextCentered(display, "Up/Down: Move  |  Center: Select", screenH - 45, FONT_SIZE_SMALL,
                                  GxEPD_BLACK);
         String ipStr = getWifiFooterText();
         fontMgr.drawTextCentered(display, ipStr.c_str(), screenH - 20, FONT_SIZE_SMALL, GxEPD_BLACK);

@@ -39,9 +39,6 @@ class BatteryMgr {
     void resetIdleTimer();    // Call when user interacts
     void enterIdleSleep(const char* reason = "unspecified");
 
-    // Status indicator on e-ink display (partial update)
-    void drawStatusIndicator();
-
     // Draws the complete status bar icons (Wi-Fi, SD, Battery) into the provided display buffer
     void drawStatusBar(KomaBonDisplay& display, int startX, int startY);
 
@@ -77,10 +74,4 @@ class BatteryMgr {
     int _sleepTimeoutMinutes;
     String _sleepMessage;
     unsigned long _lastActivityTime;
-
-    // Status indicator tracking (declared only once)
-    bool _lastDisplayedCharging;
-    bool _lastDisplayedWifi;
-    bool _lastDisplayedSd;
-    unsigned long _lastIndicatorUpdate;
 };

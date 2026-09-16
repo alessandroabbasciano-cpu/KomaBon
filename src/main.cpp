@@ -15,6 +15,7 @@
 #include "../KomaBon_Apps/AppMainMenu.h"
 #include "../Apps/AppReader/AppReader.h"
 #include "../KomaBon_Apps/AppSettings.h"
+#include "../KomaBon_Apps/AppWebTransfer.h"
 
 // System-wide flag for network status UI indicators
 volatile bool gNetworkStartupInProgress = false;
@@ -69,6 +70,9 @@ void setup() {
     AppSettings* settingsApp = new AppSettings();
     appMgr.registerApp(settingsApp);
 
+    AppWebTransfer* webTransferApp = new AppWebTransfer();
+    appMgr.registerApp(webTransferApp);
+
     // 5. Boot Routing Logic
     displayMgr.showBootScreen(100, "System Ready");
 
@@ -108,14 +112,6 @@ void loop() {
 
     WebMgr::getInstance().update();
     BatteryMgr::getInstance().update();
-
-    App* currentApp = AppMgr::getInstance().getCurrentApp();
-    if (!currentApp || currentApp->allowsSystemStatusIndicator()) {
-        // Ensure the battery indicator also respects the lazy rendering rule
-        if (millis() - lastPhysicalInputTime > 200) {
-            BatteryMgr::getInstance().drawStatusIndicator();
-        }
-    }
 
     delay(1); // Yield to FreeRTOS watchdog
 }

@@ -3,38 +3,6 @@
 #include "KBReader.h"
 #include "EpubLoader.h"
 #include "KomaBonFS.h"
-#include <JPEGDEC.h>
-
-struct ThumbState {
-    uint8_t thumb[640];
-    int srcW;
-    int srcH;
-};
-
-static int thumbDrawCallback(JPEGDRAW* pDraw) {
-    ThumbState* state = (ThumbState*)pDraw->pUser;
-    uint8_t* pixels = (uint8_t*)pDraw->pPixels;
-
-    for (int ty = 0; ty < 80; ty++) {
-        int sy = ty * state->srcH / 80;
-        if (sy >= pDraw->y && sy < pDraw->y + pDraw->iHeight) {
-            int mcuY = sy - pDraw->y;
-            for (int tx = 0; tx < 60; tx++) {
-                int sx = tx * state->srcW / 60;
-                if (sx >= pDraw->x && sx < pDraw->x + pDraw->iWidth) {
-                    int mcuX = sx - pDraw->x;
-                    uint8_t luma = pixels[mcuY * pDraw->iWidth + mcuX];
-                    if (luma < 128) {
-                        int dstByte = ty * 8 + (tx / 8);
-                        int dstBit = 7 - (tx % 8);
-                        state->thumb[dstByte] |= (1 << dstBit);
-                    }
-                }
-            }
-        }
-    }
-    return 1;
-}
 
 static bool isThumbnailPopulated(const uint8_t* buffer, size_t len) {
     for (size_t i = 0; i < len; i++) {
@@ -49,7 +17,7 @@ bool CoverExtractor::processNextCover(std::vector<BookEntry>& books) {
 
         String thumbPath = "/covers/" + book.baseName + ".thumb";
 
-        // Check internal SystemFS for covers instead of SD
+        // Check internal SystemFS for covers
         if (book.hasCoverThumb && SystemFS.exists(thumbPath)) {
             File testF = SystemFS.open(thumbPath, "r");
             if (testF) {
@@ -105,46 +73,27 @@ bool CoverExtractor::processNextCover(std::vector<BookEntry>& books) {
             delete kb;
 
         } else {
+            // EPUB logic: "Zero-Decoding" extraction
             EpubLoader* epub = new EpubLoader();
             String fullPath = "/ebooks" + book.path;
 
             if (epub->open(fullPath.c_str())) {
-                size_t imgSize = 0;
-                uint8_t* imgData = epub->getCoverImageData(&imgSize);
-                if (imgData && imgSize > 0) {
-                    JPEGDEC* jpeg = new JPEGDEC();
-                    if (jpeg->openRAM(imgData, imgSize, thumbDrawCallback)) {
-                        int imgW = jpeg->getWidth();
-                        int imgH = jpeg->getHeight();
-                        int scale = 0;
+                size_t thumbSize = 0;
+                // FIX: Use getFontData to bypass the OPF rootDir and fetch from the ZIP root
+                uint8_t* thumbData = epub->getFontData("cover_thumb.raw", &thumbSize);
 
-                        if (imgW / 8 >= 60 && imgH / 8 >= 80)
-                            scale = JPEG_SCALE_EIGHTH;
-                        else if (imgW / 4 >= 60 && imgH / 4 >= 80)
-                            scale = JPEG_SCALE_QUARTER;
-                        else if (imgW / 2 >= 60 && imgH / 2 >= 80)
-                            scale = JPEG_SCALE_HALF;
-
-                        ThumbState state;
-                        memset(state.thumb, 0, sizeof(state.thumb));
-                        state.srcW = imgW >> scale;
-                        state.srcH = imgH >> scale;
-
-                        jpeg->setUserPointer(&state);
-                        jpeg->setPixelType(EIGHT_BIT_GRAYSCALE);
-
-                        if (jpeg->decode(0, 0, scale)) {
-                            File f = SystemFS.open(thumbPath, "w");
-                            if (f) {
-                                f.write(state.thumb, 640);
-                                f.close();
-                                generated = true;
-                            }
-                        }
+                if (thumbData && thumbSize == 640) {
+                    File f = SystemFS.open(thumbPath, "w");
+                    if (f) {
+                        f.write(thumbData, 640);
+                        f.close();
+                        generated = true;
                     }
-                    delete jpeg;
-                    free(imgData);
+                } else {
+                    Serial.println("CoverExtractor: 'cover_thumb.raw' not found in optimized EPUB.");
                 }
+
+                if (thumbData) free(thumbData);
             }
             delete epub;
         }

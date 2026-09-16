@@ -8,8 +8,8 @@
 #include <WiFi.h>
 
 static const char* ROW_LABELS[] = {"Font size",     "Font family", "Orientation", "Refresh screen",
-                                   "Sleep timeout", "Wi-Fi",       "Network",     "System",
-                                   "Joystick",      "Save",        "Discard"};
+                                   "Sleep timeout", "Network",     "System",      "Joystick",
+                                   "Save",          "Discard"};
 
 static const char* FONT_FAMILY_NAMES[] = {"FreeSans",       "Merriweather", "Literata",
                                           "Source Serif 4", "Gelasio",      "Open Sans"};
@@ -53,8 +53,6 @@ String AppSettings::valueForRow(int index) const {
             return String(_reader.refreshFrequency) + " pages";
         case ROW_SLEEP:
             return _sleep.timeout == 0 ? String("Off") : String(_sleep.timeout) + " min";
-        case ROW_WIFI:
-            return isWifiOn() ? "On" : "Off";
         case ROW_NETWORK:
         case ROW_SYSTEM:
         case ROW_JOYSTICK:
@@ -152,10 +150,12 @@ void AppSettings::drawNetworkScreen() {
     drawHeader("Network");
 
     bool connected = WiFi.status() == WL_CONNECTED;
+    // FIX: Hardware direct check instead of the deleted isWifiOn() method
+    bool wifiIsOn = (WiFi.getMode() != WIFI_OFF);
     int y = LIST_START_Y;
 
     font.drawText(display, "Status:", 26, y, FONT_SIZE_BODY, GxEPD_BLACK);
-    font.drawText(display, connected ? "Connected" : (isWifiOn() ? "AP Mode / No Link" : "Disconnected"), 200,
+    font.drawText(display, connected ? "Connected" : (wifiIsOn ? "AP Mode / No Link" : "Disconnected"), 200,
                   y, FONT_SIZE_BODY, GxEPD_BLACK);
     y += ROW_HEIGHT;
 
@@ -164,13 +164,12 @@ void AppSettings::drawNetworkScreen() {
     font.drawText(display, FontMgr::utf8ToLatin1(ssid).c_str(), 200, y, FONT_SIZE_BODY, GxEPD_BLACK);
     y += ROW_HEIGHT;
 
-    // --- Added row to display device password explicitly ---
     font.drawText(display, "Pass:", 26, y, FONT_SIZE_BODY, GxEPD_BLACK);
     font.drawText(display, WebMgr::devicePassword(), 200, y, FONT_SIZE_BODY, GxEPD_BLACK);
     y += ROW_HEIGHT;
 
     font.drawText(display, "IP:", 26, y, FONT_SIZE_BODY, GxEPD_BLACK);
-    font.drawText(display, connected ? WiFi.localIP().toString().c_str() : (isWifiOn() ? "192.168.4.1" : "-"),
+    font.drawText(display, connected ? WiFi.localIP().toString().c_str() : (wifiIsOn ? "192.168.4.1" : "-"),
                   200, y, FONT_SIZE_BODY, GxEPD_BLACK);
     y += ROW_HEIGHT;
 
