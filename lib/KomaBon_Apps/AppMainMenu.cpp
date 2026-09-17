@@ -25,16 +25,19 @@ struct MenuDirtyRect {
     int h;
 };
 
-// Dynamic bounds calculation for partial E-ink refresh (Hero Card + Shifted App List)
-static MenuDirtyRect menuItemRect(int index, int screenW) {
+// Dynamic bounds calculation adaptive for Portrait (480x800) and Landscape (800x480)
+static MenuDirtyRect menuItemRect(int index, int screenW, int screenH, int numApps, bool updateAvail) {
+    bool isPortrait = screenH > screenW;
+    int ROW_HEIGHT = isPortrait ? 85 : 65;
+    int numAppItems = numApps - 1 + (updateAvail ? 1 : 0);
+    int START_Y = screenH - 70 - (numAppItems * ROW_HEIGHT); // Anchored to bottom above footer
+
     if (index == 0) {
-        // Widget "Currently Reading" bounds (Height 165)
-        return {10, 50, screenW - 20, 175};
+        int wy = isPortrait ? 110 : 50;
+        int wh = isPortrait ? 220 : 175;
+        return {10, wy, screenW - 20, wh};
     }
 
-    // Vertical List App bounds (Shifted down to START_Y = 230)
-    const int ROW_HEIGHT = 75;
-    const int START_Y = 230;
     int idx = index - 1;
     int y = START_Y + idx * ROW_HEIGHT;
     return {10, y - 5, screenW - 20, ROW_HEIGHT + 10};
@@ -175,7 +178,6 @@ void AppMainMenu::handleInput(InputAction action) {
         _needsRedraw = true;
     } else if (action == INPUT_SELECT) {
         if (selectedIndex == 0 && _hasResume) {
-            // Direct resume using static_cast (fully compatible with -fno-rtti)
             for (App* app : apps) {
                 if (app && strcmp(app->getName(), "Bookshelf") == 0) {
                     AppReader* reader = static_cast<AppReader*>(app);
@@ -203,10 +205,8 @@ void AppMainMenu::update() {
 
     if (now - _lastNetworkPoll >= 1000) {
         _lastNetworkPoll = now;
-
         bool connected = WiFi.status() == WL_CONNECTED;
         String ip = connected ? WiFi.localIP().toString() : "";
-
         String footerText = getWifiFooterText();
         if (connected != _lastWifiConnected || ip != _lastIp || footerText != _lastWifiFooterText) {
             _lastWifiConnected = connected;
@@ -245,6 +245,7 @@ void AppMainMenu::draw() {
 
     int16_t screenW = display.width();
     int16_t screenH = display.height();
+    bool isPortrait = screenH > screenW;
 
     bool updateAvailable;
     String updateVersion;
@@ -259,7 +260,8 @@ void AppMainMenu::draw() {
         _firstDraw = false;
     } else if (_selectionOnlyRedraw) {
         MenuDirtyRect dirty =
-            unionRect(menuItemRect(_previousSelectedIndex, screenW), menuItemRect(selectedIndex, screenW));
+            unionRect(menuItemRect(_previousSelectedIndex, screenW, screenH, apps.size(), updateAvailable),
+                      menuItemRect(selectedIndex, screenW, screenH, apps.size(), updateAvailable));
         dirty.x = std::max(0, dirty.x);
         dirty.y = std::max(0, dirty.y);
         if (dirty.x + dirty.w > screenW) dirty.w = screenW - dirty.x;
@@ -292,23 +294,25 @@ void AppMainMenu::draw() {
 
         BatteryMgr::getInstance().drawStatusBar(display, 0, 0);
 
-        // --- 2. WIDGET: CURRENTLY READING (Hero Card & Cover Resolution) ---
+        // --- 2. WIDGET: CURRENTLY READING (Elegant Hero Card) ---
         if (_hasResume) {
             int wx = 15;
-            int wy = 50;
+            int wy = isPortrait ? 110 : 50;
             int ww = screenW - 30;
-            int wh = 165;
+            int wh = isPortrait ? 220 : 175;
 
-            uint16_t fgColor = (selectedIndex == 0) ? GxEPD_WHITE : GxEPD_BLACK;
-            uint16_t bgColor = (selectedIndex == 0) ? GxEPD_BLACK : GxEPD_WHITE;
+            // Clear Background
+            display.fillRect(wx, wy, ww, wh, GxEPD_WHITE);
 
-            display.fillRect(wx, wy, ww, wh, bgColor);
-            if (selectedIndex != 0) {
-                display.drawRect(wx, wy, ww, wh, GxEPD_BLACK);
-                display.drawRect(wx + 1, wy + 1, ww - 2, wh - 2, GxEPD_BLACK);
+            // Left Sidebar Highlight (replaces color inversion)
+            if (selectedIndex == 0) {
+                display.fillRect(wx, wy + 10, 8, wh - 20, GxEPD_BLACK);
             }
 
-            drawTextWithFont(display, "Currently Reading", wx + 18, wy + 24, &FreeSans9pt8b, fgColor);
+            int textLeftOffset = wx + 24;
+            drawTextWithFont(display, "Currently Reading", textLeftOffset, wy + 24, &FreeSans9pt8b,
+                             GxEPD_BLACK);
+            display.drawFastHLine(textLeftOffset, wy + 32, 120, GxEPD_BLACK);
 
             String realFilename = findFilenameForOriginal(_lastBookTitle);
             if (realFilename.length() == 0) realFilename = _lastBookTitle;
@@ -316,9 +320,9 @@ void AppMainMenu::draw() {
             String baseName = realFilename;
             int dot = baseName.lastIndexOf('.');
             if (dot > 0) baseName = baseName.substring(0, dot);
-            String thumbPath = "/covers/" + baseName + ".thumb";
+            String coverPath = "/covers/" + baseName + ".cover";
 
-            if (!SystemFS.exists(thumbPath)) {
+            if (!SystemFS.exists(coverPath)) {
                 if (!SystemFS.exists("/covers")) SystemFS.mkdir("/covers");
                 if (realFilename.endsWith(".kmb")) {
                     KBReader* kb = new KBReader();
@@ -328,24 +332,21 @@ void AppMainMenu::draw() {
                         size_t bufSize = (w + 7) / 8 * h;
                         uint8_t* pageBuf = (uint8_t*)ps_malloc(bufSize);
                         if (pageBuf && kb->readPage(0, pageBuf)) {
-                            uint8_t thumb[640] = {0};
-                            for (int ty = 0; ty < 80; ty++) {
-                                int sy = ty * h / 80;
-                                for (int tx = 0; tx < 60; tx++) {
-                                    int sx = tx * w / 60;
+                            uint8_t cover[2400] = {0};
+                            for (int ty = 0; ty < 160; ty++) {
+                                int sy = ty * h / 160;
+                                for (int tx = 0; tx < 120; tx++) {
+                                    int sx = tx * w / 120;
                                     int srcByte = sy * ((w + 7) / 8) + (sx / 8);
                                     int srcBit = 7 - (sx % 8);
-                                    bool isBlack = (pageBuf[srcByte] & (1 << srcBit)) != 0;
-                                    if (isBlack) {
-                                        int dstByte = ty * 8 + (tx / 8);
-                                        int dstBit = 7 - (tx % 8);
-                                        thumb[dstByte] |= (1 << dstBit);
+                                    if (pageBuf[srcByte] & (1 << srcBit)) {
+                                        cover[ty * 15 + (tx / 8)] |= (1 << (7 - (tx % 8)));
                                     }
                                 }
                             }
-                            File f = SystemFS.open(thumbPath, "w");
+                            File f = SystemFS.open(coverPath, "w");
                             if (f) {
-                                f.write(thumb, 640);
+                                f.write(cover, 2400);
                                 f.close();
                             }
                         }
@@ -355,58 +356,46 @@ void AppMainMenu::draw() {
                 } else {
                     EpubLoader* epub = new EpubLoader();
                     if (epub->open(("/ebooks/" + realFilename).c_str()) || epub->open(realFilename.c_str())) {
-                        size_t thumbSize = 0;
-                        uint8_t* thumbData = epub->getFontData("cover_thumb.raw", &thumbSize);
-                        if (thumbData && thumbSize == 640) {
-                            File f = SystemFS.open(thumbPath, "w");
+                        size_t coverSize = 0;
+                        uint8_t* coverData = epub->getFontData("cover_main.raw", &coverSize);
+                        if (coverData && coverSize == 2400) {
+                            File f = SystemFS.open(coverPath, "w");
                             if (f) {
-                                f.write(thumbData, 640);
+                                f.write(coverData, 2400);
                                 f.close();
                             }
                         }
-                        if (thumbData) free(thumbData);
+                        if (coverData) free(coverData);
                     }
                     delete epub;
                 }
             }
 
-            int coverX = wx + 18;
-            int coverY = wy + 34;
-            int coverW = 60 * 2;
-            int coverH = 80 * 2;
+            int coverX = textLeftOffset;
+            int coverY = wy + 45;
+            int coverW = 120;
+            int coverH = 160;
 
             bool coverDrawn = false;
-            if (SystemFS.exists(thumbPath)) {
-                File f = SystemFS.open(thumbPath, "r");
+            if (SystemFS.exists(coverPath)) {
+                File f = SystemFS.open(coverPath, "r");
                 if (f) {
-                    uint8_t thumbBuf[640];
-                    if (f.read(thumbBuf, 640) == 640) {
+                    uint8_t coverBuf[2400];
+                    if (f.read(coverBuf, 2400) == 2400) {
                         coverDrawn = true;
-                        for (int ty = 0; ty < coverH && (coverY + ty) < (wy + wh - 8); ty++) {
-                            int sy = ty / 2;
-                            if (sy >= 80) break;
-                            for (int tx = 0; tx < coverW; tx++) {
-                                int sx = tx / 2;
-                                if (sx >= 60) break;
-                                int srcByte = sy * 8 + (sx / 8);
-                                int srcBit = 7 - (sx % 8);
-                                if (thumbBuf[srcByte] & (1 << srcBit)) {
-                                    display.drawPixel(coverX + tx, coverY + ty, fgColor);
-                                }
-                            }
-                        }
+                        display.drawBitmap(coverX, coverY, coverBuf, coverW, coverH, GxEPD_BLACK);
                     }
                     f.close();
                 }
             }
 
             if (!coverDrawn) {
-                display.drawRect(coverX, coverY, coverW, coverH, fgColor);
-                drawTextWithFont(display, "No Cover", coverX + 22, coverY + 75, &FreeSans9pt8b, fgColor);
+                display.drawRect(coverX, coverY, coverW, coverH, GxEPD_BLACK);
+                drawTextWithFont(display, "No Cover", coverX + 22, coverY + 75, &FreeSans9pt8b, GxEPD_BLACK);
             }
 
             int textX = coverX + coverW + 25;
-            int textMaxWidth = wx + ww - textX - 20;
+            int textMaxWidth = wx + ww - textX - 10;
 
             String cleanTitle = _lastBookTitle;
             if (cleanTitle.lastIndexOf('.') > 0) {
@@ -424,12 +413,15 @@ void AppMainMenu::draw() {
             }
 
             if (author.length() > 38) author = author.substring(0, 35) + "...";
+
+            // Centered Metadata
+            int authorY = coverY + 20;
             if (dashPos != -1) {
-                drawTextWithFont(display, author.c_str(), textX, wy + 55, &FreeSans9pt8b, fgColor);
+                drawTextWithFont(display, author.c_str(), textX, authorY, &FreeSans9pt8b, GxEPD_BLACK);
             }
 
             const GFXfont* titleFont = &FreeSansBold12pt8b;
-            int titleY = dashPos != -1 ? (wy + 85) : (wy + 70);
+            int titleY = dashPos != -1 ? (authorY + 26) : (coverY + 34);
             int maxLines = 2;
             int lineCount = 0;
             String currentLine = "";
@@ -444,7 +436,7 @@ void AppMainMenu::draw() {
 
                 if (textWidthForFont(display, testLine.c_str(), titleFont) > textMaxWidth &&
                     currentLine.length() > 0) {
-                    drawTextWithFont(display, currentLine.c_str(), textX, titleY, titleFont, fgColor);
+                    drawTextWithFont(display, currentLine.c_str(), textX, titleY, titleFont, GxEPD_BLACK);
                     titleY += 26;
                     lineCount++;
                     currentLine = word;
@@ -460,29 +452,31 @@ void AppMainMenu::draw() {
                 if (pos < bookNameLen && currentLine.length() > 3) {
                     currentLine = currentLine.substring(0, currentLine.length() - 3) + "...";
                 }
-                drawTextWithFont(display, currentLine.c_str(), textX, titleY, titleFont, fgColor);
+                drawTextWithFont(display, currentLine.c_str(), textX, titleY, titleFont, GxEPD_BLACK);
             }
 
+            int pageY = coverY + 140;
             char pageInfo[32];
             snprintf(pageInfo, sizeof(pageInfo), "Page %d", _lastBookPage);
-            drawTextWithFont(display, pageInfo, textX, wy + 142, &FreeSans9pt8b, fgColor);
+            drawTextWithFont(display, pageInfo, textX, pageY, &FreeSans9pt8b, GxEPD_BLACK);
         }
 
-        // --- 3. VERTICAL LIST APPS ---
-        const int ROW_HEIGHT = 75;
-        const int START_Y = 230;
+        // --- 3. VERTICAL LIST APPS (Bottom Anchored) ---
+        int ROW_HEIGHT = isPortrait ? 85 : 65;
+        int numAppItems = apps.size() - 1 + (updateAvailable ? 1 : 0);
+        int START_Y = screenH - 70 - (numAppItems * ROW_HEIGHT);
 
         for (size_t i = 1; i < apps.size(); i++) {
             App* app = apps[i];
             int idx = i - 1;
             int y = START_Y + idx * ROW_HEIGHT;
-            int x = 25;
+            int x = 35;
 
-            uint16_t fgColor = ((int)i == selectedIndex) ? GxEPD_WHITE : GxEPD_BLACK;
-            uint16_t bgColor = ((int)i == selectedIndex) ? GxEPD_BLACK : GxEPD_WHITE;
+            display.fillRect(15, y - 5, screenW - 30, ROW_HEIGHT, GxEPD_WHITE);
 
+            // Left Sidebar Highlight
             if ((int)i == selectedIndex) {
-                display.fillRect(15, y - 5, screenW - 30, ROW_HEIGHT, bgColor);
+                display.fillRect(15, y + 5, 6, ROW_HEIGHT - 20, GxEPD_BLACK);
             }
 
             const uint8_t* icon = app->getIconImage();
@@ -497,16 +491,19 @@ void AppMainMenu::draw() {
                         int bitIdx = 7 - ((srcY * 160 + srcX) % 8);
 
                         if (icon[byteIdx] & (1 << bitIdx)) {
-                            display.drawPixel(x + cx, y + cy, fgColor);
+                            display.drawPixel(x + cx, y + cy, GxEPD_BLACK);
                         }
                     }
                 }
-            } else {
-                display.drawRect(x, y, iconSize, iconSize, fgColor);
             }
 
+            // Visual Override for "Web Transfer"
+            String dispName = app->getName();
+            if (dispName == "Web Transfer") dispName = "Web UI";
+
             int textY = y + (iconSize / 2) + 8;
-            fontMgr.drawText(display, app->getName(), x + iconSize + 25, textY, FONT_SIZE_BODY, fgColor);
+            fontMgr.drawText(display, dispName.c_str(), x + iconSize + 25, textY, FONT_SIZE_BODY,
+                             GxEPD_BLACK);
         }
 
         // --- 4. OTA UPDATE WIDGET ---
@@ -514,13 +511,12 @@ void AppMainMenu::draw() {
             int i = apps.size();
             int idx = i - 1;
             int y = START_Y + idx * ROW_HEIGHT;
-            int x = 25;
+            int x = 35;
 
-            uint16_t fgColor = ((int)i == selectedIndex) ? GxEPD_WHITE : GxEPD_BLACK;
-            uint16_t bgColor = ((int)i == selectedIndex) ? GxEPD_BLACK : GxEPD_WHITE;
+            display.fillRect(15, y - 5, screenW - 30, ROW_HEIGHT, GxEPD_WHITE);
 
             if ((int)i == selectedIndex) {
-                display.fillRect(15, y - 5, screenW - 30, ROW_HEIGHT, bgColor);
+                display.fillRect(15, y + 5, 6, ROW_HEIGHT - 20, GxEPD_BLACK);
             }
 
             int iconSize = 64;
@@ -532,14 +528,15 @@ void AppMainMenu::draw() {
                     int bitIdx = 7 - ((srcY * 160 + srcX) % 8);
 
                     if (icon_update_160x160[byteIdx] & (1 << bitIdx)) {
-                        display.drawPixel(x + cx, y + cy, fgColor);
+                        display.drawPixel(x + cx, y + cy, GxEPD_BLACK);
                     }
                 }
             }
 
             String updateText = "Update to " + updateVersion;
             int textY = y + (iconSize / 2) + 8;
-            fontMgr.drawText(display, updateText.c_str(), x + iconSize + 25, textY, FONT_SIZE_BODY, fgColor);
+            fontMgr.drawText(display, updateText.c_str(), x + iconSize + 25, textY, FONT_SIZE_BODY,
+                             GxEPD_BLACK);
         }
 
         // --- 5. FOOTER ---

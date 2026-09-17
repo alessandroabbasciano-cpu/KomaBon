@@ -36,29 +36,28 @@ void setup() {
     // Enforce strict offline mode on boot
     gNetworkStartupInProgress = false;
 
-    // 2. Hardware Subsystems
-    DisplayMgr& displayMgr = DisplayMgr::getInstance();
-    displayMgr.init();
-    displayMgr.showBootScreen(10, "Init Display Subsystem");
-
-    // Initialize the external MicroSD card via standard SPI
-    displayMgr.showBootScreen(25, "Mounting SD Card");
-    SDMgr::getInstance().init();
-
-    // Mount internal LittleFS filesystems (SystemFS, EbookFS fallback)
-    displayMgr.showBootScreen(40, "Mounting Internal Storage");
+    // 2. Base Filesystem
     WebMgr::getInstance().mountFilesystems();
 
-    // 3. UI & Managers
-    displayMgr.showBootScreen(55, "Loading Font Assets");
+    // 3. UI Assets
     FontMgr::getInstance().init();
-    displayMgr.loadDisplaySettings();
 
-    displayMgr.showBootScreen(70, "Init Power & Controls");
+    // 4. Display Subsystem
+    DisplayMgr& displayMgr = DisplayMgr::getInstance();
+    displayMgr.init();
+    displayMgr.loadDisplaySettings();
+    displayMgr.showBootScreen(10, "System Initialization");
+
+    // 5. External Storage
+    displayMgr.showBootScreen(35, "Mounting SD Card");
+    SDMgr::getInstance().init();
+
+    // 6. Power & Controls
+    displayMgr.showBootScreen(60, "Init Power & Controls");
     BatteryMgr::getInstance().init();
     InputMgr::getInstance().init();
 
-    // 4. Application Registry
+    // 7. Application Registry
     displayMgr.showBootScreen(85, "Registering Core Apps");
     AppMgr& appMgr = AppMgr::getInstance();
 
@@ -67,20 +66,19 @@ void setup() {
     AppReader* readerApp = new AppReader();
     appMgr.registerApp(readerApp);
 
-    AppSettings* settingsApp = new AppSettings();
-    appMgr.registerApp(settingsApp);
-
     AppWebTransfer* webTransferApp = new AppWebTransfer();
     appMgr.registerApp(webTransferApp);
 
-    // 5. Boot Routing Logic
+    AppSettings* settingsApp = new AppSettings();
+    appMgr.registerApp(settingsApp);
+
+    // 8. Boot Routing Logic
     displayMgr.showBootScreen(100, "System Ready");
 
     // Check joystick calibration safely on the internal SystemFS partition
     if (!SystemFS.exists("/joy_cal.json")) {
         Serial.println("[BOOT] Missing calibration. Starting wizard.");
         appMgr.switchTo(2); // SettingsApp is index 2
-        settingsApp->startCalibrationWizard();
     } else if (readerApp->hasBootResume()) {
         Serial.println("[BOOT] Resuming last opened book.");
         readerApp->resumeSavedBookOnStart();

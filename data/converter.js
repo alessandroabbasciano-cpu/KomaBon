@@ -158,31 +158,45 @@ async function createRawImageBlob(bitmap, maxWidth, maxHeight) {
     return new Blob([buffer], { type: 'application/octet-stream' });
 }
 
+// 60x80 (640 bytes) for Library
 async function createThumbBlob(bitmap) {
     const w = 60;
     const h = 80;
-
     const canvas = document.createElement('canvas');
-    canvas.width = w;
-    canvas.height = h;
+    canvas.width = w; canvas.height = h;
     const ctx = canvas.getContext('2d', { willReadFrequently: true });
 
-    ctx.fillStyle = '#FFFFFF';
-    ctx.fillRect(0, 0, w, h);
+    ctx.fillStyle = '#FFFFFF'; ctx.fillRect(0, 0, w, h);
 
     const scale = Math.min(w / bitmap.width, h / bitmap.height);
-    const drawW = bitmap.width * scale;
-    const drawH = bitmap.height * scale;
-    const drawX = (w - drawW) / 2;
-    const drawY = (h - drawH) / 2;
+    const drawW = bitmap.width * scale; const drawH = bitmap.height * scale;
+    const drawX = (w - drawW) / 2; const drawY = (h - drawH) / 2;
 
     ctx.drawImage(bitmap, drawX, drawY, drawW, drawH);
-
     const buffer = new ArrayBuffer(640);
     const bytes = new Uint8Array(buffer);
-
     applyDitheringAndPack(ctx, bytes, 0, w, h, Math.ceil(w / 8));
+    return new Blob([buffer], { type: 'application/octet-stream' });
+}
 
+// 120x160 (2400 bytes) for Main Menu Hero Card
+async function createMainCoverBlob(bitmap) {
+    const w = 120;
+    const h = 160;
+    const canvas = document.createElement('canvas');
+    canvas.width = w; canvas.height = h;
+    const ctx = canvas.getContext('2d', { willReadFrequently: true });
+
+    ctx.fillStyle = '#FFFFFF'; ctx.fillRect(0, 0, w, h);
+
+    const scale = Math.min(w / bitmap.width, h / bitmap.height);
+    const drawW = bitmap.width * scale; const drawH = bitmap.height * scale;
+    const drawX = (w - drawW) / 2; const drawY = (h - drawH) / 2;
+
+    ctx.drawImage(bitmap, drawX, drawY, drawW, drawH);
+    const buffer = new ArrayBuffer(2400);
+    const bytes = new Uint8Array(buffer);
+    applyDitheringAndPack(ctx, bytes, 0, w, h, Math.ceil(w / 8));
     return new Blob([buffer], { type: 'application/octet-stream' });
 }
 
@@ -477,7 +491,6 @@ async function processPDF(file) {
     }
 }
 
-// EPUB Optimizer (Zero-Decoding Architecture with Smart Cover Detection)
 async function optimizeEPUB(file) {
     const targetWidth = parseInt(document.getElementById('eink-width').value);
     const targetHeight = parseInt(document.getElementById('eink-height').value);
@@ -513,7 +526,6 @@ async function optimizeEPUB(file) {
                 const titleNode = opfDoc.getElementsByTagNameNS("*", "title")[0];
                 if (titleNode) title = titleNode.textContent.trim();
 
-                // Smart Cover Detection from OPF manifest
                 let epub2CoverId = "";
                 const metaTags = opfDoc.getElementsByTagNameNS("*", "meta");
                 for (let i = 0; i < metaTags.length; i++) {
@@ -558,25 +570,27 @@ async function optimizeEPUB(file) {
 
         logMessage(`Found ${imageFiles.length} images. Generating RAW buffers...`);
 
-        // Resolve cover file path if not found in OPF manifest via keywords
         if (!coverHref || !zip.files[coverHref]) {
             const lowerImages = imageFiles.map(f => ({ path: f, lower: f.toLowerCase() }));
             const match = lowerImages.find(img =>
                 img.lower.includes("cover") || img.lower.includes("copertina") || img.lower.includes("front") || img.lower.includes("titlepage")
             );
-            coverHref = match ? match.path : imageFiles[0]; // Absolute fallback to very first image
+            coverHref = match ? match.path : imageFiles[0];
         }
 
-        logMessage(`Selected cover image for thumbnail: ${coverHref}`);
-
-        // Generate and inject cover_thumb.raw using the REAL cover image
+        // Generate and inject BOTH covers (thumb & main) natively dithered
         if (coverHref && zip.files[coverHref]) {
             const coverData = await zip.file(coverHref).async("blob");
             const coverBitmap = await createImageBitmap(coverData);
+
             const thumbBlob = await createThumbBlob(coverBitmap);
             zip.file("cover_thumb.raw", thumbBlob);
+
+            const mainCoverBlob = await createMainCoverBlob(coverBitmap);
+            zip.file("cover_main.raw", mainCoverBlob);
+
             coverBitmap.close();
-            logMessage(`Accurate cover thumbnail successfully injected.`);
+            logMessage(`Native Dual-Thumbnails successfully injected.`);
         }
 
         const fileReplacements = {};
@@ -730,6 +744,8 @@ img { max-width: 100%; height: auto; display: block; margin: 1em auto; }
                         if (isFirstImage) {
                             const thumbBlob = await createThumbBlob(bitmap);
                             epub.file("cover_thumb.raw", thumbBlob);
+                            const mainCoverBlob = await createMainCoverBlob(bitmap);
+                            epub.file("cover_main.raw", mainCoverBlob);
                             isFirstImage = false;
                         }
 
@@ -772,8 +788,6 @@ img { max-width: 100%; height: auto; display: block; margin: 1em auto; }
         if (chaptersHtml.length === 0) {
             chaptersHtml.push("<p>Document contains no readable text.</p>");
         }
-
-        logMessage(`Extracted ${chaptersHtml.length} chapters and ${manifestImages.length} images from ODT structure.`);
 
         const rawName = file.name.replace(/\.odt$/i, "");
         const safeTitle = rawName.replace(/-/g, " ").replace(/[^a-zA-Z0-9_\s]/gi, "").trim();
