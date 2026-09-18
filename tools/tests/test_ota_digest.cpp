@@ -71,9 +71,9 @@ int main() {
     const string firmwareSig =
         "000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f"
         "202122232425262728292a2b2c2d2e2f303132333435363738393a3b3c3d3e3f";
-    const string littlefsSig(BOOK32_ED25519_SIG_HEX_LEN, '1');
-    assert(firmwareSig.length() == (size_t)BOOK32_ED25519_SIG_HEX_LEN);
-    assert(littlefsSig.length() == (size_t)BOOK32_ED25519_SIG_HEX_LEN);
+    const string littlefsSig(KOMABON_ED25519_SIG_HEX_LEN, '1');
+    assert(firmwareSig.length() == (size_t)KOMABON_ED25519_SIG_HEX_LEN);
+    assert(littlefsSig.length() == (size_t)KOMABON_ED25519_SIG_HEX_LEN);
 
     const string signed_notes =
         "### Checksums\n"
@@ -84,7 +84,7 @@ int main() {
 
     string sig;
     assert(extractEd25519Signature(signed_notes, "firmware.bin", sig));
-    assert(sig.length() == (size_t)BOOK32_ED25519_SIG_HEX_LEN);
+    assert(sig.length() == (size_t)KOMABON_ED25519_SIG_HEX_LEN);
     assert(sig == firmwareSig);
 
     assert(extractEd25519Signature(signed_notes, "littlefs.bin", sig));
@@ -106,16 +106,16 @@ int main() {
     assert(!extractEd25519Signature(shortSig, "firmware.bin", sig));
 
     // hexDecode(): the inverse of the hex text this file parses out.
-    uint8_t decoded[BOOK32_ED25519_SIG_LEN];
-    assert(hexDecode(sig, (size_t)BOOK32_ED25519_SIG_HEX_LEN, decoded));
-    assert(decoded[0] == 0x11 && decoded[1] == 0x11 && decoded[BOOK32_ED25519_SIG_LEN - 1] == 0x11);
+    uint8_t decoded[KOMABON_ED25519_SIG_LEN];
+    assert(hexDecode(sig, (size_t)KOMABON_ED25519_SIG_HEX_LEN, decoded));
+    assert(decoded[0] == 0x11 && decoded[1] == 0x11 && decoded[KOMABON_ED25519_SIG_LEN - 1] == 0x11);
 
     // Wrong length or non-hex input must fail closed, leaving `decoded`
     // whatever it was (callers must check the return value).
-    assert(!hexDecode(string("abcd"), (size_t)BOOK32_ED25519_SIG_HEX_LEN, decoded));
+    assert(!hexDecode(string("abcd"), (size_t)KOMABON_ED25519_SIG_HEX_LEN, decoded));
     string nonHexSig = sig;
     nonHexSig[0] = 'z';
-    assert(!hexDecode(nonHexSig, (size_t)BOOK32_ED25519_SIG_HEX_LEN, decoded));
+    assert(!hexDecode(nonHexSig, (size_t)KOMABON_ED25519_SIG_HEX_LEN, decoded));
 
     printf("test_ota_digest: all tests passed.\n");
     return 0;
