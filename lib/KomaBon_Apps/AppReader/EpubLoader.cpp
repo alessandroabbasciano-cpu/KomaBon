@@ -89,7 +89,6 @@ void EpubLoader::close() {
     }
     spine.clear();
     manifest.clear();
-    fonts.clear();
     coverHref = "";
 }
 
@@ -109,7 +108,6 @@ String EpubLoader::getChapterContent(int index) {
     String content = readFileFromZip(fullPath.c_str());
     if (content.length() == 0) return "";
 
-    // --- ADVANCED HTML PARSING ---
     String clean;
     clean.reserve(content.length());
     bool inTag = false, skipContent = false;
@@ -127,20 +125,17 @@ String EpubLoader::getChapterContent(int index) {
                 j++;
             }
 
-            // BLOCK ELEMENTS: cause a newline
             if (currentTag == "p" || currentTag == "/p" || currentTag == "div" || currentTag == "/div" ||
                 currentTag == "br" || currentTag == "br/" || currentTag.startsWith("h")) {
                 if (clean.length() > 0 && clean.charAt(clean.length() - 1) != '\n') clean += "\n";
             } else if (currentTag == "li") {
                 if (clean.length() > 0 && clean.charAt(clean.length() - 1) != '\n') clean += "\n";
                 clean += "• ";
-            }
-            // Skip image/media elements completely
-            else if (currentTag == "img" || currentTag == "svg" || currentTag == "figure" ||
-                     currentTag == "image") {
-                // Skip - these are self-closing or we don't want their content
+            } else if (currentTag == "img" || currentTag == "svg" || currentTag == "figure" ||
+                       currentTag == "image") {
+                // Skip
             } else if (currentTag == "/figure" || currentTag == "/svg") {
-                // End of skipped elements
+                // Skip
             } else if (currentTag == "script" || currentTag == "style" || currentTag == "head")
                 skipContent = true;
             else if (currentTag == "/script" || currentTag == "/style" || currentTag == "/head")
@@ -153,8 +148,6 @@ String EpubLoader::getChapterContent(int index) {
         }
     }
 
-    // --- AGGRESSIVE CLEANING ---
-    // Handle Windows-1252 / UTF-8 mix-up artifacts
     clean.replace("¶Ç8", " -- ");
     clean.replace("¶ÇÖ", "'");
     clean.replace("¶Çö", "'");
@@ -164,7 +157,6 @@ String EpubLoader::getChapterContent(int index) {
     clean.replace("¶ÇÜ", "...");
     clean.replace("¶Ç", "");
 
-    // Standard UTF-8
     clean.replace("\xE2\x80\x9C", "\"");
     clean.replace("\xE2\x80\x9D", "\"");
     clean.replace("\xE2\x80\x98", "'");
@@ -173,7 +165,6 @@ String EpubLoader::getChapterContent(int index) {
     clean.replace("\xE2\x80\x93", " - ");
     clean.replace("\xE2\x80\xA6", "...");
 
-    // Strip accidental newlines before punctuation
     clean.replace("\n,", ",");
     clean.replace("\n.", ".");
     clean.replace("\n?", "?");
@@ -181,7 +172,6 @@ String EpubLoader::getChapterContent(int index) {
     clean.replace("\n\"", "\"");
     clean.replace("\n'", "'");
 
-    // Collapse multiple spaces
     while (clean.indexOf("  ") != -1)
         clean.replace("  ", " ");
 
@@ -208,7 +198,6 @@ bool EpubLoader::parseOpf() {
     bookTitle = extractMetadata(xml, "dc:title");
     if (bookTitle.length() == 0) bookTitle = extractMetadata(xml, "title");
 
-    // Find the cover ID for EPUB2
     String epub2CoverId = "";
     int metaPos = 0;
     while (true) {
@@ -239,7 +228,6 @@ bool EpubLoader::parseOpf() {
         String itemTag = manifestBlock.substring(itemStart, itemEnd + 1);
         String id = extractAttribute(itemTag, "item", "id");
         String href = extractAttribute(itemTag, "item", "href");
-        String mediaType = extractAttribute(itemTag, "item", "media-type");
         String properties = extractAttribute(itemTag, "item", "properties");
 
         if (id.length() > 0 && href.length() > 0) {
@@ -249,7 +237,6 @@ bool EpubLoader::parseOpf() {
             String idLower = id;
             idLower.toLowerCase();
 
-            // --- Multilingual Cover Identification ---
             bool isImageFile =
                 hrefLower.endsWith(".jpg") || hrefLower.endsWith(".jpeg") || hrefLower.endsWith(".png");
 
@@ -258,15 +245,8 @@ bool EpubLoader::parseOpf() {
             } else if (epub2CoverId.length() > 0 && id == epub2CoverId && isImageFile) {
                 coverHref = href;
             } else if (coverHref.length() == 0 && isImageFile) {
-                static const char* const COVER_KEYWORDS[] = {
-                    "cover",      // English
-                    "copertina",  // Italian
-                    "couverture", // French
-                    "portada",    // Spanish
-                    "capa",       // Portuguese
-                    "titelbild",  // German
-                    "umschlag"    // German
-                };
+                static const char* const COVER_KEYWORDS[] = {"cover", "copertina", "couverture", "portada",
+                                                             "capa",  "titelbild", "umschlag"};
 
                 const size_t keywordCount = sizeof(COVER_KEYWORDS) / sizeof(COVER_KEYWORDS[0]);
 
@@ -277,34 +257,6 @@ bool EpubLoader::parseOpf() {
                         break;
                     }
                 }
-            }
-
-            if (hrefLower.endsWith(".ttf") || hrefLower.endsWith(".otf") || mediaType.indexOf("font") != -1) {
-                FontInfo font;
-                font.path = rootDir + href;
-                if (hrefLower.endsWith(".ttf"))
-                    font.format = "ttf";
-                else if (hrefLower.endsWith(".otf"))
-                    font.format = "otf";
-
-                int lastSlash = href.lastIndexOf('/');
-                int lastDot = href.lastIndexOf('.');
-                if (lastSlash != -1 && lastDot != -1)
-                    font.family = href.substring(lastSlash + 1, lastDot);
-                else if (lastDot != -1)
-                    font.family = href.substring(0, lastDot);
-
-                String fLower = font.family;
-                fLower.toLowerCase();
-                if (fLower.indexOf("bolditalic") != -1)
-                    font.style = "bold-italic";
-                else if (fLower.indexOf("bold") != -1)
-                    font.style = "bold";
-                else if (fLower.indexOf("italic") != -1)
-                    font.style = "italic";
-                else
-                    font.style = "normal";
-                fonts.push_back(font);
             }
         }
         pos = itemEnd + 1;
@@ -333,7 +285,7 @@ bool EpubLoader::parseOpf() {
     return true;
 }
 
-uint8_t* EpubLoader::getFontData(String path, size_t* outSize) {
+uint8_t* EpubLoader::getRawZipData(const String& path, size_t* outSize) {
     if (path.length() == 0) return nullptr;
     if (zip->locateFile(path.c_str()) != 0) return nullptr;
     if (zip->openCurrentFile() != 0) return nullptr;
@@ -356,18 +308,16 @@ uint8_t* EpubLoader::getFontData(String path, size_t* outSize) {
 
     memset(buffer, 0, size + 32);
 
-    // Read in chunks to prevent unzipLIB from overshooting the buffer
     size_t totalRead = 0;
     while (totalRead < size) {
         int toRead = (size - totalRead > 1024) ? 1024 : (size - totalRead);
         int bytesRead = zip->readCurrentFile(buffer + totalRead, toRead);
         if (bytesRead <= 0) break;
         totalRead += bytesRead;
-        yield(); // Feed the watchdog timer
+        yield();
     }
 
     zip->closeCurrentFile();
-
     *outSize = totalRead;
     return buffer;
 }
@@ -413,9 +363,8 @@ String EpubLoader::readFileFromZip(const char* path) {
         size = KOMABON_MAX_ZIP_TEXT_BYTES;
     }
 
-    // --- PSRAM OPTIMIZATION ---
     char* rawBuffer = (char*)ps_malloc(size + 1);
-    if (!rawBuffer) rawBuffer = (char*)malloc(size + 1); // Fallback to SRAM
+    if (!rawBuffer) rawBuffer = (char*)malloc(size + 1);
 
     if (!rawBuffer) {
         Serial.println("EpubLoader: FATAL - Memory allocation failed for chapter text!");
@@ -431,14 +380,12 @@ String EpubLoader::readFileFromZip(const char* path) {
         if (bytesRead <= 0) break;
         totalRead += bytesRead;
         remaining -= bytesRead;
-        yield(); // Yield to FreeRTOS
+        yield();
     }
 
     rawBuffer[totalRead] = '\0';
-
     String str(rawBuffer);
     free(rawBuffer);
-
     zip->closeCurrentFile();
     return str;
 }
@@ -457,9 +404,6 @@ String EpubLoader::getPublicationDate() {
 }
 String EpubLoader::getISBN() {
     return bookISBN;
-}
-std::vector<FontInfo> EpubLoader::getFonts() {
-    return fonts;
 }
 
 TextStyle EpubLoader::getStyleFromTag(String tag) {
@@ -907,7 +851,7 @@ uint8_t* EpubLoader::getFileData(String path, size_t* outSize) {
     }
 
     if (fullPath.startsWith("./")) fullPath = fullPath.substring(2);
-    return getFontData(fullPath, outSize);
+    return getRawZipData(fullPath, outSize);
 }
 
 uint8_t* EpubLoader::getCoverImageData(size_t* outSize) {

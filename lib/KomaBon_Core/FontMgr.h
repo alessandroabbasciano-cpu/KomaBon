@@ -4,18 +4,22 @@
 #include <Arduino.h>
 #include "DisplayMgr.h"
 
-// Local FreeSans fonts with Latin-1 Supplement (0x20-0xFF) so Portuguese and
-// other Western European text renders correctly across the whole UI. These
-// replace the ASCII-only Adafruit <Fonts/FreeSans*pt7b.h> headers.
 #include "Fonts/FreeSans.h"
+#include "Fonts/Gelasio.h"
+#include "Fonts/Literata.h"
+#include "Fonts/Merriweather.h"
+#include "Fonts/OpenSans.h"
+#include "Fonts/SourceSerif4.h"
 
 // Font size presets (in pixels) - mapped to GFX fonts
-#define FONT_SIZE_SMALL 14    // FreeSans9pt8b
-#define FONT_SIZE_BODY 18     // FreeSans12pt8b
-#define FONT_SIZE_MENU 20     // FreeSans12pt8b
-#define FONT_SIZE_SUBTITLE 24 // FreeSans18pt8b
-#define FONT_SIZE_TITLE 28    // FreeSans18pt8b
-#define FONT_SIZE_HEADER 36   // FreeSans24pt8b
+#define FONT_SIZE_SMALL 14
+#define FONT_SIZE_BODY 18
+#define FONT_SIZE_MENU 20
+#define FONT_SIZE_SUBTITLE 24
+#define FONT_SIZE_TITLE 28
+#define FONT_SIZE_HEADER 36
+
+enum class FontFamily { FreeSans, Gelasio, Literata, Merriweather, OpenSans, SourceSerif4 };
 
 class FontMgr {
   public:
@@ -28,6 +32,10 @@ class FontMgr {
     bool hasTTFFont() {
         return true;
     }
+
+    // Dynamic Font Switching
+    void setFontFamily(FontFamily family);
+    FontFamily getFontFamily() const;
 
     // Draw text at position using Adafruit GFX fonts
     void drawText(KomaBonDisplay& display, const char* text, int x, int y, int fontSize,
@@ -47,16 +55,10 @@ class FontMgr {
     // Get text height
     int getTextHeight(int fontSize);
 
-    // Get the GFX font for a given size
+    // Get the GFX font for a given size and current family
     const GFXfont* getFont(int fontSize);
     const GFXfont* getFontBold(int fontSize);
 
-    // Convert a UTF-8 string to Latin-1 (ISO-8859-1) bytes for the display
-    // layer. Adafruit_GFX::write() consumes one byte per glyph and our fonts
-    // cover 0x20-0xFF, so multi-byte UTF-8 sequences must be collapsed first.
-    // Codepoints above 0xFF are mapped to ASCII fallbacks where sensible
-    // (curly quotes, dashes, ellipsis) or '?' otherwise. NBSP becomes a
-    // regular space and soft hyphens are dropped.
     static void utf8ToLatin1(const char* src, char* dst, size_t dstSize);
     static String utf8ToLatin1(const String& src);
 
@@ -64,11 +66,9 @@ class FontMgr {
     FontMgr();
     ~FontMgr();
 
-    // Character width cache for fast text measurement.
-    // 256 entries: covers ASCII + Latin-1 Supplement (must match the glyph
-    // range of the fonts, 0x20-0xFF, or width lookups silently break).
     uint8_t _charWidths[256];
     const GFXfont* _lastFont = nullptr;
+    FontFamily _currentFamily = FontFamily::FreeSans;
 
     void cacheCharWidths(const GFXfont* font);
 };

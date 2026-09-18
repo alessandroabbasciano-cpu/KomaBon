@@ -1,22 +1,21 @@
 #include "AppMainMenu.h"
 #include "DisplayMgr.h"
 #include "AppMgr.h"
-#include "WebMgr.h"
 #include "../KomaBon_Core/BatteryMgr.h"
 #include "../KomaBon_Core/InputMgr.h"
 #include "../KomaBon_Core/FontMgr.h"
 #include "../KomaBon_Core/BookMeta.h"
-#include "../Book32_Web/WebMgr.h"
+#include "../KomaBon_Web/WebMgr.h"
 #include "../KomaBon_Core/DeviceCred.h"
 #include "../KomaBon_Core/KomaBonFS.h"
-#include "../Apps/AppReader/AppReader.h"
-#include "../Apps/AppReader/EpubLoader.h"
-#include "../Apps/AppReader/KBReader.h"
+#include "AppReader/AppReader.h"
+#include "AppReader/EpubLoader.h"
+#include "AppReader/KBReader.h"
 #include "../../include/Config.h"
 #include "../../include/NetworkState.h"
 #include <WiFi.h>
 #include "icon_update.h"
-#include "../Book32_Update/GitHubMgr.h"
+#include "../KomaBon_OTA/GitHubMgr.h"
 
 struct MenuDirtyRect {
     int x;
@@ -357,7 +356,7 @@ void AppMainMenu::draw() {
                     EpubLoader* epub = new EpubLoader();
                     if (epub->open(("/ebooks/" + realFilename).c_str()) || epub->open(realFilename.c_str())) {
                         size_t coverSize = 0;
-                        uint8_t* coverData = epub->getFontData("cover_main.raw", &coverSize);
+                        uint8_t* coverData = epub->getRawZipData("cover_main.raw", &coverSize);
                         if (coverData && coverSize == 2400) {
                             File f = SystemFS.open(coverPath, "w");
                             if (f) {

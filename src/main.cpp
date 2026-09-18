@@ -13,7 +13,7 @@
 #include "KomaBonFS.h"
 
 #include "../KomaBon_Apps/AppMainMenu.h"
-#include "../Apps/AppReader/AppReader.h"
+#include "../KomaBon_Apps/AppReader/AppReader.h"
 #include "../KomaBon_Apps/AppSettings.h"
 #include "../KomaBon_Apps/AppWebTransfer.h"
 
@@ -98,12 +98,10 @@ void loop() {
     // --- LAZY RENDERING (DEBOUNCED DRAWING) ---
     static unsigned long lastPhysicalInputTime = 0;
 
-    // Ask InputManager if the user is currently interacting with the controls
     if (InputMgr::getInstance().isInteracting()) {
         lastPhysicalInputTime = millis();
     }
 
-    // Wait for 200ms of absolute silence before allowing the e-ink screen to update
     if (millis() - lastPhysicalInputTime > 200) {
         AppMgr::getInstance().draw();
     }
@@ -111,5 +109,5 @@ void loop() {
     WebMgr::getInstance().update();
     BatteryMgr::getInstance().update();
 
-    delay(1); // Yield to FreeRTOS watchdog
+    delay(1);
 }

@@ -54,14 +54,6 @@ struct Table {
     Table() : columnCount(0) {}
 };
 
-// Font metadata
-struct FontInfo {
-    String family;
-    String path;
-    String style;  // normal, italic, bold, bold-italic
-    String format; // ttf, otf, woff, woff2
-};
-
 // Content node - can be text, table, or an image
 enum ContentType { CONTENT_TEXT, CONTENT_TABLE, CONTENT_IMAGE };
 struct ImageNode {
@@ -101,11 +93,9 @@ class EpubLoader {
 
     uint8_t* getCoverImageData(size_t* outSize); // Fetch cover image bytes
 
-    // Font support
-    std::vector<FontInfo> getFonts();
-    uint8_t* getFontData(String path, size_t* outSize);
-
+    // File fetching
     uint8_t* getFileData(String path, size_t* outSize);
+    uint8_t* getRawZipData(const String& path, size_t* outSize);
 
   private:
     // Metadata
@@ -121,9 +111,6 @@ class EpubLoader {
     String opfPath;
     String rootDir;   // Directory of the OPF file
     String coverHref; // Path to the cover image inside the ZIP
-
-    // Fonts
-    std::vector<FontInfo> fonts;
 
     struct SpineItem {
         String id;

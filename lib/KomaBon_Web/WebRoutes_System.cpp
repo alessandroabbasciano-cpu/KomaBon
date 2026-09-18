@@ -6,7 +6,7 @@
 #include "../KomaBon_Core/KomaBonFS.h"
 #include "../KomaBon_Core/AppMgr.h"
 #include "../KomaBon_Core/BatteryMgr.h"
-#include "../Book32_Update/GitHubMgr.h"
+#include "../KomaBon_OTA/GitHubMgr.h"
 #include <SD.h>
 
 // Helper function to stream entire FS tree dynamically
@@ -71,9 +71,9 @@ void setupSystemEndpoints(AsyncWebServer* server) {
         doc["charging"] = BatteryMgr::getInstance().isCharging();
         doc["version"] = SYSTEM_VERSION;
 
-        doc["freeSpace"] = EbookFS_totalBytes() - EbookFS_usedBytes();
-        doc["totalSpace"] = EbookFS_totalBytes();
-        doc["usedSpace"] = EbookFS_usedBytes();
+        doc["freeSpace"] = KomaBonStorage::getTotalBytes() - KomaBonStorage::getUsedBytes();
+        doc["totalSpace"] = KomaBonStorage::getTotalBytes();
+        doc["usedSpace"] = KomaBonStorage::getUsedBytes();
         doc["systemFree"] = SystemFS.totalBytes() - SystemFS.usedBytes();
 
         serializeJson(doc, *response);
@@ -90,7 +90,7 @@ void setupSystemEndpoints(AsyncWebServer* server) {
             size_t total;
         };
         Target targets[] = {
-            {"ebooks", &EbookFS, EbookFS_usedBytes(), EbookFS_totalBytes()},
+            {"ebooks", &EbookFS, KomaBonStorage::getUsedBytes(), KomaBonStorage::getTotalBytes()},
             {"system", &SystemFS, SystemFS.usedBytes(), SystemFS.totalBytes()},
         };
 

@@ -79,8 +79,8 @@ bool CoverExtractor::processNextCover(std::vector<BookEntry>& books) {
 
             if (epub->open(fullPath.c_str())) {
                 size_t thumbSize = 0, coverSize = 0;
-                uint8_t* thumbData = epub->getFontData("cover_thumb.raw", &thumbSize);
-                uint8_t* coverData = epub->getFontData("cover_main.raw", &coverSize);
+                uint8_t* thumbData = epub->getRawZipData("cover_thumb.raw", &thumbSize);
+                uint8_t* coverData = epub->getRawZipData("cover_main.raw", &coverSize);
 
                 if (thumbData && thumbSize == 640) {
                     File f = SystemFS.open(thumbPath, "w");

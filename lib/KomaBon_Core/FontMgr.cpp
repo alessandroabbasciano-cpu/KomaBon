@@ -12,22 +12,86 @@ FontMgr& FontMgr::getInstance() {
 }
 
 bool FontMgr::init() {
-    Serial.println("FontMgr: Initialized with Adafruit GFX FreeSans fonts");
+    Serial.println("FontMgr: Initialized with multiple Adafruit GFX fonts");
     return true;
 }
 
+void FontMgr::setFontFamily(FontFamily family) {
+    if (_currentFamily != family) {
+        _currentFamily = family;
+        _lastFont = nullptr; // Invalidate cache to force recalculation
+    }
+}
+
+FontFamily FontMgr::getFontFamily() const {
+    return _currentFamily;
+}
+
 const GFXfont* FontMgr::getFont(int fontSize) {
-    if (fontSize >= 30) return &FreeSans24pt8b;
-    if (fontSize >= 22) return &FreeSans18pt8b;
-    if (fontSize >= 16) return &FreeSans12pt8b;
-    return &FreeSans9pt8b;
+    switch (_currentFamily) {
+        case FontFamily::Merriweather:
+            if (fontSize >= 22) return &Merriweather_Regular18pt8b; // Fallback for 24pt
+            if (fontSize >= 16) return &Merriweather_Regular12pt8b;
+            return &Merriweather_Regular9pt8b;
+        case FontFamily::Literata:
+            if (fontSize >= 22) return &Literata_Regular18pt8b;
+            if (fontSize >= 16) return &Literata_Regular12pt8b;
+            return &Literata_Regular9pt8b;
+        case FontFamily::Gelasio:
+            if (fontSize >= 22) return &Gelasio_Regular18pt8b;
+            if (fontSize >= 16) return &Gelasio_Regular12pt8b;
+            return &Gelasio_Regular9pt8b;
+        case FontFamily::OpenSans:
+            if (fontSize >= 22) return &OpenSans_Regular18pt8b;
+            if (fontSize >= 16) return &OpenSans_Regular12pt8b;
+            return &OpenSans_Regular9pt8b;
+        case FontFamily::SourceSerif4:
+            if (fontSize >= 22) return &SourceSerif4_Regular18pt8b;
+            if (fontSize >= 16) return &SourceSerif4_Regular12pt8b;
+            return &SourceSerif4_Regular9pt8b;
+        case FontFamily::FreeSans:
+        default:
+            if (fontSize >= 30) return &FreeSans24pt8b;
+            if (fontSize >= 22) return &FreeSans18pt8b;
+            if (fontSize >= 16) return &FreeSans12pt8b;
+            return &FreeSans9pt8b;
+    }
 }
 
 const GFXfont* FontMgr::getFontBold(int fontSize) {
-    if (fontSize >= 30) return &FreeSansBold24pt8b;
-    if (fontSize >= 22) return &FreeSansBold18pt8b;
-    if (fontSize >= 16) return &FreeSansBold12pt8b;
-    return &FreeSansBold9pt8b;
+    switch (_currentFamily) {
+        case FontFamily::Merriweather:
+            if (fontSize >= 30) return &Merriweather_Bold24pt8b;
+            if (fontSize >= 22) return &Merriweather_Bold18pt8b;
+            if (fontSize >= 16) return &Merriweather_Bold12pt8b;
+            return &Merriweather_Bold9pt8b;
+        case FontFamily::Literata:
+            if (fontSize >= 30) return &Literata_Bold24pt8b;
+            if (fontSize >= 22) return &Literata_Bold18pt8b;
+            if (fontSize >= 16) return &Literata_Bold12pt8b;
+            return &Literata_Bold9pt8b;
+        case FontFamily::Gelasio:
+            if (fontSize >= 30) return &Gelasio_Bold24pt8b;
+            if (fontSize >= 22) return &Gelasio_Bold18pt8b;
+            if (fontSize >= 16) return &Gelasio_Bold12pt8b;
+            return &Gelasio_Bold9pt8b;
+        case FontFamily::OpenSans:
+            if (fontSize >= 30) return &OpenSans_Bold24pt8b;
+            if (fontSize >= 22) return &OpenSans_Bold18pt8b;
+            if (fontSize >= 16) return &OpenSans_Bold12pt8b;
+            return &OpenSans_Bold9pt8b;
+        case FontFamily::SourceSerif4:
+            if (fontSize >= 30) return &SourceSerif4_Bold24pt8b;
+            if (fontSize >= 22) return &SourceSerif4_Bold18pt8b;
+            if (fontSize >= 16) return &SourceSerif4_Bold12pt8b;
+            return &SourceSerif4_Bold9pt8b;
+        case FontFamily::FreeSans:
+        default:
+            if (fontSize >= 30) return &FreeSansBold24pt8b;
+            if (fontSize >= 22) return &FreeSansBold18pt8b;
+            if (fontSize >= 16) return &FreeSansBold12pt8b;
+            return &FreeSansBold9pt8b;
+    }
 }
 
 void FontMgr::cacheCharWidths(const GFXfont* font) {

@@ -3,7 +3,7 @@
 #include "../KomaBon_Core/FontMgr.h"
 #include "../KomaBon_Core/BatteryMgr.h"
 #include "../KomaBon_Core/KomaBonFS.h"
-#include "../Book32_Web/WebMgr.h"
+#include "../KomaBon_Web/WebMgr.h"
 #include "../../include/Config.h"
 #include <WiFi.h>
 
@@ -205,8 +205,8 @@ void AppSettings::drawSystemScreen() {
     y += ROW_HEIGHT;
 
     font.drawText(display, "Books:", 26, y, FONT_SIZE_BODY, GxEPD_BLACK);
-    size_t usedKb = EbookFS_usedBytes() / 1024;
-    size_t totalKb = EbookFS_totalBytes() / 1024;
+    size_t usedKb = KomaBonStorage::getUsedBytes() / 1024;
+    size_t totalKb = KomaBonStorage::getTotalBytes() / 1024;
     String fsStr = String((unsigned long)usedKb) + " / " + String((unsigned long)totalKb) + " KB";
     font.drawText(display, fsStr.c_str(), 220, y, FONT_SIZE_BODY, GxEPD_BLACK);
     y += ROW_HEIGHT + 20;

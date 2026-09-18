@@ -172,7 +172,7 @@ static ImportOutcome applyImportBundle(const char* path) {
         return outcome;
     }
 
-    int schema = doc["book32"]["schema"] | 0;
+    int schema = doc["komabon"]["schema"] | 0;
     if (!isSupportedSchema(schema)) {
         outcome.error = "Unsupported bundle schema";
         return outcome;
@@ -358,7 +358,7 @@ void setupBookEndpoints(AsyncWebServer* server) {
                     safeName = safeName.substring(0, 28 - ext.length()) + ext;
                 }
 
-                size_t freeBytes = EbookFS_totalBytes() - EbookFS_usedBytes();
+                size_t freeBytes = KomaBonStorage::getTotalBytes() - KomaBonStorage::getUsedBytes();
                 bool isKmb = hasExtensionCI(safeName, ".kmb");
                 UploadVerdict verdict = UploadVerdict::Ok;
 
@@ -521,7 +521,7 @@ void setupBookEndpoints(AsyncWebServer* server) {
             1024 + ProgressStore::getInstance().count() * 224 + metadata.size() * 160 + order.size() * 96;
         DynamicJsonDocument doc(capacity);
 
-        JsonObject header = doc.createNestedObject("book32");
+        JsonObject header = doc.createNestedObject("komabon");
         header["schema"] = PROGRESS_SCHEMA_CURRENT;
         header["version"] = SYSTEM_VERSION;
 
@@ -536,7 +536,7 @@ void setupBookEndpoints(AsyncWebServer* server) {
             arr.add(getOriginalFilename(filename));
 
         AsyncResponseStream* response = request->beginResponseStream("application/json");
-        response->addHeader("Content-Disposition", "attachment; filename=\"book32-state.json\"");
+        response->addHeader("Content-Disposition", "attachment; filename=\"komabon-state.json\"");
         serializeJson(doc, *response);
         request->send(response);
     });

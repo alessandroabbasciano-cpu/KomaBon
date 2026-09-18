@@ -4,8 +4,8 @@
 #include "icon_settings.h"
 #include "../KomaBon_Core/BatteryMgr.h"
 #include "../KomaBon_Core/JoystickMgr.h"
-#include "../Book32_Web/WebMgr.h"
-#include "../Book32_Update/GitHubMgr.h"
+#include "../KomaBon_Web/WebMgr.h"
+#include "../KomaBon_OTA/GitHubMgr.h"
 #include "../../include/Config.h"
 #include <WiFi.h>
 #include <WiFiManager.h>

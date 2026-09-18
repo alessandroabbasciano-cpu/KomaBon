@@ -8,7 +8,7 @@
 #include "../KomaBon_Core/KomaBonFS.h"
 #include "../KomaBon_Core/FileExt.h"
 #include "../KomaBon_Core/DeviceCred.h"
-#include "../Book32_Update/GitHubMgr.h"
+#include "../KomaBon_OTA/GitHubMgr.h"
 #include "../KomaBon_Core/AppMgr.h"
 #include "../KomaBon_Core/DisplayMgr.h"
 #include <SD.h>
@@ -65,9 +65,10 @@ void WebMgr::mountFilesystems() {
         Serial.println("WARNING: SystemFS mount FAILED!");
     }
 
-    bool ebookOK = EbookFS_begin();
+    bool ebookOK = KomaBonStorage::mountEbooks();
     if (ebookOK) {
-        Serial.printf("EbookFS OK: %u / %u bytes used\n", EbookFS_usedBytes(), EbookFS_totalBytes());
+        Serial.printf("EbookFS OK: %u / %u bytes used\n", KomaBonStorage::getUsedBytes(),
+                      KomaBonStorage::getTotalBytes());
 
         // Clean up interrupted .part uploads on boot
         std::vector<String> stale;

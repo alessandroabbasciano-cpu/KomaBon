@@ -5,19 +5,16 @@
 fs::LittleFSFS InternalEbookFS;
 
 // The global pointer that directs traffic.
-// Defaults to internal memory. SDMgr will redirect it to SD
-// if the hardware mount succeeds at boot.
 fs::FS* EbookFSPtr = &InternalEbookFS;
 
-bool EbookFS_begin() {
-    // If EbookFSPtr points to SD, SDMgr has already mounted it at boot.
-    // We don't need to do anything, the "/ebooks" mount point is already acquired.
+namespace KomaBonStorage {
+
+bool mountEbooks() {
     if (EbookFSPtr == &SD) {
         Serial.println("EbookFS: Using external MicroSD storage.");
         return true;
     }
 
-    // Otherwise, initialize the internal partition (Fallback)
     Serial.println("EbookFS: MicroSD absent. Starting internal partition...");
     bool ok = InternalEbookFS.begin(false, "/ebooks", 10, "ebooks");
     if (!ok) {
@@ -27,12 +24,14 @@ bool EbookFS_begin() {
     return ok;
 }
 
-size_t EbookFS_usedBytes() {
+size_t getUsedBytes() {
     if (EbookFSPtr == &SD) return SD.usedBytes();
     return InternalEbookFS.usedBytes();
 }
 
-size_t EbookFS_totalBytes() {
+size_t getTotalBytes() {
     if (EbookFSPtr == &SD) return SD.totalBytes();
     return InternalEbookFS.totalBytes();
 }
+
+} // namespace KomaBonStorage
