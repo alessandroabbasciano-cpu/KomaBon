@@ -12,7 +12,7 @@ bool SDMgr::init() {
     pinMode(SD_MISO_PIN, INPUT_PULLUP);
 
     if (!_spi) {
-        _spi = new SPIClass(HSPI);
+        _spi = new SPIClass(FSPI);
         _spi->begin(SD_SCK_PIN, SD_MISO_PIN, SD_MOSI_PIN, -1);
     }
 

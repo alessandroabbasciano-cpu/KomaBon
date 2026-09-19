@@ -66,6 +66,8 @@ void AppSettings::drawHeader(const char* title) {
     KomaBonDisplay& display = DisplayMgr::getInstance().getDisplay();
     FontMgr& font = FontMgr::getInstance();
 
+    BatteryMgr::getInstance().drawStatusBar(display, 0, 0);
+
     font.drawText(display, title, 20, 45, FONT_SIZE_SUBTITLE, GxEPD_BLACK);
     display.drawLine(20, 62, display.width() - 20, 62, GxEPD_BLACK);
 
@@ -89,6 +91,9 @@ void AppSettings::drawFooter(const char* hint) {
 void AppSettings::drawMainScreen() {
     KomaBonDisplay& display = DisplayMgr::getInstance().getDisplay();
     FontMgr& font = FontMgr::getInstance();
+
+    BatteryMgr::getInstance().drawStatusBar(display, 0, 0);
+
     int w = display.width();
 
     drawHeader("Settings");
@@ -147,6 +152,8 @@ void AppSettings::drawNetworkScreen() {
     KomaBonDisplay& display = DisplayMgr::getInstance().getDisplay();
     FontMgr& font = FontMgr::getInstance();
 
+    BatteryMgr::getInstance().drawStatusBar(display, 0, 0);
+
     drawHeader("Network");
 
     bool connected = WiFi.status() == WL_CONNECTED;
@@ -189,6 +196,9 @@ void AppSettings::drawNetworkScreen() {
 void AppSettings::drawSystemScreen() {
     KomaBonDisplay& display = DisplayMgr::getInstance().getDisplay();
     FontMgr& font = FontMgr::getInstance();
+
+    BatteryMgr::getInstance().drawStatusBar(display, 0, 0);
+
     int w = display.width();
 
     drawHeader("System");
@@ -290,6 +300,8 @@ void AppSettings::drawConfirmForgetWifiScreen() {
 void AppSettings::drawJoyCalScreen() {
     KomaBonDisplay& display = DisplayMgr::getInstance().getDisplay();
     FontMgr& font = FontMgr::getInstance();
+
+    BatteryMgr::getInstance().drawStatusBar(display, 0, 0);
 
     drawHeader("Joystick Setup");
 

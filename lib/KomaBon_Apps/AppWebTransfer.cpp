@@ -3,6 +3,7 @@
 #include "../KomaBon_Core/DisplayMgr.h"
 #include "../KomaBon_Core/FontMgr.h"
 #include "../KomaBon_Core/AppMgr.h"
+#include "../KomaBon_Core/BatteryMgr.h"
 #include "../KomaBon_Web/WebMgr.h"
 #include "../../include/Config.h"
 #include <WiFi.h>
@@ -77,6 +78,8 @@ void AppWebTransfer::draw() {
     do {
         display.fillScreen(GxEPD_WHITE);
         display.setTextColor(GxEPD_BLACK);
+
+        BatteryMgr::getInstance().drawStatusBar(display, 0, 0);
 
         fontMgr.drawTextCentered(display, "Web File Transfer", 60, FONT_SIZE_SUBTITLE, GxEPD_BLACK);
         display.drawLine(40, 85, display.width() - 40, 85, GxEPD_BLACK);

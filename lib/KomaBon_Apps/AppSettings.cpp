@@ -231,8 +231,17 @@ void AppSettings::handleInput(InputAction action) {
                 if (WiFi.status() != WL_CONNECTED) {
                     WebMgr::getInstance().startNetwork();
                 } else {
-                    setStatus("Searching...", 1000);
-                    draw();
+                    setStatus("Searching for updates...", 5000);
+                    _needsRedraw = false;
+
+                    KomaBonDisplay& disp = DisplayMgr::getInstance().getDisplay();
+                    int h = disp.height();
+                    disp.setPartialWindow(0, h - 60, disp.width(), 60);
+                    disp.firstPage();
+                    do {
+                        disp.fillRect(0, h - 60, disp.width(), 60, GxEPD_WHITE);
+                        drawFooter("Please wait...");
+                    } while (disp.nextPage());
                     UpdateInfo info = GitHubMgr::getInstance().checkUpdate(SYSTEM_VERSION);
                     if (info.available) {
                         saveDraftIfDirty();
