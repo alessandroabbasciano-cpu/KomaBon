@@ -105,13 +105,14 @@ int JoystickMgr::readAnalogAveraged() {
 }
 
 void JoystickMgr::init() {
-    pinMode(JOY_ADC_PIN, INPUT_PULLUP);
+    // Hardware directive: digital buffers on GPIO2 must remain disabled.
+    // pinMode(JOY_ADC_PIN, INPUT_PULLUP) is strictly forbidden.
 
     analogSetPinAttenuation(JOY_ADC_PIN, ADC_11db);
     analogReadResolution(12);
-    Serial.println("JoystickMgr: ADC1 initialized safely on JOY_ADC_PIN with internal pull-up");
+    Serial.println("JoystickMgr: ADC1 initialized safely on JOY_ADC_PIN.");
 
     if (!loadCalibration()) {
-        Serial.println("JoystickMgr: No calibration file found, using defaults");
+        Serial.println("JoystickMgr: No calibration file found, using defaults.");
     }
 }

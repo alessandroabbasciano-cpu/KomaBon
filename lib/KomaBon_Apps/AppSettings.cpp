@@ -31,8 +31,7 @@ static int cycleIntBackward(const int* values, int count, int current) {
 
 AppSettings::AppSettings()
     : _screen(SCREEN_MAIN), _selectedIndex(0), _subSelectedIndex(0), _needsRedraw(true), _dirty(false),
-      _selectionOnlyRedraw(false), _previousSelectedIndex(0), _previousSubSelectedIndex(0), _statusUntil(0),
-      _lastNetworkPoll(0) {}
+      _selectionOnlyRedraw(false), _previousSelectedIndex(0), _previousSubSelectedIndex(0), _statusUntil(0) {}
 
 const uint8_t* AppSettings::getIconImage() {
     return icon_settings_160x160;
@@ -54,6 +53,11 @@ void AppSettings::start() {
     _selectionOnlyRedraw = false;
     _statusMessage = "";
     _statusUntil = 0;
+
+    _otaChecking = false;
+    _otaUpdateAvailable = false;
+    _otaModalOption = 0;
+
     _needsRedraw = true;
 
     InputMgr::getInstance().setCallback(std::bind(&AppSettings::handleInput, this, std::placeholders::_1));
@@ -179,6 +183,38 @@ void AppSettings::activate(int index) {
 }
 
 void AppSettings::handleInput(InputAction action) {
+    if (_screen == SCREEN_OTA_MODAL) {
+        if (_otaChecking) return;
+
+        if (action == INPUT_NEXT || action == INPUT_PREV || action == INPUT_LEFT || action == INPUT_RIGHT) {
+            if (_otaUpdateAvailable) {
+                _otaModalOption = 1 - _otaModalOption;
+                _selectionOnlyRedraw = true;
+                _needsRedraw = true;
+            }
+        } else if (action == INPUT_SELECT) {
+            if (_otaUpdateAvailable && _otaModalOption == 0) {
+                saveDraftIfDirty();
+                Serial.println("AppSettings: Launching OTA task...");
+                xTaskCreatePinnedToCore(
+                    [](void* param) {
+                        GitHubMgr::getInstance().triggerUpdate(SYSTEM_VERSION);
+                        vTaskDelete(NULL);
+                    },
+                    "OTA_Settings_Task", 16384, nullptr, 1, nullptr, 1);
+            } else {
+                _screen = SCREEN_SYSTEM;
+                _selectionOnlyRedraw = true;
+                _needsRedraw = true;
+            }
+        } else if (action == INPUT_BACK || action == INPUT_GO_TO_MAIN_MENU) {
+            _screen = SCREEN_SYSTEM;
+            _selectionOnlyRedraw = true;
+            _needsRedraw = true;
+        }
+        return;
+    }
+
     if (_screen == SCREEN_JOYCAL) {
         if (_joyCalStep >= 5) {
             if (action == INPUT_BACK || action == INPUT_GO_TO_MAIN_MENU || action == INPUT_SELECT ||
@@ -192,9 +228,11 @@ void AppSettings::handleInput(InputAction action) {
 
     if (_screen == SCREEN_CONFIRM) {
         if (action == INPUT_NEXT) {
+            _selectionOnlyRedraw = true;
             _subSelectedIndex = (_subSelectedIndex + 1) % 3;
             _needsRedraw = true;
         } else if (action == INPUT_PREV) {
+            _selectionOnlyRedraw = true;
             _subSelectedIndex = (_subSelectedIndex + 2) % 3;
             _needsRedraw = true;
         } else if (action == INPUT_SELECT) {
@@ -221,41 +259,24 @@ void AppSettings::handleInput(InputAction action) {
 
     if (_screen == SCREEN_SYSTEM) {
         if (action == INPUT_NEXT) {
+            _selectionOnlyRedraw = true;
             _subSelectedIndex = (_subSelectedIndex + 1) % 3;
             _needsRedraw = true;
         } else if (action == INPUT_PREV) {
+            _selectionOnlyRedraw = true;
             _subSelectedIndex = (_subSelectedIndex + 2) % 3;
             _needsRedraw = true;
         } else if (action == INPUT_SELECT) {
             if (_subSelectedIndex == 0) {
                 if (WiFi.status() != WL_CONNECTED) {
                     WebMgr::getInstance().startNetwork();
-                } else {
-                    setStatus("Searching for updates...", 5000);
-                    _needsRedraw = false;
-
-                    KomaBonDisplay& disp = DisplayMgr::getInstance().getDisplay();
-                    int h = disp.height();
-                    disp.setPartialWindow(0, h - 60, disp.width(), 60);
-                    disp.firstPage();
-                    do {
-                        disp.fillRect(0, h - 60, disp.width(), 60, GxEPD_WHITE);
-                        drawFooter("Please wait...");
-                    } while (disp.nextPage());
-                    UpdateInfo info = GitHubMgr::getInstance().checkUpdate(SYSTEM_VERSION);
-                    if (info.available) {
-                        saveDraftIfDirty();
-                        Serial.println("AppSettings: Launching OTA task...");
-                        xTaskCreatePinnedToCore(
-                            [](void* param) {
-                                GitHubMgr::getInstance().triggerUpdate(SYSTEM_VERSION);
-                                vTaskDelete(NULL);
-                            },
-                            "OTA_Settings_Task", 16384, nullptr, 1, nullptr, 1);
-                    } else {
-                        setStatus("Already on the latest version.");
-                    }
                 }
+                _screen = SCREEN_OTA_MODAL;
+                _otaChecking = true;
+                _otaUpdateAvailable = false;
+                _otaModalOption = 0;
+                _selectionOnlyRedraw = true;
+                _needsRedraw = true;
             } else if (_subSelectedIndex == 1) {
                 saveDraftIfDirty();
                 setStatus("Restarting...", 1000);
@@ -276,6 +297,7 @@ void AppSettings::handleInput(InputAction action) {
 
     if (_screen == SCREEN_CONFIRM_FORGET_WIFI) {
         if (action == INPUT_NEXT || action == INPUT_PREV) {
+            _selectionOnlyRedraw = true;
             _subSelectedIndex = 1 - _subSelectedIndex;
             _needsRedraw = true;
         } else if (action == INPUT_SELECT) {
@@ -387,11 +409,13 @@ void AppSettings::update() {
         _needsRedraw = true;
     }
 
-    if (now - _lastNetworkPoll >= 2000) {
-        _lastNetworkPoll = now;
-        if (_screen == SCREEN_NETWORK) {
-            _needsRedraw = true;
-        }
+    if (_screen == SCREEN_OTA_MODAL && _otaChecking && !_needsRedraw) {
+        UpdateInfo info = GitHubMgr::getInstance().checkUpdate(SYSTEM_VERSION);
+        _otaChecking = false;
+        _otaUpdateAvailable = info.available;
+        _otaModalOption = 0;
+        _selectionOnlyRedraw = true;
+        _needsRedraw = true;
     }
 
     if (_screen == SCREEN_JOYCAL && _joyCalStep < 5) {

@@ -17,11 +17,13 @@
 #include "../KomaBon_Apps/AppSettings.h"
 #include "../KomaBon_Apps/AppWebTransfer.h"
 
-// System-wide flag for network status UI indicators
 volatile bool gNetworkStartupInProgress = false;
 
 void setup() {
-    // 1. Core System Init
+    // IMMEDIATE HARDWARE SAFETY: Force SD Card to High-Z to prevent SPI collisions
+    pinMode(39, OUTPUT);
+    digitalWrite(39, HIGH);
+
     esp_ota_mark_app_valid_cancel_rollback();
 
     Serial.begin(115200);
@@ -33,31 +35,23 @@ void setup() {
     Serial.printf("  Build: %s %s  \n", __DATE__, __TIME__);
     Serial.println("=======================================");
 
-    // Enforce strict offline mode on boot
     gNetworkStartupInProgress = false;
 
-    // 2. Base Filesystem
     WebMgr::getInstance().mountFilesystems();
-
-    // 3. UI Assets
     FontMgr::getInstance().init();
 
-    // 4. Display Subsystem
     DisplayMgr& displayMgr = DisplayMgr::getInstance();
     displayMgr.init();
     displayMgr.loadDisplaySettings();
     displayMgr.showBootScreen(10, "System Initialization");
 
-    // 5. External Storage
     displayMgr.showBootScreen(35, "Mounting SD Card");
     SDMgr::getInstance().init();
 
-    // 6. Power & Controls
     displayMgr.showBootScreen(60, "Init Power & Controls");
     BatteryMgr::getInstance().init();
     InputMgr::getInstance().init();
 
-    // 7. Application Registry
     displayMgr.showBootScreen(85, "Registering Core Apps");
     AppMgr& appMgr = AppMgr::getInstance();
 
@@ -72,20 +66,18 @@ void setup() {
     AppSettings* settingsApp = new AppSettings();
     appMgr.registerApp(settingsApp);
 
-    // 8. Boot Routing Logic
     displayMgr.showBootScreen(100, "System Ready");
 
-    // Check joystick calibration safely on the internal SystemFS partition
     if (!SystemFS.exists("/joy_cal.json")) {
         Serial.println("[BOOT] Missing calibration. Starting wizard.");
-        appMgr.switchTo(2); // SettingsApp is index 2
+        appMgr.switchTo(2);
     } else if (readerApp->hasBootResume()) {
         Serial.println("[BOOT] Resuming last opened book.");
         readerApp->resumeSavedBookOnStart();
-        appMgr.switchTo(1); // eReader is index 1
+        appMgr.switchTo(1);
     } else {
         Serial.println("[BOOT] Loading Main Menu.");
-        appMgr.switchTo(0); // MainMenu is index 0
+        appMgr.switchTo(0);
     }
 
     Serial.println("[BOOT] Sequence Complete. Entering Lazy Render Loop.");
@@ -95,7 +87,6 @@ void loop() {
     InputMgr::getInstance().update();
     AppMgr::getInstance().update();
 
-    // --- LAZY RENDERING (DEBOUNCED DRAWING) ---
     static unsigned long lastPhysicalInputTime = 0;
 
     if (InputMgr::getInstance().isInteracting()) {

@@ -99,50 +99,90 @@ void AppReader::scanBooks() {
         coversDir.close();
     }
 
-    File root = EbookFS.open("/");
-    if (!root || !root.isDirectory()) return;
+    // Silence the VFS error by proactively creating the JSON file if missing
+    if (!SystemFS.exists("/book_order.json")) {
+        File of = SystemFS.open("/book_order.json", "w");
+        if (of) {
+            of.print("{\"order\":[]}");
+            of.close();
+            Serial.println("AppReader: Initialized empty book_order.json");
+        }
+    }
 
-    File file = root.openNextFile();
-    while (file) {
-        String fileName = normalizedBookName(file.name());
-        String fileNameLower = fileName;
-        fileNameLower.toLowerCase();
+    // Closure to safely scan and index a directory
+    auto scanDir = [&](const char* dirPath) {
+        File root = EbookFS.open(dirPath);
+        if (!root || !root.isDirectory()) return;
 
-        if (fileNameLower.endsWith(".epub") || fileNameLower.endsWith(".kmb")) {
-            BookEntry entry;
-            entry.path = "/" + fileName;
-            auto meta = metadata.find(fileName);
-            entry.originalName = (meta != metadata.end()) ? meta->second : fileName;
-            entry.title = FontMgr::utf8ToLatin1(titleFromFilename(entry.originalName));
-
-            int dot = fileName.lastIndexOf('.');
-            entry.baseName = (dot > 0) ? fileName.substring(0, dot) : fileName;
-
-            String thumbPath = "/covers/" + entry.baseName + ".thumb";
-            entry.hasCoverThumb = SystemFS.exists(thumbPath);
-            entry.coverAttempted = entry.hasCoverThumb;
-
-            if (fileNameLower.endsWith(".kmb")) {
-                File kmbFile = EbookFS.open(entry.path, "r");
-                if (kmbFile) {
-                    char magic[5] = {0};
-                    kmbFile.readBytes(magic, 4);
-                    if (strcmp(magic, "KMB1") == 0) {
-                        kmbFile.seek(10);
-                        uint16_t pages = 0;
-                        kmbFile.read((uint8_t*)&pages, 2);
-                        entry.totalPages = pages;
-                    }
-                    kmbFile.close();
-                }
+        File file = root.openNextFile();
+        while (file) {
+            if (file.isDirectory()) {
+                file = root.openNextFile();
+                continue;
             }
 
-            _books.push_back(entry);
+            String filePath = file.path();
+            if (filePath.isEmpty() || filePath == "null") {
+                String fName = file.name();
+                if (fName.startsWith("/")) fName = fName.substring(1);
+                filePath = String(dirPath);
+                if (!filePath.endsWith("/")) filePath += "/";
+                filePath += fName;
+            }
+
+            String rawName = file.name();
+            int slashIdx = rawName.lastIndexOf('/');
+            if (slashIdx >= 0) rawName = rawName.substring(slashIdx + 1);
+
+            // Skip hidden OS metadata files that break parsers
+            if (rawName.startsWith("._") || rawName.startsWith(".")) {
+                file = root.openNextFile();
+                continue;
+            }
+
+            String fileName = normalizedBookName(rawName);
+            String fileNameLower = fileName;
+            fileNameLower.toLowerCase();
+
+            if (fileNameLower.endsWith(".epub") || fileNameLower.endsWith(".kmb")) {
+                BookEntry entry;
+                entry.path = filePath;
+
+                auto meta = metadata.find(fileName);
+                entry.originalName = (meta != metadata.end()) ? meta->second : fileName;
+                entry.title = FontMgr::utf8ToLatin1(titleFromFilename(entry.originalName));
+
+                int dot = fileName.lastIndexOf('.');
+                entry.baseName = (dot > 0) ? fileName.substring(0, dot) : fileName;
+
+                String thumbPath = "/covers/" + entry.baseName + ".thumb";
+                entry.hasCoverThumb = SystemFS.exists(thumbPath);
+                entry.coverAttempted = entry.hasCoverThumb;
+
+                if (fileNameLower.endsWith(".kmb")) {
+                    File kmbFile = EbookFS.open(entry.path.c_str(), "r");
+                    if (kmbFile) {
+                        char magic[5] = {0};
+                        kmbFile.readBytes(magic, 4);
+                        if (strcmp(magic, "KMB1") == 0) {
+                            kmbFile.seek(10);
+                            uint16_t pages = 0;
+                            kmbFile.read((uint8_t*)&pages, 2);
+                            entry.totalPages = pages;
+                        }
+                        kmbFile.close();
+                    }
+                }
+
+                _books.push_back(entry);
+            }
+            file = root.openNextFile();
         }
-        file.close();
-        file = root.openNextFile();
-    }
-    root.close();
+        root.close();
+    };
+
+    // Index both root and standard ebooks folder
+    scanDir("/");
 
     {
         ProgressStore& store = ProgressStore::getInstance();
@@ -167,22 +207,22 @@ void AppReader::scanBooks() {
         }
     }
 
-    if (SystemFS.exists("/book_order.json")) {
-        File of = SystemFS.open("/book_order.json", "r");
-        if (of) {
-            DynamicJsonDocument doc(4096);
-            DeserializationError err = deserializeJson(doc, of);
-            of.close();
-            if (!err) {
-                JsonArray arr = doc["order"].as<JsonArray>();
-                if (!arr.isNull()) {
-                    std::vector<String> order;
-                    for (JsonVariant v : arr)
-                        order.push_back(v.as<String>());
-                    applyBookOrderT(order, _books, [](const BookEntry& e, const String& key) {
-                        return e.path == "/" + key;
-                    });
-                }
+    File of = SystemFS.open("/book_order.json", "r");
+    if (of) {
+        DynamicJsonDocument doc(4096);
+        DeserializationError err = deserializeJson(doc, of);
+        of.close();
+        if (!err) {
+            JsonArray arr = doc["order"].as<JsonArray>();
+            if (!arr.isNull()) {
+                std::vector<String> order;
+                for (JsonVariant v : arr)
+                    order.push_back(v.as<String>());
+
+                // Enhanced matching logic for nested paths
+                applyBookOrderT(order, _books, [](const BookEntry& e, const String& key) {
+                    return e.path.endsWith("/" + key) || e.originalName == key;
+                });
             }
         }
     }
@@ -303,7 +343,6 @@ void AppReader::drawLibrary() {
         }
         drawTextWithFont(display, "<  Back to Menu", ITEM_PADDING + 10, y + 28,
                          backSelected ? &FreeSansBold12pt8b : &FreeSans12pt8b, GxEPD_BLACK);
-        // Removed horizontal divider under Back to Menu
         y += BACK_ITEM_HEIGHT;
 
         if (_books.empty()) {
@@ -319,7 +358,6 @@ void AppReader::drawLibrary() {
                 if (isSelected) {
                     display.fillRect(14, y + 6, 4, ITEM_HEIGHT - 12, GxEPD_BLACK);
                 }
-                // Removed horizontal divider (drawFastHLine) between book items
 
                 int coverW = COVER_WIDTH;
                 int coverH = COVER_HEIGHT;
@@ -333,12 +371,10 @@ void AppReader::drawLibrary() {
 
                 drawBookTile(display, book, coverX, coverY, coverW, coverH, isSelected, tData);
 
-                // --- TWO-LINE AUTHOR & WRAPPED TITLE LAYOUT ---
                 uint16_t textColor = GxEPD_BLACK;
                 String title = book.title;
                 int textX = ITEM_PADDING + COVER_WIDTH + 24;
 
-                // Define safe horizontal width to prevent collision with progress bar
                 int barX = display.width() - 125;
                 int maxTextWidth = barX - textX - 10;
 
@@ -394,7 +430,6 @@ void AppReader::drawLibrary() {
                     drawTextWithFont(display, currentLine.c_str(), textX, currentLineY, titleFont, textColor);
                 }
 
-                // --- VECTOR PROGRESS BAR & TOTAL PAGES INFO ---
                 if (book.hasProgress) {
                     int barY = y + (ITEM_HEIGHT / 2) - 4;
                     int barW = 95;

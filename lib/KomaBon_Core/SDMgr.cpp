@@ -5,25 +5,26 @@
 SDMgr::SDMgr() : _spi(nullptr), _mounted(false) {}
 
 bool SDMgr::init() {
-    delay(350);
+    delay(100);
 
-    pinMode(SD_CS_PIN, OUTPUT);
-    digitalWrite(SD_CS_PIN, HIGH);
+    // Hardware directive: Ensure internal pull-up on MISO to prevent EMI noise
     pinMode(SD_MISO_PIN, INPUT_PULLUP);
 
     if (!_spi) {
         _spi = new SPIClass(FSPI);
-        _spi->begin(SD_SCK_PIN, SD_MISO_PIN, SD_MOSI_PIN, -1);
-    }
-
-    // Wake up card sequence
-    for (int i = 0; i < 10; i++) {
-        _spi->transfer(0xFF);
+        // Initialize SPI2 (FSPI) on dedicated modding pins
+        _spi->begin(SD_SCK_PIN, SD_MISO_PIN, SD_MOSI_PIN, SD_CS_PIN);
     }
 
     bool mountSuccess = false;
+
+    // Use explicit safe frequency (400 kHz for initial handshake)
+    const uint32_t sdInitFreq = 400000;
+    // Use 16 MHz for high-speed data transfer after successful mount
+    const uint32_t sdFastFreq = 16000000;
+
     for (int attempt = 1; attempt <= 3; attempt++) {
-        if (SD.begin(SD_CS_PIN, *_spi, SD_FAST_FREQ, "/ebooks", 10)) {
+        if (SD.begin(SD_CS_PIN, *_spi, sdInitFreq, "/ebooks", 10)) {
             mountSuccess = true;
             break;
         }

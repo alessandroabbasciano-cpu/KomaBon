@@ -157,7 +157,6 @@ void AppSettings::drawNetworkScreen() {
     drawHeader("Network");
 
     bool connected = WiFi.status() == WL_CONNECTED;
-    // FIX: Hardware direct check instead of the deleted isWifiOn() method
     bool wifiIsOn = (WiFi.getMode() != WIFI_OFF);
     int y = LIST_START_Y;
 
@@ -334,19 +333,77 @@ void AppSettings::drawJoyCalScreen() {
     }
 }
 
+void AppSettings::drawOtaModal() {
+    KomaBonDisplay& display = DisplayMgr::getInstance().getDisplay();
+    FontMgr& font = FontMgr::getInstance();
+
+    int w = display.width();
+    int h = display.height();
+
+    int mw = 400;
+    int mh = 200;
+    int mx = (w - mw) / 2;
+    int my = (h - mh) / 2;
+
+    display.fillRect(mx, my, mw, mh, GxEPD_WHITE);
+    display.drawRect(mx, my, mw, mh, GxEPD_BLACK);
+    display.drawRect(mx + 1, my + 1, mw - 2, mh - 2, GxEPD_BLACK);
+
+    if (_otaChecking) {
+        font.drawTextCentered(display, "Checking for updates...", my + 100, FONT_SIZE_BODY, GxEPD_BLACK);
+    } else if (!_otaUpdateAvailable) {
+        font.drawTextCentered(display, "No updates found.", my + 60, FONT_SIZE_BODY, GxEPD_BLACK);
+
+        int btnW = 120;
+        int bx = mx + (mw - btnW) / 2;
+        int by = my + 110;
+        display.drawRect(bx, by, btnW, 46, GxEPD_BLACK);
+        display.drawRect(bx + 1, by + 1, btnW - 2, 44, GxEPD_BLACK);
+        display.drawRect(bx + 2, by + 2, btnW - 4, 42, GxEPD_BLACK);
+        font.drawTextCentered(display, "OK", by + 30, FONT_SIZE_BODY, GxEPD_BLACK);
+    } else {
+        font.drawTextCentered(display, "Update found!", my + 45, FONT_SIZE_BODY, GxEPD_BLACK);
+        font.drawTextCentered(display, "Start download?", my + 75, FONT_SIZE_BODY, GxEPD_BLACK);
+
+        int btnW = 120;
+        int btnY = my + 120;
+        int yesX = mx + 40;
+        int noX = mx + mw - 40 - btnW;
+
+        display.drawRect(yesX, btnY, btnW, 46, GxEPD_BLACK);
+        font.drawTextCentered(display, "Yes", btnY + 30, FONT_SIZE_BODY, GxEPD_BLACK);
+
+        display.drawRect(noX, btnY, btnW, 46, GxEPD_BLACK);
+        font.drawTextCentered(display, "No", btnY + 30, FONT_SIZE_BODY, GxEPD_BLACK);
+
+        int selX = (_otaModalOption == 0) ? yesX : noX;
+        display.drawRect(selX + 1, btnY + 1, btnW - 2, 44, GxEPD_BLACK);
+        display.drawRect(selX + 2, btnY + 2, btnW - 4, 42, GxEPD_BLACK);
+    }
+}
+
 void AppSettings::draw() {
     if (!_needsRedraw) return;
     _needsRedraw = false;
 
     KomaBonDisplay& display = DisplayMgr::getInstance().getDisplay();
 
-    if (_selectionOnlyRedraw && _screen == SCREEN_MAIN) {
-        int prevIndex = _previousSelectedIndex;
-        int currIndex = _selectedIndex;
-        int screenW = display.width();
-        SettingsDirtyRect dirty =
-            unionRect(settingsRowRect(prevIndex, screenW), settingsRowRect(currIndex, screenW));
-        display.setPartialWindow(dirty.x, dirty.y, dirty.w, dirty.h);
+    if (_selectionOnlyRedraw) {
+        if (_screen == SCREEN_MAIN) {
+            int prevIndex = _previousSelectedIndex;
+            int currIndex = _selectedIndex;
+            int screenW = display.width();
+            SettingsDirtyRect dirty =
+                unionRect(settingsRowRect(prevIndex, screenW), settingsRowRect(currIndex, screenW));
+            display.setPartialWindow(dirty.x, dirty.y, dirty.w, dirty.h);
+        } else if (_screen == SCREEN_OTA_MODAL) {
+            int w = display.width();
+            int h = display.height();
+            display.setPartialWindow((w - 400) / 2, (h - 200) / 2, 400, 200);
+        } else {
+            int h = display.height();
+            display.setPartialWindow(0, 100, display.width(), h - 100);
+        }
     } else {
         display.setFullWindow();
     }
@@ -358,8 +415,10 @@ void AppSettings::draw() {
 
     display.firstPage();
     do {
-        display.fillScreen(GxEPD_WHITE);
-        display.setTextColor(GxEPD_BLACK);
+        if (_screen != SCREEN_OTA_MODAL) {
+            display.fillScreen(GxEPD_WHITE);
+            display.setTextColor(GxEPD_BLACK);
+        }
 
         switch (_screen) {
             case SCREEN_NETWORK:
@@ -376,6 +435,10 @@ void AppSettings::draw() {
                 break;
             case SCREEN_JOYCAL:
                 drawJoyCalScreen();
+                break;
+            case SCREEN_OTA_MODAL:
+                drawSystemScreen();
+                drawOtaModal();
                 break;
             case SCREEN_MAIN:
             default:

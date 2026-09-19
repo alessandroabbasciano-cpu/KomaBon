@@ -11,7 +11,8 @@ enum SettingsScreen {
     SCREEN_SYSTEM,
     SCREEN_CONFIRM,
     SCREEN_CONFIRM_FORGET_WIFI,
-    SCREEN_JOYCAL
+    SCREEN_JOYCAL,
+    SCREEN_OTA_MODAL
 };
 
 class AppSettings : public App {
@@ -56,11 +57,16 @@ class AppSettings : public App {
     bool _selectionOnlyRedraw;
     int _previousSelectedIndex;
     int _previousSubSelectedIndex;
+
     int _joyCalStep = 0;
     unsigned long _joyCalHoldStart = 0;
     int _joyCalLastRaw = 4095;
     bool _joyCalWaitingRelease = false;
     int _joyCalValues[5];
+
+    bool _otaChecking;
+    bool _otaUpdateAvailable;
+    int _otaModalOption;
 
     ReaderSettings _reader;
     DisplaySettings _display;
@@ -70,7 +76,6 @@ class AppSettings : public App {
 
     String _statusMessage;
     unsigned long _statusUntil;
-    unsigned long _lastNetworkPoll;
 
     void cycleValue(int index, bool forward);
     void activate(int index);
@@ -90,6 +95,7 @@ class AppSettings : public App {
     void drawHeader(const char* title);
     void drawFooter(const char* hint);
     void drawJoyCalScreen();
+    void drawOtaModal();
 
     String valueForRow(int index) const;
     bool rowChanged(int index) const;
