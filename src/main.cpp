@@ -73,16 +73,18 @@ void setup() {
 
     displayMgr.showBootScreen(100, "System Ready");
 
-    if (!SystemFS.exists("/joy_cal.json")) {
+    // Check joystick calibration safely on both partitions
+    if (!SystemFS.exists("/joy_cal.json") && !EbookFS.exists("/joy_cal.json")) {
         Serial.println("[BOOT] Missing calibration. Starting wizard.");
-        appMgr.switchTo(2);
+        appMgr.switchTo(3);                    // SettingsApp is now index 3
+        settingsApp->startCalibrationWizard(); // Force wizard UI immediately after start() reset
     } else if (readerApp->hasBootResume()) {
         Serial.println("[BOOT] Resuming last opened book.");
         readerApp->resumeSavedBookOnStart();
-        appMgr.switchTo(1);
+        appMgr.switchTo(1); // eReader is index 1
     } else {
         Serial.println("[BOOT] Loading Main Menu.");
-        appMgr.switchTo(0);
+        appMgr.switchTo(0); // MainMenu is index 0
     }
 
     Serial.println("[BOOT] Sequence Complete. Entering Lazy Render Loop.");

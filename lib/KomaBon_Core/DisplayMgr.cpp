@@ -74,24 +74,27 @@ void DisplayMgr::setRotation(int rotation) {
 
 void DisplayMgr::loadDisplaySettings() {
     int rotation = 3;
+    File file;
 
-    if (SystemFS.exists("/display_config.json")) {
-        File file = SystemFS.open("/display_config.json", "r");
-        if (file) {
-            DynamicJsonDocument doc(128);
-            if (!deserializeJson(doc, file)) {
-                if (doc.containsKey("rotation")) {
-                    rotation = doc["rotation"];
-                }
+    if (EbookFS.exists("/display_config.json")) {
+        file = EbookFS.open("/display_config.json", "r");
+    } else if (SystemFS.exists("/display_config.json")) {
+        file = SystemFS.open("/display_config.json", "r");
+    }
+
+    if (file) {
+        DynamicJsonDocument doc(128);
+        if (!deserializeJson(doc, file)) {
+            if (doc.containsKey("rotation")) {
+                rotation = doc["rotation"];
             }
-            file.close();
         }
+        file.close();
     }
 
     setRotation(rotation);
     Serial.printf("Loaded display settings: rotation=%d\n", _rotation);
 }
-
 void DisplayMgr::clear() {
     display.clearScreen();
 }
