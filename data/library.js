@@ -127,10 +127,12 @@ function uploadBook() {
     const status = document.getElementById('upload-status');
     const progressContainer = document.getElementById('upload-progress');
     const progressBar = document.getElementById('upload-progress-bar');
+    const dropzoneBox = document.getElementById('font-dropzone');
 
     if (!fileInput.files.length) {
         status.innerText = "Please select a file.";
         status.style.color = "var(--danger)";
+        if (dropzoneBox) dropzoneBox.style.borderColor = "var(--danger-line)";
         return;
     }
 
@@ -138,11 +140,14 @@ function uploadBook() {
     if (!isEpub(file.name) && !isFont(file.name)) {
         status.innerText = "Only .epub and .ttf files are supported.";
         status.style.color = "var(--danger)";
+        if (dropzoneBox) dropzoneBox.style.borderColor = "var(--danger-line)";
         return;
     }
 
+    if (dropzoneBox) dropzoneBox.style.borderColor = "";
     progressContainer.classList.remove('hidden');
     progressBar.style.width = '0%';
+    progressBar.style.backgroundColor = "var(--primary)";
     status.innerText = "Uploading...";
     status.style.color = "var(--accent)";
 
@@ -162,26 +167,30 @@ function uploadBook() {
     xhr.addEventListener('load', () => {
         if (xhr.status === 200) {
             progressBar.style.width = '100%';
+            progressBar.style.backgroundColor = "var(--success)";
             status.innerText = "Upload complete!";
             status.style.color = "var(--success)";
             fileInput.value = '';
 
             setTimeout(() => {
                 progressContainer.classList.add('hidden');
-            }, 2000);
+                progressBar.style.backgroundColor = "var(--primary)";
+            }, 3000);
 
             fetchBooks();
         } else {
-            progressContainer.classList.add('hidden');
+            progressBar.style.backgroundColor = "var(--danger-line)";
             status.innerText = "Upload failed: " + xhr.responseText;
             status.style.color = "var(--danger)";
+            if (dropzoneBox) dropzoneBox.style.borderColor = "var(--danger-line)";
         }
     });
 
     xhr.addEventListener('error', () => {
-        progressContainer.classList.add('hidden');
-        status.innerText = "Upload error.";
+        progressBar.style.backgroundColor = "var(--danger-line)";
+        status.innerText = "Upload error (Network failure).";
         status.style.color = "var(--danger)";
+        if (dropzoneBox) dropzoneBox.style.borderColor = "var(--danger-line)";
         console.error("Upload failed");
     });
 

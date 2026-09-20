@@ -44,7 +44,7 @@ String AppSettings::valueForRow(int index) const {
         case ROW_FONT_FAMILY:
             return String(FONT_FAMILY_NAMES[SettingsStore::clampFontFamily(_reader.fontFamily)]);
         case ROW_ROTATION: {
-            const char* rotNames[] = {"0 deg", "90 deg", "180 deg", "270 deg"};
+            const char* rotNames[] = {"270 deg", "180 deg", "90 deg", "0 deg"};
             int rot = _display.rotation;
             if (rot < 0 || rot > 3) rot = 3;
             return String(rotNames[rot]);

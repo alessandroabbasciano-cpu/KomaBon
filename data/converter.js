@@ -1,6 +1,9 @@
 // Configure PDF.js worker
 pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
 
+let uploadHasError = false;
+let lastFailedUpload = null;
+
 // Virtual terminal logging
 function logMessage(msg, isError = false) {
     const terminal = document.getElementById('terminal-log');
@@ -9,19 +12,54 @@ function logMessage(msg, isError = false) {
 
     terminal.classList.remove('hidden');
 
-    status.innerText = msg;
-    status.style.color = isError ? "var(--danger)" : "var(--accent)";
-
     const line = document.createElement('div');
     const time = new Date().toLocaleTimeString();
-    line.innerText = `[${time}] ${msg}`;
 
-    if (isError) {
-        line.style.color = "var(--danger)";
+    let logClass = "log-info";
+
+    if (isError || msg.match(/error|failed|timeout|unreachable/i)) {
+        logClass = "log-error";
+        isError = true;
+        uploadHasError = true;
+    } else if (msg.match(/successfully|completed!|complete!/i)) {
+        logClass = "log-success";
+    } else if (msg.match(/warning|skipping/i)) {
+        logClass = "log-warn";
+    } else if (msg.match(/^--- /)) {
+        logClass = "log-highlight";
     }
 
+    line.className = logClass;
+    line.innerText = `[${time}] ${msg}`;
     terminal.appendChild(line);
     terminal.scrollTop = terminal.scrollHeight;
+
+    if (isError) {
+        status.innerText = msg;
+        status.style.color = "var(--danger)";
+        terminal.style.borderColor = "var(--danger-line)";
+    } else if (!uploadHasError) {
+        status.innerText = msg;
+        status.style.color = logClass === "log-success" ? "var(--success)" : "var(--accent)";
+
+        if (logClass === "log-success") {
+            terminal.style.borderColor = "var(--success)";
+            setTimeout(() => { terminal.style.borderColor = "var(--line)"; }, 3000);
+        }
+    }
+}
+
+function resetTerminalState() {
+    const terminal = document.getElementById('terminal-log');
+    uploadHasError = false;
+    lastFailedUpload = null;
+    if (terminal) {
+        terminal.innerHTML = '';
+        terminal.style.borderColor = "var(--line)";
+    }
+
+    const existingRetry = document.getElementById('retry-upload-btn');
+    if (existingRetry) existingRetry.remove();
 }
 
 // --- Image Processing Core ---
@@ -244,10 +282,9 @@ document.addEventListener('DOMContentLoaded', () => {
 
 async function processInputFiles(droppedFiles = null) {
     const fileInput = document.getElementById('universal-file');
-    const terminal = document.getElementById('terminal-log');
     const fileList = droppedFiles || fileInput.files;
 
-    terminal.innerHTML = '';
+    resetTerminalState();
 
     if (!fileList || fileList.length === 0) {
         logMessage("Error: Select or drop files to process.", true);
@@ -578,7 +615,6 @@ async function optimizeEPUB(file) {
             coverHref = match ? match.path : imageFiles[0];
         }
 
-        // Generate and inject BOTH covers (thumb & main) natively dithered
         if (coverHref && zip.files[coverHref]) {
             const coverData = await zip.file(coverHref).async("blob");
             const coverBitmap = await createImageBitmap(coverData);
@@ -885,6 +921,9 @@ function uploadKMB(blob, filename, bar) {
 
         logMessage(`Standard transmission of ${filename} to KomaBon...`);
 
+        const existingRetry = document.getElementById('retry-upload-btn');
+        if (existingRetry) existingRetry.remove();
+
         xhr.upload.onprogress = e => {
             if (e.lengthComputable) {
                 const pct = 95 + (e.loaded / e.total * 5);
@@ -900,16 +939,43 @@ function uploadKMB(blob, filename, bar) {
                 resolve();
             } else {
                 logMessage(`Upload failed. Server status: ${xhr.status}`, true);
+                setupRetryMechanism(blob, filename, bar);
                 reject(new Error("Upload failed"));
             }
         };
 
         xhr.onerror = () => {
             logMessage(`Network error: KomaBon unreachable.`, true);
+            setupRetryMechanism(blob, filename, bar);
             reject(new Error("Network error"));
         };
 
         xhr.open('POST', '/api/books/upload');
         xhr.send(formData);
     });
+}
+
+function setupRetryMechanism(blob, filename, bar) {
+    lastFailedUpload = { blob, filename, bar };
+    const status = document.getElementById('comic-status');
+
+    const retryBtn = document.createElement('button');
+    retryBtn.id = 'retry-upload-btn';
+    retryBtn.className = 'btn secondary btn-micro';
+    retryBtn.style.marginLeft = '12px';
+    retryBtn.innerText = 'Retry Transfer';
+
+    retryBtn.onclick = () => {
+        retryBtn.remove();
+        if (lastFailedUpload) {
+            uploadHasError = false;
+            const terminal = document.getElementById('terminal-log');
+            if (terminal) terminal.style.borderColor = "var(--line)";
+            status.style.color = "var(--accent)";
+
+            uploadKMB(lastFailedUpload.blob, lastFailedUpload.filename, lastFailedUpload.bar)
+                .catch(() => { });
+        }
+    };
+    status.appendChild(retryBtn);
 }

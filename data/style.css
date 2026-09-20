@@ -749,6 +749,42 @@ select:focus {
     font-size: 14px;
 }
 
+.dropzone {
+    text-align: center;
+}
+
+.terminal-log {
+    transition: border-color 0.3s ease;
+}
+
+.terminal-log div {
+    border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+    padding-bottom: 3px;
+    margin-bottom: 4px;
+}
+
+.log-info {
+    color: var(--muted);
+}
+
+.log-success {
+    color: var(--success);
+    font-weight: 600;
+}
+
+.log-error {
+    color: var(--danger-line);
+    font-weight: 600;
+}
+
+.log-warn {
+    color: var(--yellow);
+}
+
+.log-highlight {
+    color: var(--primary-hover);
+}
+
 /* ==========================================================================
    Mobile Responsive Drawer (<=768px)
    ========================================================================== */
