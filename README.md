@@ -5,7 +5,9 @@
 
 **KomaBon** (from *Koma*: manga panel, and *Bon*: book) is a custom E-Ink application OS engineered specifically for the Seeed Studio XIAO ESP32-S3 TRMNL 7.5-inch DIY Kit.
 
-This project is a specialized branch built upon the foundational code of Book32 (originally by rolohaun), customized and optimized specifically as a dedicated manga and multi-format e-reader. It features an intelligent dual-file-system architecture, native Wi-Fi web asset management, a hardware calibration wizard for custom input devices, and secure manual OTA updates directly from the device settings.
+This project is a specialized branch built upon the foundational code of Book32 (originally by rolohaun), customized and optimized specifically as a dedicated manga and multi-format e-reader. While it shares its core hardware origins with the TRMNL ecosystem, KomaBon introduces an **extensive hardware modification**: an integrated **5-way SMD tactile joystick** for precise physical navigation and an **external MicroSD module** connected via dedicated SPI2 buses to host massive library storage.
+
+It features an intelligent dual-file-system architecture, native Wi-Fi web asset management, a custom hardware calibration wizard for the joystick, and secure manual OTA updates directly from the device settings.
 
 ---
 
