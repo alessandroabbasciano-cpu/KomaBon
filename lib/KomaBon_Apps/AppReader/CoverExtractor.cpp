@@ -22,54 +22,68 @@ bool CoverExtractor::processNextCover(std::vector<BookEntry>& books) {
         if (book.path.endsWith(".kmb")) {
             KBReader* kb = new KBReader();
             if (kb->open(book.path.c_str())) {
-                uint16_t w = kb->getWidth();
-                uint16_t h = kb->getHeight();
-                size_t bufSize = (w + 7) / 8 * h;
-                uint8_t* pageBuf = (uint8_t*)ps_malloc(bufSize);
-
-                if (pageBuf && kb->readPage(0, pageBuf)) {
-                    uint8_t thumb[640] = {0};
-                    uint8_t mainCover[2400] = {0};
-
-                    for (int ty = 0; ty < 80; ty++) {
-                        int sy = ty * h / 80;
-                        for (int tx = 0; tx < 60; tx++) {
-                            int sx = tx * w / 60;
-                            int srcByte = sy * ((w + 7) / 8) + (sx / 8);
-                            int srcBit = 7 - (sx % 8);
-                            if ((pageBuf[srcByte] & (1 << srcBit)) != 0) {
-                                thumb[ty * 8 + (tx / 8)] |= (1 << (7 - (tx % 8)));
-                            }
+                size_t thumbLen = kb->getCoverLength();
+                if (thumbLen > 0) {
+                    uint8_t* thumbBuf = (uint8_t*)ps_malloc(thumbLen);
+                    if (thumbBuf && kb->getCover(thumbBuf, thumbLen)) {
+                        File f1 = SystemFS.open(thumbPath, "w");
+                        if (f1) {
+                            f1.write(thumbBuf, thumbLen);
+                            f1.close();
+                            generated = true;
                         }
                     }
+                    if (thumbBuf) free(thumbBuf);
+                } else {
+                    uint16_t w = kb->getWidth();
+                    uint16_t h = kb->getHeight();
+                    size_t bufSize = (w + 7) / 8 * h;
+                    uint8_t* pageBuf = (uint8_t*)ps_malloc(bufSize);
 
-                    for (int ty = 0; ty < 160; ty++) {
-                        int sy = ty * h / 160;
-                        for (int tx = 0; tx < 120; tx++) {
-                            int sx = tx * w / 120;
-                            int srcByte = sy * ((w + 7) / 8) + (sx / 8);
-                            int srcBit = 7 - (sx % 8);
-                            if ((pageBuf[srcByte] & (1 << srcBit)) != 0) {
-                                mainCover[ty * 15 + (tx / 8)] |= (1 << (7 - (tx % 8)));
+                    if (pageBuf && kb->readPage(0, pageBuf)) {
+                        uint8_t thumb[640] = {0};
+                        uint8_t mainCover[2400] = {0};
+
+                        for (int ty = 0; ty < 80; ty++) {
+                            int sy = ty * h / 80;
+                            for (int tx = 0; tx < 60; tx++) {
+                                int sx = tx * w / 60;
+                                int srcByte = sy * ((w + 7) / 8) + (sx / 8);
+                                int srcBit = 7 - (sx % 8);
+                                if ((pageBuf[srcByte] & (1 << srcBit)) != 0) {
+                                    thumb[ty * 8 + (tx / 8)] |= (1 << (7 - (tx % 8)));
+                                }
                             }
                         }
-                    }
 
-                    File f1 = SystemFS.open(thumbPath, "w");
-                    if (f1) {
-                        f1.write(thumb, 640);
-                        f1.close();
-                    }
+                        for (int ty = 0; ty < 160; ty++) {
+                            int sy = ty * h / 160;
+                            for (int tx = 0; tx < 120; tx++) {
+                                int sx = tx * w / 120;
+                                int srcByte = sy * ((w + 7) / 8) + (sx / 8);
+                                int srcBit = 7 - (sx % 8);
+                                if ((pageBuf[srcByte] & (1 << srcBit)) != 0) {
+                                    mainCover[ty * 15 + (tx / 8)] |= (1 << (7 - (tx % 8)));
+                                }
+                            }
+                        }
 
-                    File f2 = SystemFS.open(coverPath, "w");
-                    if (f2) {
-                        f2.write(mainCover, 2400);
-                        f2.close();
-                    }
+                        File f1 = SystemFS.open(thumbPath, "w");
+                        if (f1) {
+                            f1.write(thumb, 640);
+                            f1.close();
+                        }
 
-                    generated = true;
+                        File f2 = SystemFS.open(coverPath, "w");
+                        if (f2) {
+                            f2.write(mainCover, 2400);
+                            f2.close();
+                        }
+
+                        generated = true;
+                    }
+                    if (pageBuf) free(pageBuf);
                 }
-                if (pageBuf) free(pageBuf);
             }
             delete kb;
 
