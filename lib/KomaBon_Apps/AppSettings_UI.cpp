@@ -371,10 +371,12 @@ void AppSettings::drawOtaModal() {
         int noX = mx + mw - 40 - btnW;
 
         display.drawRect(yesX, btnY, btnW, 46, GxEPD_BLACK);
-        font.drawTextCentered(display, "Yes", btnY + 30, FONT_SIZE_BODY, GxEPD_BLACK);
+        int yesW = font.getTextWidth("Yes", FONT_SIZE_BODY);
+        font.drawText(display, "Yes", yesX + (btnW - yesW) / 2, btnY + 30, FONT_SIZE_BODY, GxEPD_BLACK);
 
         display.drawRect(noX, btnY, btnW, 46, GxEPD_BLACK);
-        font.drawTextCentered(display, "No", btnY + 30, FONT_SIZE_BODY, GxEPD_BLACK);
+        int noW = font.getTextWidth("No", FONT_SIZE_BODY);
+        font.drawText(display, "No", noX + (btnW - noW) / 2, btnY + 30, FONT_SIZE_BODY, GxEPD_BLACK);
 
         int selX = (_otaModalOption == 0) ? yesX : noX;
         display.drawRect(selX + 1, btnY + 1, btnW - 2, 44, GxEPD_BLACK);

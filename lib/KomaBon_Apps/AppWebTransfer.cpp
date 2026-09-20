@@ -26,10 +26,11 @@ void AppWebTransfer::start() {
 }
 
 void AppWebTransfer::stop() {
-    Serial.println("AppWebTransfer: Hard shut down of Wi-Fi radio to preserve battery.");
+    Serial.println("AppWebTransfer: Clean shutdown of network services.");
     WiFi.softAPdisconnect(true);
     WiFi.disconnect(true);
     WiFi.mode(WIFI_OFF);
+    WebMgr::getInstance().stopNetwork();
 
     _state = WebTransferState::Init;
     InputMgr::getInstance().clearCallback();

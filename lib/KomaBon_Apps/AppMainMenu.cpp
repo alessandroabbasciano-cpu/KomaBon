@@ -125,6 +125,7 @@ void AppMainMenu::stopHotspot() {
     Serial.println("Main menu: stopping management hotspot");
     WiFi.softAPdisconnect(true);
     WiFi.mode(WIFI_OFF);
+    WebMgr::getInstance().stopNetwork();
     _hotspotActive = false;
 }
 
