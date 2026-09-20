@@ -149,9 +149,15 @@ void WebMgr::stopNetwork() {
     Serial.println("=== Stopping Network & Killing Radio ===");
 
     MDNS.end();
+
     server->end();
 
-    // Aggressive PHY teardown to preserve battery
+    unsigned long waitStart = millis();
+    while (millis() - waitStart < 200) {
+        delay(10);
+        yield();
+    }
+
     WiFi.disconnect(true);
     WiFi.softAPdisconnect(true);
     WiFi.mode(WIFI_OFF);

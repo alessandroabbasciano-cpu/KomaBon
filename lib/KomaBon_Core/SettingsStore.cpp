@@ -11,8 +11,6 @@ SettingsStore& SettingsStore::getInstance() {
     return instance;
 }
 
-// All methods below take the same recursive mutex, either directly or
-// through a Transaction that already holds it.
 SettingsStore::Transaction::Transaction() {
     SettingsStore::getInstance()._mutex.lock();
 }
@@ -21,9 +19,6 @@ SettingsStore::Transaction::~Transaction() {
     SettingsStore::getInstance()._mutex.unlock();
 }
 
-// --- Clamping ---------------------------------------------------------------
-// The reading fonts are only generated at three sizes, so anything else would
-// fall back to a missing glyph set. Snap to the nearest supported size.
 int SettingsStore::clampFontSize(int pt) {
     if (pt >= 18) return 18;
     if (pt >= 12) return 12;
@@ -35,9 +30,8 @@ int SettingsStore::clampFontFamily(int family) {
     return family;
 }
 
-// Allow all 4 orientations (0, 1, 2, 3) for full 360-degree support
 int SettingsStore::clampRotation(int rotation) {
-    if (rotation < 0 || rotation > 3) return 3; // Default to standard portrait (3)
+    if (rotation < 0 || rotation > 3) return 3;
     return rotation;
 }
 
@@ -53,16 +47,13 @@ int SettingsStore::clampSleepTimeout(int minutes) {
     return minutes;
 }
 
-// --- Load -------------------------------------------------------------------
 ReaderSettings SettingsStore::loadReader() {
     Book32Guard guard(_mutex);
     ReaderSettings s;
 
-    // EbookFS is primary. SystemFS is a legacy fallback kept so devices
-    // upgraded from older firmware don't silently lose their settings.
     File file;
-    if (SystemFS.exists(READER_CONFIG_PATH)) {
-        file = SystemFS.open(READER_CONFIG_PATH, "r");
+    if (EbookFS.exists(READER_CONFIG_PATH)) {
+        file = EbookFS.open(READER_CONFIG_PATH, "r");
     } else if (SystemFS.exists(READER_CONFIG_PATH)) {
         file = SystemFS.open(READER_CONFIG_PATH, "r");
     }
@@ -84,15 +75,19 @@ DisplaySettings SettingsStore::loadDisplay() {
     Book32Guard guard(_mutex);
     DisplaySettings s;
 
-    if (SystemFS.exists(DISPLAY_CONFIG_PATH)) {
-        File file = SystemFS.open(DISPLAY_CONFIG_PATH, "r");
-        if (file) {
-            DynamicJsonDocument doc(128);
-            if (!deserializeJson(doc, file)) {
-                s.rotation = clampRotation(doc["rotation"] | 3);
-            }
-            file.close();
+    File file;
+    if (EbookFS.exists(DISPLAY_CONFIG_PATH)) {
+        file = EbookFS.open(DISPLAY_CONFIG_PATH, "r");
+    } else if (SystemFS.exists(DISPLAY_CONFIG_PATH)) {
+        file = SystemFS.open(DISPLAY_CONFIG_PATH, "r");
+    }
+
+    if (file) {
+        DynamicJsonDocument doc(128);
+        if (!deserializeJson(doc, file)) {
+            s.rotation = clampRotation(doc["rotation"] | 3);
         }
+        file.close();
     }
 
     return s;
@@ -102,22 +97,25 @@ SleepSettings SettingsStore::loadSleep() {
     Book32Guard guard(_mutex);
     SleepSettings s;
 
-    if (SystemFS.exists(SLEEP_CONFIG_PATH)) {
-        File file = SystemFS.open(SLEEP_CONFIG_PATH, "r");
-        if (file) {
-            DynamicJsonDocument doc(512);
-            if (!deserializeJson(doc, file)) {
-                s.timeout = clampSleepTimeout(doc["sleepTimeout"] | 0);
-                s.message = doc["sleepMessage"] | "Press button to wake";
-            }
-            file.close();
+    File file;
+    if (EbookFS.exists(SLEEP_CONFIG_PATH)) {
+        file = EbookFS.open(SLEEP_CONFIG_PATH, "r");
+    } else if (SystemFS.exists(SLEEP_CONFIG_PATH)) {
+        file = SystemFS.open(SLEEP_CONFIG_PATH, "r");
+    }
+
+    if (file) {
+        DynamicJsonDocument doc(512);
+        if (!deserializeJson(doc, file)) {
+            s.timeout = clampSleepTimeout(doc["sleepTimeout"] | 0);
+            s.message = doc["sleepMessage"] | "Press button to wake";
         }
+        file.close();
     }
 
     return s;
 }
 
-// --- Save -------------------------------------------------------------------
 bool SettingsStore::saveReader(const ReaderSettings& s) {
     Book32Guard guard(_mutex);
     DynamicJsonDocument doc(256);
@@ -125,16 +123,13 @@ bool SettingsStore::saveReader(const ReaderSettings& s) {
     doc["fontSize"] = clampFontSize(s.fontSize);
     doc["fontFamily"] = clampFontFamily(s.fontFamily);
 
-    File file = SystemFS.open(READER_CONFIG_PATH, FILE_WRITE);
+    File file = EbookFS.open(READER_CONFIG_PATH, FILE_WRITE);
     if (!file) {
-        Serial.println("SettingsStore: failed to open reader_config.json for write");
+        Serial.println("SettingsStore: failed to open reader_config.json for write on EbookFS");
         return false;
     }
     serializeJson(doc, file);
     file.close();
-
-    Serial.printf("SettingsStore: saved reader refreshFrequency=%d fontSize=%d fontFamily=%d\n",
-                  doc["refreshFrequency"].as<int>(), doc["fontSize"].as<int>(), doc["fontFamily"].as<int>());
     return true;
 }
 
@@ -143,15 +138,13 @@ bool SettingsStore::saveDisplay(const DisplaySettings& s) {
     DynamicJsonDocument doc(128);
     doc["rotation"] = clampRotation(s.rotation);
 
-    File file = SystemFS.open(DISPLAY_CONFIG_PATH, FILE_WRITE);
+    File file = EbookFS.open(DISPLAY_CONFIG_PATH, FILE_WRITE);
     if (!file) {
-        Serial.println("SettingsStore: failed to open display_config.json for write");
+        Serial.println("SettingsStore: failed to open display_config.json for write on EbookFS");
         return false;
     }
     serializeJson(doc, file);
     file.close();
-
-    Serial.printf("SettingsStore: saved display rotation=%d\n", doc["rotation"].as<int>());
     return true;
 }
 
@@ -161,15 +154,12 @@ bool SettingsStore::saveSleep(const SleepSettings& s) {
     doc["sleepTimeout"] = clampSleepTimeout(s.timeout);
     doc["sleepMessage"] = s.message;
 
-    File file = SystemFS.open(SLEEP_CONFIG_PATH, FILE_WRITE);
+    File file = EbookFS.open(SLEEP_CONFIG_PATH, FILE_WRITE);
     if (!file) {
-        Serial.println("SettingsStore: failed to open sleep_config.json for write");
+        Serial.println("SettingsStore: failed to open sleep_config.json for write on EbookFS");
         return false;
     }
     serializeJson(doc, file);
     file.close();
-
-    Serial.printf("SettingsStore: saved sleep timeout=%d message=%s\n", doc["sleepTimeout"].as<int>(),
-                  doc["sleepMessage"].as<String>().c_str());
     return true;
 }

@@ -19,8 +19,15 @@ static const size_t IMPORT_MAX_BYTES = 64 * 1024;
 
 static void loadBookOrder(std::vector<String>& order) {
     order.clear();
-    File f = SystemFS.open(BOOK_ORDER_PATH, FILE_READ);
-    if (!f) return;
+    File f;
+    if (EbookFS.exists(BOOK_ORDER_PATH)) {
+        f = EbookFS.open(BOOK_ORDER_PATH, FILE_READ);
+    } else if (SystemFS.exists(BOOK_ORDER_PATH)) {
+        f = SystemFS.open(BOOK_ORDER_PATH, FILE_READ);
+    } else {
+        return;
+    }
+
     DynamicJsonDocument doc(4096);
     DeserializationError err = deserializeJson(doc, f);
     f.close();
@@ -35,7 +42,7 @@ static void saveBookOrder(const std::vector<String>& order) {
     JsonArray arr = doc.createNestedArray("order");
     for (const String& s : order)
         arr.add(s);
-    File f = SystemFS.open(BOOK_ORDER_PATH, FILE_WRITE);
+    File f = EbookFS.open(BOOK_ORDER_PATH, FILE_WRITE);
     if (f) {
         serializeJson(doc, f);
         f.close();

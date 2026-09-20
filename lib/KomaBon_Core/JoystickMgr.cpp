@@ -9,7 +9,6 @@ JoystickMgr::JoystickMgr() {
 
 JoyDirection JoystickMgr::getDirection() {
     int val = readAnalogAveraged();
-
     if (val > 3800) return JOY_NONE;
 
     int dCenter = abs(val - _cal.center);
@@ -39,15 +38,18 @@ JoyDirection JoystickMgr::getDirection() {
     }
 
     if (minD > 500) return JOY_NONE;
-
     return dir;
 }
 
 bool JoystickMgr::loadCalibration() {
-    if (!SystemFS.exists("/joy_cal.json")) return false;
-
-    File file = SystemFS.open("/joy_cal.json", "r");
-    if (!file) return false;
+    File file;
+    if (EbookFS.exists("/joy_cal.json")) {
+        file = EbookFS.open("/joy_cal.json", "r");
+    } else if (SystemFS.exists("/joy_cal.json")) {
+        file = SystemFS.open("/joy_cal.json", "r");
+    } else {
+        return false;
+    }
 
     DynamicJsonDocument doc(512);
     DeserializationError err = deserializeJson(doc, file);
@@ -79,12 +81,12 @@ bool JoystickMgr::saveCalibration(int center, int up, int down, int left, int ri
     doc["left"] = _cal.left;
     doc["right"] = _cal.right;
 
-    File file = SystemFS.open("/joy_cal.json", "w");
+    File file = EbookFS.open("/joy_cal.json", "w");
     if (!file) return false;
     serializeJson(doc, file);
     file.close();
 
-    Serial.println("JoystickMgr: Calibration saved to /joy_cal.json");
+    Serial.println("JoystickMgr: Calibration saved to /joy_cal.json on EbookFS");
     return true;
 }
 
@@ -95,19 +97,14 @@ void JoystickMgr::setCalibration(const JoyCalibration& cal) {
 int JoystickMgr::readAnalogAveraged() {
     const int numSamples = 16;
     long sum = 0;
-
     for (int i = 0; i < numSamples; i++) {
         sum += analogRead(JOY_ADC_PIN);
         delayMicroseconds(50);
     }
-
     return sum / numSamples;
 }
 
 void JoystickMgr::init() {
-    // Hardware directive: digital buffers on GPIO2 must remain disabled.
-    // pinMode(JOY_ADC_PIN, INPUT_PULLUP) is strictly forbidden.
-
     analogSetPinAttenuation(JOY_ADC_PIN, ADC_11db);
     analogReadResolution(12);
     Serial.println("JoystickMgr: ADC1 initialized safely on JOY_ADC_PIN.");

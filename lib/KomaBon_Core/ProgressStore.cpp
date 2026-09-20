@@ -2,15 +2,9 @@
 #include "KomaBonFS.h"
 #include "BookMeta.h"
 
-// All public methods open with a Book32Guard. load() and save() are left
-// without a guard on purpose: they are private and only reached from a public
-// method that already holds the mutex (which is recursive, so taking it again
-// does not cause a deadlock).
-
 static const char* PROGRESS_PATH = "/reader_progress.json";
 static const char* PROGRESS_TMP_PATH = "/reader_progress.tmp";
 
-// Read capacity follows the file; write capacity follows the entry count.
 static size_t readCapacityFor(size_t fileSize) {
     size_t cap = fileSize * 2 + 1024;
     if (cap > 32768) cap = 32768;
@@ -31,7 +25,7 @@ ProgressStore& ProgressStore::getInstance() {
 void ProgressStore::begin() {
     Book32Guard guard(_mutex);
     if (_loaded) return;
-    _loaded = true; // set first: a failed load leaves an empty, usable store
+    _loaded = true;
     load();
 }
 
@@ -41,10 +35,14 @@ bool ProgressStore::load() {
     _resumeOnBoot = false;
     _seq = 0;
 
-    if (!SystemFS.exists(PROGRESS_PATH)) return false;
-
-    File file = SystemFS.open(PROGRESS_PATH, "r");
-    if (!file) return false;
+    File file;
+    if (EbookFS.exists(PROGRESS_PATH)) {
+        file = EbookFS.open(PROGRESS_PATH, "r");
+    } else if (SystemFS.exists(PROGRESS_PATH)) {
+        file = SystemFS.open(PROGRESS_PATH, "r");
+    } else {
+        return false;
+    }
 
     DynamicJsonDocument doc(readCapacityFor(file.size()));
     DeserializationError error = deserializeJson(doc, file);
@@ -63,7 +61,6 @@ bool ProgressStore::load() {
     _seq = doc["seq"] | 0UL;
     _resumeOnBoot = doc["resumeOnBoot"] | false;
 
-    // v1 stored paths ("/livro.epub"); v2 stores original filenames.
     auto resolve = [](const String& name) { return getOriginalFilename(name); };
     _lastBook = migrateProgressKey<String>(String(doc["lastBook"] | ""), resolve);
 
@@ -83,8 +80,6 @@ bool ProgressStore::load() {
             p.pending = entry["pending"] | false;
             if (p.seq > _seq) _seq = p.seq;
 
-            // A v1 file could hold both "/livro.epub" and "livro.epub" after a
-            // rename; keep whichever is further ahead.
             auto existing = _books.find(key);
             if (existing == _books.end() || p.globalPage > existing->second.globalPage) {
                 _books[key] = p;
@@ -119,32 +114,28 @@ bool ProgressStore::save() {
     }
 
     if (doc.overflowed()) {
-        // Better to refuse the write than to overwrite a good file with a
-        // truncated one — that was exactly the v1 failure mode.
         Serial.println("ProgressStore: document overflowed — write refused");
         return false;
     }
 
-    File out = SystemFS.open(PROGRESS_TMP_PATH, FILE_WRITE);
+    File out = EbookFS.open(PROGRESS_TMP_PATH, FILE_WRITE);
     if (!out) {
-        Serial.println("ProgressStore: cannot open temp file");
+        Serial.println("ProgressStore: cannot open temp file on EbookFS");
         return false;
     }
     size_t written = serializeJson(doc, out);
     out.flush();
     out.close();
     if (written == 0) {
-        SystemFS.remove(PROGRESS_TMP_PATH);
+        EbookFS.remove(PROGRESS_TMP_PATH);
         Serial.println("ProgressStore: serialisation wrote nothing");
         return false;
     }
 
-    // littlefs rename replaces the destination atomically; the remove+retry is
-    // only for ports where it refuses an existing target.
-    if (!SystemFS.rename(PROGRESS_TMP_PATH, PROGRESS_PATH)) {
-        SystemFS.remove(PROGRESS_PATH);
-        if (!SystemFS.rename(PROGRESS_TMP_PATH, PROGRESS_PATH)) {
-            SystemFS.remove(PROGRESS_TMP_PATH);
+    if (!EbookFS.rename(PROGRESS_TMP_PATH, PROGRESS_PATH)) {
+        EbookFS.remove(PROGRESS_PATH);
+        if (!EbookFS.rename(PROGRESS_TMP_PATH, PROGRESS_PATH)) {
+            EbookFS.remove(PROGRESS_TMP_PATH);
             Serial.println("ProgressStore: rename failed — progress not saved");
             return false;
         }
@@ -167,7 +158,7 @@ void ProgressStore::set(const String& originalName, const BookProgress& progress
     if (originalName.length() == 0) return;
     BookProgress p = progress;
     p.seq = ++_seq;
-    p.pending = false; // we only get here by actually reading the book
+    p.pending = false;
     _books[originalName] = p;
     save();
 }
@@ -286,7 +277,7 @@ static void collectPresentOriginalNames(std::map<String, bool>& present) {
     std::map<String, String> metadata;
     loadBookMetadata(metadata);
 
-    File root = SystemFS.open("/");
+    File root = EbookFS.open("/");
     if (!root || !root.isDirectory()) return;
 
     File file = root.openNextFile();
