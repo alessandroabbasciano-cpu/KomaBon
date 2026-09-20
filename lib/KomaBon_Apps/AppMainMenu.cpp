@@ -14,8 +14,6 @@
 #include "../../include/Config.h"
 #include "../../include/NetworkState.h"
 #include <WiFi.h>
-#include "icon_update.h"
-#include "../KomaBon_OTA/GitHubMgr.h"
 
 struct MenuDirtyRect {
     int x;
@@ -25,10 +23,10 @@ struct MenuDirtyRect {
 };
 
 // Dynamic bounds calculation adaptive for Portrait (480x800) and Landscape (800x480)
-static MenuDirtyRect menuItemRect(int index, int screenW, int screenH, int numApps, bool updateAvail) {
+static MenuDirtyRect menuItemRect(int index, int screenW, int screenH, int numApps) {
     bool isPortrait = screenH > screenW;
     int ROW_HEIGHT = isPortrait ? 85 : 65;
-    int numAppItems = numApps - 1 + (updateAvail ? 1 : 0);
+    int numAppItems = numApps - 1;
     int START_Y = screenH - 70 - (numAppItems * ROW_HEIGHT); // Anchored to bottom above footer
 
     if (index == 0) {
@@ -165,7 +163,7 @@ void AppMainMenu::handleInput(InputAction action) {
     std::vector<App*>& apps = appMgr.getApps();
 
     int minSelectable = _hasResume ? 0 : 1;
-    int maxSelectable = apps.size() - 1 + (_updateAvailable ? 1 : 0);
+    int maxSelectable = apps.size() - 1;
 
     if (action == INPUT_NEXT || action == INPUT_RIGHT) {
         selectedIndex++;
@@ -187,14 +185,6 @@ void AppMainMenu::handleInput(InputAction action) {
             }
             ProgressStore::getInstance().setResumeOnBoot(true);
             appMgr.switchTo(1);
-        } else if (_updateAvailable && selectedIndex == (int)apps.size()) {
-            Serial.println("AppMainMenu: Launching OTA task...");
-            xTaskCreatePinnedToCore(
-                [](void* param) {
-                    GitHubMgr::getInstance().triggerUpdate(SYSTEM_VERSION);
-                    vTaskDelete(NULL);
-                },
-                "OTA_Menu_Task", 16384, nullptr, 1, nullptr, 1);
         } else if (selectedIndex > 0 && selectedIndex < (int)apps.size()) {
             appMgr.switchTo(selectedIndex);
         }
@@ -248,21 +238,12 @@ void AppMainMenu::draw() {
     int16_t screenH = display.height();
     bool isPortrait = screenH > screenW;
 
-    bool updateAvailable;
-    String updateVersion;
-    {
-        Book32Guard guard(_updateMutex);
-        updateAvailable = _updateAvailable;
-        updateVersion = _updateVersion;
-    }
-
     if (_firstDraw) {
         display.setFullWindow();
         _firstDraw = false;
     } else if (_selectionOnlyRedraw) {
-        MenuDirtyRect dirty =
-            unionRect(menuItemRect(_previousSelectedIndex, screenW, screenH, apps.size(), updateAvailable),
-                      menuItemRect(selectedIndex, screenW, screenH, apps.size(), updateAvailable));
+        MenuDirtyRect dirty = unionRect(menuItemRect(_previousSelectedIndex, screenW, screenH, apps.size()),
+                                        menuItemRect(selectedIndex, screenW, screenH, apps.size()));
         dirty.x = std::max(0, dirty.x);
         dirty.y = std::max(0, dirty.y);
         if (dirty.x + dirty.w > screenW) dirty.w = screenW - dirty.x;
@@ -305,7 +286,7 @@ void AppMainMenu::draw() {
             // Clear Background
             display.fillRect(wx, wy, ww, wh, GxEPD_WHITE);
 
-            // Left Sidebar Highlight (replaces color inversion)
+            // Left Sidebar Highlight
             if (selectedIndex == 0) {
                 display.fillRect(wx, wy + 10, 8, wh - 20, GxEPD_BLACK);
             }
@@ -415,7 +396,6 @@ void AppMainMenu::draw() {
 
             if (author.length() > 38) author = author.substring(0, 35) + "...";
 
-            // Centered Metadata
             int authorY = coverY + 20;
             if (dashPos != -1) {
                 drawTextWithFont(display, author.c_str(), textX, authorY, &FreeSans9pt8b, GxEPD_BLACK);
@@ -464,7 +444,7 @@ void AppMainMenu::draw() {
 
         // --- 3. VERTICAL LIST APPS (Bottom Anchored) ---
         int ROW_HEIGHT = isPortrait ? 85 : 65;
-        int numAppItems = apps.size() - 1 + (updateAvailable ? 1 : 0);
+        int numAppItems = apps.size() - 1;
         int START_Y = screenH - 70 - (numAppItems * ROW_HEIGHT);
 
         for (size_t i = 1; i < apps.size(); i++) {
@@ -507,40 +487,7 @@ void AppMainMenu::draw() {
                              GxEPD_BLACK);
         }
 
-        // --- 4. OTA UPDATE WIDGET ---
-        if (updateAvailable) {
-            int i = apps.size();
-            int idx = i - 1;
-            int y = START_Y + idx * ROW_HEIGHT;
-            int x = 35;
-
-            display.fillRect(15, y - 5, screenW - 30, ROW_HEIGHT, GxEPD_WHITE);
-
-            if ((int)i == selectedIndex) {
-                display.fillRect(15, y + 5, 6, ROW_HEIGHT - 20, GxEPD_BLACK);
-            }
-
-            int iconSize = 64;
-            for (int cy = 0; cy < iconSize; cy++) {
-                int srcY = (cy * 160) / iconSize;
-                for (int cx = 0; cx < iconSize; cx++) {
-                    int srcX = (cx * 160) / iconSize;
-                    int byteIdx = (srcY * 160 + srcX) / 8;
-                    int bitIdx = 7 - ((srcY * 160 + srcX) % 8);
-
-                    if (icon_update_160x160[byteIdx] & (1 << bitIdx)) {
-                        display.drawPixel(x + cx, y + cy, GxEPD_BLACK);
-                    }
-                }
-            }
-
-            String updateText = "Update to " + updateVersion;
-            int textY = y + (iconSize / 2) + 8;
-            fontMgr.drawText(display, updateText.c_str(), x + iconSize + 25, textY, FONT_SIZE_BODY,
-                             GxEPD_BLACK);
-        }
-
-        // --- 5. FOOTER ---
+        // --- 4. FOOTER ---
         fontMgr.drawTextCentered(display, "Up/Down: Move  |  Center: Select", screenH - 45, FONT_SIZE_SMALL,
                                  GxEPD_BLACK);
         String ipStr = getWifiFooterText();

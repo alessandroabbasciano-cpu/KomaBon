@@ -20,9 +20,10 @@
 volatile bool gNetworkStartupInProgress = false;
 
 void setup() {
-    // IMMEDIATE HARDWARE SAFETY: Force SD Card to High-Z to prevent SPI collisions
+    // IMMEDIATE HARDWARE SAFETY: Force SD Card to High-Z and stabilize floating MISO
     pinMode(39, OUTPUT);
     digitalWrite(39, HIGH);
+    pinMode(8, INPUT_PULLUP);
 
     esp_ota_mark_app_valid_cancel_rollback();
 
@@ -37,11 +38,9 @@ void setup() {
 
     gNetworkStartupInProgress = false;
 
-    // 1. HARDWARE FIRST: Initialize SD Card before any Virtual File System
     Serial.println("[BOOT] Initializing MicroSD Hardware...");
     SDMgr::getInstance().init();
 
-    // 2. SOFTWARE SECOND: Mount filesystems (Will safely fallback to 10MB if SD is absent)
     Serial.println("[BOOT] Mounting Virtual File Systems...");
     WebMgr::getInstance().mountFilesystems();
     FontMgr::getInstance().init();
@@ -50,7 +49,6 @@ void setup() {
     displayMgr.init();
     displayMgr.loadDisplaySettings();
 
-    // Eliminata la reinizializzazione distruttiva di SDMgr qui presente
     displayMgr.showBootScreen(10, "Storage & System Init Complete");
 
     displayMgr.showBootScreen(40, "Init Power & Controls");
@@ -73,18 +71,17 @@ void setup() {
 
     displayMgr.showBootScreen(100, "System Ready");
 
-    // Check joystick calibration safely on both partitions
     if (!SystemFS.exists("/joy_cal.json") && !EbookFS.exists("/joy_cal.json")) {
         Serial.println("[BOOT] Missing calibration. Starting wizard.");
-        appMgr.switchTo(3);                    // SettingsApp is now index 3
-        settingsApp->startCalibrationWizard(); // Force wizard UI immediately after start() reset
+        appMgr.switchTo(3);
+        settingsApp->startCalibrationWizard();
     } else if (readerApp->hasBootResume()) {
         Serial.println("[BOOT] Resuming last opened book.");
         readerApp->resumeSavedBookOnStart();
-        appMgr.switchTo(1); // eReader is index 1
+        appMgr.switchTo(1);
     } else {
         Serial.println("[BOOT] Loading Main Menu.");
-        appMgr.switchTo(0); // MainMenu is index 0
+        appMgr.switchTo(0);
     }
 
     Serial.println("[BOOT] Sequence Complete. Entering Lazy Render Loop.");
