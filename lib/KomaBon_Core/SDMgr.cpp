@@ -1,5 +1,5 @@
 #include "SDMgr.h"
-#include "../../include/Config.h"
+#include "Config.h"
 #include "KomaBonFS.h"
 
 SDMgr::SDMgr() : _spi(nullptr), _mounted(false) {}
@@ -7,31 +7,43 @@ SDMgr::SDMgr() : _spi(nullptr), _mounted(false) {}
 bool SDMgr::init() {
     delay(100);
 
-    // Hardware directive: Ensure internal pull-up on MISO to prevent EMI noise
+    // Hardware directive: Ensure internal pull-up on MISO (GPIO8) to prevent EMI noise
     pinMode(SD_MISO_PIN, INPUT_PULLUP);
 
+    // Hardware Hardening: Force CS high to prevent crosstalk from E-ink EPD_RST (GPIO38)
+    pinMode(SD_CS_PIN, OUTPUT);
+    digitalWrite(SD_CS_PIN, HIGH);
+
     if (!_spi) {
-        _spi = new SPIClass(FSPI);
-        // Initialize SPI2 (FSPI) on dedicated modding pins
+        _spi = new SPIClass(HSPI);
+        // Initialize SPI3 (HSPI) on dedicated modding pins defined in Config.h
         _spi->begin(SD_SCK_PIN, SD_MISO_PIN, SD_MOSI_PIN, SD_CS_PIN);
     }
 
     bool mountSuccess = false;
 
-    // Use explicit safe frequency (400 kHz for initial handshake)
-    const uint32_t sdInitFreq = 400000;
-    // Use 16 MHz for high-speed data transfer after successful mount
-    const uint32_t sdFastFreq = 16000000;
-
+    // Use the safe 4 MHz operating frequency defined in Config.h.
     for (int attempt = 1; attempt <= 3; attempt++) {
-        if (SD.begin(SD_CS_PIN, *_spi, sdInitFreq, "/ebooks", 10)) {
+        // Re-assert pull-ups because ESP-IDF SD.begin() resets GPIO matrix
+        pinMode(SD_MISO_PIN, INPUT_PULLUP);
+
+        if (SD.begin(SD_CS_PIN, *_spi, SD_FAST_FREQ, "/ebooks", 10)) {
             mountSuccess = true;
             break;
         }
+        Serial.printf("SDMgr: Mount attempt %d failed, retrying...\n", attempt);
+
+        // Lock CS high during retry delay to ignore E-ink noise
+        pinMode(SD_CS_PIN, OUTPUT);
+        digitalWrite(SD_CS_PIN, HIGH);
         delay(350);
     }
 
     if (!mountSuccess) {
+        // Keep CS High permanently to defend against floating pin crosstalk
+        pinMode(SD_CS_PIN, OUTPUT);
+        digitalWrite(SD_CS_PIN, HIGH);
+
         Serial.println("SDMgr: Mount failed or no SD card present.");
         _mounted = false;
         return false;

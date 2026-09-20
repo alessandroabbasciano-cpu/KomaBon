@@ -12,8 +12,10 @@ class WebMgr {
 
     void mountFilesystems();
 
-    // Core network lifecycle
-    void startNetwork();
+    // Core network lifecycle split to prevent SPI crosstalk
+    void connectWiFi();
+    void startServer();
+
     void stopNetwork();
     void resetIdleTimer();
 

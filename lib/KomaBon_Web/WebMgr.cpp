@@ -93,24 +93,23 @@ void WebMgr::mountFilesystems() {
     Serial.println("============================\n");
 }
 
-void WebMgr::startNetwork() {
+void WebMgr::connectWiFi() {
     if (_initialized) return;
 
-    Serial.println("=== Starting Network (On-Demand) ===");
+    Serial.println("=== Starting Wi-Fi Radio (Phase 1) ===");
     gNetworkStartupInProgress = true;
 
-    // 1. Attempt STA mode (Router connection)
     WiFi.mode(WIFI_STA);
     WiFi.begin();
 
     Serial.println("Trying STA mode...");
-    int attempts = 0;
-    while (WiFi.status() != WL_CONNECTED && attempts < 20) {
-        delay(500);
-        attempts++;
+    unsigned long startAttempt = millis();
+
+    while (WiFi.status() != WL_CONNECTED && (millis() - startAttempt < 10000)) {
+        delay(100);
+        yield();
     }
 
-    // 2. Fallback to SoftAP if STA fails
     if (WiFi.status() != WL_CONNECTED) {
         Serial.println("STA failed. Switching to AP mode.");
         WiFi.disconnect();
@@ -120,12 +119,18 @@ void WebMgr::startNetwork() {
     } else {
         Serial.printf("STA Connected. IP: %s\n", WiFi.localIP().toString().c_str());
     }
+}
 
-    // 3. Start AsyncWebServer and mDNS
+void WebMgr::startServer() {
+    if (_initialized) return;
+
+    Serial.println("=== Starting HTTP Server (Phase 2) ===");
+
     if (!_endpointsConfigured) {
         setupEndpoints();
         _endpointsConfigured = true;
     }
+
     server->begin();
     _initialized = true;
     resetIdleTimer();

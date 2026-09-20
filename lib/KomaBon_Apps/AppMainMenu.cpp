@@ -109,7 +109,8 @@ void AppMainMenu::startHotspot() {
     WiFi.mode(WIFI_AP_STA);
     WiFi.softAP(AP_SSID, WebMgr::devicePassword());
     delay(100);
-    WebMgr::getInstance().startNetwork();
+    WebMgr::getInstance().connectWiFi();
+    WebMgr::getInstance().startServer();
     _hotspotActive = true;
 
     _selectionOnlyRedraw = false;

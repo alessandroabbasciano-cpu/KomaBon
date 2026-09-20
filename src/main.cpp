@@ -37,22 +37,27 @@ void setup() {
 
     gNetworkStartupInProgress = false;
 
+    // 1. HARDWARE FIRST: Initialize SD Card before any Virtual File System
+    Serial.println("[BOOT] Initializing MicroSD Hardware...");
+    SDMgr::getInstance().init();
+
+    // 2. SOFTWARE SECOND: Mount filesystems (Will safely fallback to 10MB if SD is absent)
+    Serial.println("[BOOT] Mounting Virtual File Systems...");
     WebMgr::getInstance().mountFilesystems();
     FontMgr::getInstance().init();
 
     DisplayMgr& displayMgr = DisplayMgr::getInstance();
     displayMgr.init();
     displayMgr.loadDisplaySettings();
-    displayMgr.showBootScreen(10, "System Initialization");
 
-    displayMgr.showBootScreen(35, "Mounting SD Card");
-    SDMgr::getInstance().init();
+    // Eliminata la reinizializzazione distruttiva di SDMgr qui presente
+    displayMgr.showBootScreen(10, "Storage & System Init Complete");
 
-    displayMgr.showBootScreen(60, "Init Power & Controls");
+    displayMgr.showBootScreen(40, "Init Power & Controls");
     BatteryMgr::getInstance().init();
     InputMgr::getInstance().init();
 
-    displayMgr.showBootScreen(85, "Registering Core Apps");
+    displayMgr.showBootScreen(70, "Registering Core Apps");
     AppMgr& appMgr = AppMgr::getInstance();
 
     appMgr.registerApp(new AppMainMenu());

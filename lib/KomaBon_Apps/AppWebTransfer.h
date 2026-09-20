@@ -4,6 +4,8 @@
 #include "../KomaBon_Core/BaseApp.h"
 #include "../KomaBon_Core/InputMgr.h"
 
+enum class WebTransferState { Init, WaitingForInitScreen, StartingRadio, WaitingForReadyScreen, Ready };
+
 class AppWebTransfer : public App {
   public:
     AppWebTransfer();
@@ -22,13 +24,13 @@ class AppWebTransfer : public App {
     const uint8_t* getIconImage() override;
 
     bool allowsSystemStatusIndicator() override {
-        return true;
+        return false; // Cruciale: previene ridisegni spontanei dovuti a fluttuazioni di batteria
     }
 
   private:
     bool _needsRedraw;
-    bool _wifiConnecting;
-    bool _wifiReady;
+    WebTransferState _state;
+    unsigned long _stateTimer;
 
     void handleInput(InputAction action);
     void drawConnecting();

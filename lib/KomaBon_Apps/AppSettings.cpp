@@ -269,7 +269,7 @@ void AppSettings::handleInput(InputAction action) {
         } else if (action == INPUT_SELECT) {
             if (_subSelectedIndex == 0) {
                 if (WiFi.status() != WL_CONNECTED) {
-                    WebMgr::getInstance().startNetwork();
+                    WebMgr::getInstance().connectWiFi();
                 }
                 _screen = SCREEN_OTA_MODAL;
                 _otaChecking = true;

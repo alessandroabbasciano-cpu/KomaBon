@@ -10,8 +10,8 @@
 
 AppWebTransfer::AppWebTransfer() {
     _needsRedraw = true;
-    _wifiConnecting = false;
-    _wifiReady = false;
+    _state = WebTransferState::Init;
+    _stateTimer = 0;
 }
 
 const uint8_t* AppWebTransfer::getIconImage() {
@@ -19,34 +19,19 @@ const uint8_t* AppWebTransfer::getIconImage() {
 }
 
 void AppWebTransfer::start() {
+    _state = WebTransferState::Init;
     _needsRedraw = true;
-    _wifiConnecting = true;
-    _wifiReady = false;
-
     InputMgr::getInstance().setCallback(std::bind(&AppWebTransfer::handleInput, this, std::placeholders::_1));
-
-    Serial.println("AppWebTransfer: Booting up Wi-Fi radio...");
-
-    WiFi.mode(WIFI_AP_STA);
-    WiFi.softAP(AP_SSID, WebMgr::devicePassword());
-
-    delay(100);
-
-    WebMgr::getInstance().startNetwork();
-
-    _wifiConnecting = false;
-    _wifiReady = true;
-    _needsRedraw = true;
+    Serial.println("AppWebTransfer: UI initialized. Waiting for E-ink charge pump to power off...");
 }
 
 void AppWebTransfer::stop() {
     Serial.println("AppWebTransfer: Hard shut down of Wi-Fi radio to preserve battery.");
     WiFi.softAPdisconnect(true);
     WiFi.disconnect(true);
-
     WiFi.mode(WIFI_OFF);
 
-    _wifiReady = false;
+    _state = WebTransferState::Init;
     InputMgr::getInstance().clearCallback();
 }
 
@@ -58,9 +43,42 @@ void AppWebTransfer::handleInput(InputAction action) {
     }
 }
 
-void AppWebTransfer::update() {}
+void AppWebTransfer::update() {
+    if (_state == WebTransferState::WaitingForInitScreen) {
+        if (millis() - _stateTimer > 4000) {
+            _state = WebTransferState::StartingRadio;
+        }
+    } else if (_state == WebTransferState::StartingRadio) {
+        Serial.println("AppWebTransfer: Booting up Wi-Fi radio...");
+
+        WiFi.mode(WIFI_AP_STA);
+        WiFi.softAP(AP_SSID, WebMgr::devicePassword());
+        delay(100);
+
+        WebMgr::getInstance().connectWiFi();
+
+        WiFi.setTxPower(WIFI_POWER_5dBm);
+        Serial.println("AppWebTransfer: Wi-Fi TX throttled. Safe to update E-ink...");
+
+        _state = WebTransferState::WaitingForReadyScreen;
+        _needsRedraw = true;
+        _stateTimer = millis();
+    } else if (_state == WebTransferState::WaitingForReadyScreen) {
+        if (millis() - _stateTimer > 4500) {
+            WiFi.setTxPower(WIFI_POWER_19_5dBm);
+            Serial.println("AppWebTransfer: E-ink pump OFF. Wi-Fi TX power restored to MAX.");
+
+            WebMgr::getInstance().startServer();
+
+            _state = WebTransferState::Ready;
+        }
+    }
+}
 
 void AppWebTransfer::forceRedraw() {
+    if (_state == WebTransferState::Ready || _state == WebTransferState::WaitingForReadyScreen) {
+        return;
+    }
     _needsRedraw = true;
 }
 
@@ -84,9 +102,10 @@ void AppWebTransfer::draw() {
         fontMgr.drawTextCentered(display, "Web File Transfer", 60, FONT_SIZE_SUBTITLE, GxEPD_BLACK);
         display.drawLine(40, 85, display.width() - 40, 85, GxEPD_BLACK);
 
-        if (_wifiConnecting) {
+        if (_state == WebTransferState::Init || _state == WebTransferState::WaitingForInitScreen ||
+            _state == WebTransferState::StartingRadio) {
             drawConnecting();
-        } else if (_wifiReady) {
+        } else if (_state == WebTransferState::WaitingForReadyScreen || _state == WebTransferState::Ready) {
             drawReady();
         }
 
@@ -94,6 +113,12 @@ void AppWebTransfer::draw() {
                                  FONT_SIZE_SMALL, GxEPD_BLACK);
 
     } while (display.nextPage());
+
+    // Innesco del primo timer post-rendering
+    if (_state == WebTransferState::Init) {
+        _state = WebTransferState::WaitingForInitScreen;
+        _stateTimer = millis();
+    }
 }
 
 void AppWebTransfer::drawConnecting() {
@@ -124,7 +149,6 @@ void AppWebTransfer::drawReady() {
 
     fontMgr.drawTextCentered(display, ipStr.c_str(), startY + lineSpacing, FONT_SIZE_BODY, GxEPD_BLACK);
 
-    // FIX: Properly constructed String objects before concatenation
     String ssidStr = String("Network (SSID): ") + String(AP_SSID);
     String passStr = String("Password: ") + String(WebMgr::devicePassword());
 
