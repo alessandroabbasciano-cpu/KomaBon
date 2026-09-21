@@ -123,13 +123,30 @@ bool SettingsStore::saveReader(const ReaderSettings& s) {
     doc["fontSize"] = clampFontSize(s.fontSize);
     doc["fontFamily"] = clampFontFamily(s.fontFamily);
 
-    File file = EbookFS.open(READER_CONFIG_PATH, FILE_WRITE);
+    // Atomicity: Write to temporary file first
+    String tmpPath = String(READER_CONFIG_PATH) + ".tmp";
+    File file = EbookFS.open(tmpPath, FILE_WRITE);
     if (!file) {
-        Serial.println("SettingsStore: failed to open reader_config.json for write on EbookFS");
+        Serial.println("SettingsStore: failed to open temporary reader config for write");
         return false;
     }
-    serializeJson(doc, file);
+    size_t bytesWritten = serializeJson(doc, file);
+    file.flush();
     file.close();
+
+    if (bytesWritten == 0) {
+        EbookFS.remove(tmpPath);
+        return false;
+    }
+
+    // Atomicity: Swap original with new data
+    if (!EbookFS.rename(tmpPath, READER_CONFIG_PATH)) {
+        EbookFS.remove(READER_CONFIG_PATH);
+        if (!EbookFS.rename(tmpPath, READER_CONFIG_PATH)) {
+            EbookFS.remove(tmpPath);
+            return false;
+        }
+    }
     return true;
 }
 
@@ -138,13 +155,28 @@ bool SettingsStore::saveDisplay(const DisplaySettings& s) {
     DynamicJsonDocument doc(128);
     doc["rotation"] = clampRotation(s.rotation);
 
-    File file = EbookFS.open(DISPLAY_CONFIG_PATH, FILE_WRITE);
+    String tmpPath = String(DISPLAY_CONFIG_PATH) + ".tmp";
+    File file = EbookFS.open(tmpPath, FILE_WRITE);
     if (!file) {
-        Serial.println("SettingsStore: failed to open display_config.json for write on EbookFS");
+        Serial.println("SettingsStore: failed to open temporary display config for write");
         return false;
     }
-    serializeJson(doc, file);
+    size_t bytesWritten = serializeJson(doc, file);
+    file.flush();
     file.close();
+
+    if (bytesWritten == 0) {
+        EbookFS.remove(tmpPath);
+        return false;
+    }
+
+    if (!EbookFS.rename(tmpPath, DISPLAY_CONFIG_PATH)) {
+        EbookFS.remove(DISPLAY_CONFIG_PATH);
+        if (!EbookFS.rename(tmpPath, DISPLAY_CONFIG_PATH)) {
+            EbookFS.remove(tmpPath);
+            return false;
+        }
+    }
     return true;
 }
 
@@ -154,12 +186,27 @@ bool SettingsStore::saveSleep(const SleepSettings& s) {
     doc["sleepTimeout"] = clampSleepTimeout(s.timeout);
     doc["sleepMessage"] = s.message;
 
-    File file = EbookFS.open(SLEEP_CONFIG_PATH, FILE_WRITE);
+    String tmpPath = String(SLEEP_CONFIG_PATH) + ".tmp";
+    File file = EbookFS.open(tmpPath, FILE_WRITE);
     if (!file) {
-        Serial.println("SettingsStore: failed to open sleep_config.json for write on EbookFS");
+        Serial.println("SettingsStore: failed to open temporary sleep config for write");
         return false;
     }
-    serializeJson(doc, file);
+    size_t bytesWritten = serializeJson(doc, file);
+    file.flush();
     file.close();
+
+    if (bytesWritten == 0) {
+        EbookFS.remove(tmpPath);
+        return false;
+    }
+
+    if (!EbookFS.rename(tmpPath, SLEEP_CONFIG_PATH)) {
+        EbookFS.remove(SLEEP_CONFIG_PATH);
+        if (!EbookFS.rename(tmpPath, SLEEP_CONFIG_PATH)) {
+            EbookFS.remove(tmpPath);
+            return false;
+        }
+    }
     return true;
 }

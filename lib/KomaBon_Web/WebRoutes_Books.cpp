@@ -42,10 +42,30 @@ static void saveBookOrder(const std::vector<String>& order) {
     JsonArray arr = doc.createNestedArray("order");
     for (const String& s : order)
         arr.add(s);
-    File f = EbookFS.open(BOOK_ORDER_PATH, FILE_WRITE);
-    if (f) {
-        serializeJson(doc, f);
-        f.close();
+
+    // Atomicity: Write-Ahead Logging (WAL)
+    String tmpPath = String(BOOK_ORDER_PATH) + ".tmp";
+    File f = EbookFS.open(tmpPath, FILE_WRITE);
+    if (!f) {
+        Serial.println("WebRoutes_Books: failed to open temporary book_order.tmp for write");
+        return;
+    }
+
+    size_t bytesWritten = serializeJson(doc, f);
+    f.flush();
+    f.close();
+
+    if (bytesWritten == 0) {
+        EbookFS.remove(tmpPath);
+        return;
+    }
+
+    // Atomicity: Swap files
+    if (!EbookFS.rename(tmpPath, BOOK_ORDER_PATH)) {
+        EbookFS.remove(BOOK_ORDER_PATH);
+        if (!EbookFS.rename(tmpPath, BOOK_ORDER_PATH)) {
+            EbookFS.remove(tmpPath);
+        }
     }
 }
 
