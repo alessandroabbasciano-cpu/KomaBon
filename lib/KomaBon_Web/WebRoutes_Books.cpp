@@ -518,33 +518,49 @@ void setupBookEndpoints(AsyncWebServer* server) {
     });
 
     server->on("/api/library/export", HTTP_GET, [](AsyncWebServerRequest* request) {
-        std::map<String, String> metadata;
-        loadBookMetadata(metadata);
-
-        std::vector<String> order;
-        loadBookOrder(order);
-
-        size_t capacity =
-            1024 + ProgressStore::getInstance().count() * 224 + metadata.size() * 160 + order.size() * 96;
-        DynamicJsonDocument doc(capacity);
-
-        JsonObject header = doc.createNestedObject("komabon");
-        header["schema"] = PROGRESS_SCHEMA_CURRENT;
-        header["version"] = SYSTEM_VERSION;
-
-        ProgressStore::getInstance().fillExportJson(doc.createNestedObject("progress"));
-
-        JsonObject meta = doc.createNestedObject("meta");
-        for (const auto& kv : metadata)
-            meta[kv.second] = kv.second;
-
-        JsonArray arr = doc.createNestedArray("order");
-        for (const String& filename : order)
-            arr.add(getOriginalFilename(filename));
-
         AsyncResponseStream* response = request->beginResponseStream("application/json");
         response->addHeader("Content-Disposition", "attachment; filename=\"komabon-state.json\"");
-        serializeJson(doc, *response);
+
+        // 1. Header Stream
+        response->print("{\"komabon\":{\"schema\":");
+        response->print(PROGRESS_SCHEMA_CURRENT);
+        response->print(",\"version\":\"");
+        response->print(SYSTEM_VERSION);
+        response->print("\"},\"progress\":{");
+
+        // 2. Progress Stream (Direct OOM Bypass)
+        ProgressStore::getInstance().streamExportJson(response);
+
+        // 3. Meta Stream
+        response->print("},\"meta\":{");
+        std::map<String, String> metadata;
+        loadBookMetadata(metadata);
+        bool firstMeta = true;
+        for (const auto& kv : metadata) {
+            if (!firstMeta) response->print(",");
+            firstMeta = false;
+            DynamicJsonDocument k(512), v(512);
+            k.set(kv.first);
+            v.set(kv.second);
+            serializeJson(k, *response);
+            response->print(":");
+            serializeJson(v, *response);
+        }
+
+        // 4. Order Stream
+        response->print("},\"order\":[");
+        std::vector<String> order;
+        loadBookOrder(order);
+        bool firstOrder = true;
+        for (const String& filename : order) {
+            if (!firstOrder) response->print(",");
+            firstOrder = false;
+            DynamicJsonDocument v(512);
+            v.set(getOriginalFilename(filename));
+            serializeJson(v, *response);
+        }
+
+        response->print("]}");
         request->send(response);
     });
 

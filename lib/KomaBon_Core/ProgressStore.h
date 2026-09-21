@@ -61,10 +61,9 @@ class ProgressStore {
     // Entry count, for callers sizing a JSON document.
     size_t count();
 
-    // Export: fills `dest` with { "<original name>": {chapter, nodeIndex,
-    // charOffset, globalPage} }. `pending` and `seq` are device-local and left
-    // out on purpose.
-    void fillExportJson(JsonObject dest);
+    // Export: streams the local progress map directly to any Print interface
+    // (e.g., AsyncResponseStream) to prevent OOM on large libraries.
+    void streamExportJson(Print* out);
 
     // Import: merges `src` (same shape as fillExportJson) using the
     // further-ahead-page rule. One atomic write for the whole bundle.

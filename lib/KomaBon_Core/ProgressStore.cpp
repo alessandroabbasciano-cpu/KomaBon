@@ -261,15 +261,28 @@ size_t ProgressStore::count() {
     return _books.size();
 }
 
-void ProgressStore::fillExportJson(JsonObject dest) {
+void ProgressStore::streamExportJson(Print* out) {
     Book32Guard guard(_mutex);
     begin();
+    bool first = true;
     for (const auto& kv : _books) {
-        JsonObject entry = dest.createNestedObject(kv.first);
+        if (!first) out->print(",");
+        first = false;
+
+        // Delegate string escaping to ArduinoJson to safely handle Unicode keys
+        DynamicJsonDocument keyDoc(512);
+        keyDoc.set(kv.first);
+        serializeJson(keyDoc, *out);
+
+        out->print(":");
+
+        // Serialize the individual progress entry
+        DynamicJsonDocument entry(256);
         entry["chapter"] = kv.second.chapter;
         entry["nodeIndex"] = kv.second.nodeIndex;
         entry["charOffset"] = kv.second.charOffset;
         entry["globalPage"] = kv.second.globalPage;
+        serializeJson(entry, *out);
     }
 }
 
