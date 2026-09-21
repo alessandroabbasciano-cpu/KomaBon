@@ -171,14 +171,14 @@ void BatteryMgr::updateCache(bool clearStaleCharging) {
         currentCharging = false;
     }
 
-    if (previousVoltage > 0 && voltage > previousVoltage + 0.10f) {
+    if (previousVoltage > 0 && voltage > previousVoltage + 0.25f) {
         if (!currentCharging) {
             currentCharging = true;
             Serial.printf("Battery: Hard USB plug detected (%.3fV -> %.3fV, +%.3fV)\n", previousVoltage,
                           voltage, voltage - previousVoltage);
         }
         _lastChargingTime = millis();
-    } else if (previousVoltage > 0 && voltage < previousVoltage - 0.08f) {
+    } else if (previousVoltage > 0 && voltage < previousVoltage - 0.20f) {
         if (currentCharging) {
             currentCharging = false;
             Serial.printf("Battery: Hard USB unplug detected (%.3fV -> %.3fV, %.3fV)\n", previousVoltage,
