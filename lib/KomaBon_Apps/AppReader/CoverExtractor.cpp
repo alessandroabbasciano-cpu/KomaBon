@@ -26,15 +26,34 @@ bool CoverExtractor::processNextCover(std::vector<BookEntry>& books) {
                 if (thumbLen > 0) {
                     uint8_t* thumbBuf = (uint8_t*)ps_malloc(thumbLen);
                     if (thumbBuf && kb->getCover(thumbBuf, thumbLen)) {
-                        File f1 = SystemFS.open(thumbPath, "w");
-                        if (f1) {
-                            f1.write(thumbBuf, thumbLen);
-                            f1.close();
+                        if (thumbLen == 3040) {
+                            // Dual high-quality thumbnails extracted directly from KMB header
+                            File f1 = SystemFS.open(thumbPath, "w");
+                            if (f1) {
+                                f1.write(thumbBuf, 640);
+                                f1.close();
+                            }
+                            File f2 = SystemFS.open(coverPath, "w");
+                            if (f2) {
+                                f2.write(thumbBuf + 640, 2400);
+                                f2.close();
+                            }
+                            generated = true;
+                        } else if (thumbLen == 640) {
+                            // Legacy single thumb fallback
+                            File f1 = SystemFS.open(thumbPath, "w");
+                            if (f1) {
+                                f1.write(thumbBuf, 640);
+                                f1.close();
+                            }
                             generated = true;
                         }
                     }
                     if (thumbBuf) free(thumbBuf);
-                } else {
+                }
+
+                if (!generated) {
+                    // Fallback to page 0 software downscale if header thumbnails are missing
                     uint16_t w = kb->getWidth();
                     uint16_t h = kb->getHeight();
                     size_t bufSize = (w + 7) / 8 * h;

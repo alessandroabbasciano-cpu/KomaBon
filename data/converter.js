@@ -343,9 +343,10 @@ async function processArchive(file) {
         const pageCount = imgFiles.length;
         logMessage(`Found ${pageCount} pages. Starting KMB conversion...`);
 
+        const coverLen = 3040; // 640 bytes thumb (60x80) + 2400 bytes main cover (120x160)
         const bytesPerRow = Math.ceil(targetWidth / 8);
         const bytesPerPage = bytesPerRow * targetHeight;
-        const totalSize = 16 + (bytesPerPage * pageCount);
+        const totalSize = 16 + coverLen + (bytesPerPage * pageCount);
 
         const kmbBuffer = new ArrayBuffer(totalSize);
         const kmbView = new DataView(kmbBuffer);
@@ -359,9 +360,24 @@ async function processArchive(file) {
         kmbView.setUint16(6, targetWidth, true);
         kmbView.setUint16(8, targetHeight, true);
         kmbView.setUint16(10, pageCount, true);
-        kmbView.setUint32(12, 0, true);
+        kmbView.setUint32(12, coverLen, true);
 
-        let offset = 16;
+        // Generate and inject high-quality dual thumbnails from the first page (cover)
+        logMessage("Generating high-quality dual thumbnails for KMB...");
+        const firstImgData = await zip.file(imgFiles[0]).async("blob");
+        const firstBitmap = await createImageBitmap(firstImgData);
+
+        const thumbBlob = await createThumbBlob(firstBitmap);
+        const mainCoverBlob = await createMainCoverBlob(firstBitmap);
+        const thumbBuffer = await thumbBlob.arrayBuffer();
+        const mainCoverBuffer = await mainCoverBlob.arrayBuffer();
+
+        kmbBytes.set(new Uint8Array(thumbBuffer), 16);
+        kmbBytes.set(new Uint8Array(mainCoverBuffer), 16 + 640);
+        firstBitmap.close();
+
+        let offset = 16 + coverLen;
+
         const canvas = document.createElement('canvas');
         canvas.width = targetWidth;
         canvas.height = targetHeight;
@@ -443,9 +459,10 @@ async function processPDF(file) {
         const pageCount = pdf.numPages;
         logMessage(`PDF loaded. Found ${pageCount} pages.`);
 
+        const coverLen = 3040; // 640 bytes thumb (60x80) + 2400 bytes main cover (120x160)
         const bytesPerRow = Math.ceil(targetWidth / 8);
         const bytesPerPage = bytesPerRow * targetHeight;
-        const totalSize = 16 + (bytesPerPage * pageCount);
+        const totalSize = 16 + coverLen + (bytesPerPage * pageCount);
 
         const kmbBuffer = new ArrayBuffer(totalSize);
         const kmbView = new DataView(kmbBuffer);
@@ -459,10 +476,35 @@ async function processPDF(file) {
         kmbView.setUint16(6, targetWidth, true);
         kmbView.setUint16(8, targetHeight, true);
         kmbView.setUint16(10, pageCount, true);
-        kmbView.setUint32(12, 0, true);
+        kmbView.setUint32(12, coverLen, true);
 
-        let offset = 16;
-        const canvas = document.createElement('canvas');
+        // Generate high-quality dual thumbnails from the first PDF page
+        logMessage("Generating high-quality dual thumbnails for PDF cover...");
+        const firstPage = await pdf.getPage(1);
+        const baseVp = firstPage.getViewport({ scale: 1.0 });
+        const coverScale = Math.min(targetWidth / baseVp.width, targetHeight / baseVp.height) * 2.0;
+        const coverVp = firstPage.getViewport({ scale: coverScale });
+
+        const coverCanvas = document.createElement('canvas');
+        coverCanvas.width = coverVp.width;
+        coverCanvas.height = coverVp.height;
+        const coverCtx = coverCanvas.getContext('2d', { willReadFrequently: true });
+        coverCtx.fillStyle = '#FFFFFF';
+        coverCtx.fillRect(0, 0, coverCanvas.width, coverCanvas.height);
+
+        await firstPage.render({ canvasContext: coverCtx, viewport: coverVp }).promise;
+        const firstBitmap = await createImageBitmap(coverCanvas);
+
+        const thumbBlob = await createThumbBlob(firstBitmap);
+        const mainCoverBlob = await createMainCoverBlob(firstBitmap);
+        const thumbBuffer = await thumbBlob.arrayBuffer();
+        const mainCoverBuffer = await mainCoverBlob.arrayBuffer();
+
+        kmbBytes.set(new Uint8Array(thumbBuffer), 16);
+        kmbBytes.set(new Uint8Array(mainCoverBuffer), 16 + 640);
+        firstBitmap.close();
+
+        let offset = 16 + coverLen; const canvas = document.createElement('canvas');
         canvas.width = targetWidth;
         canvas.height = targetHeight;
         const ctx = canvas.getContext('2d', { willReadFrequently: true });
