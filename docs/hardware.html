@@ -1,0 +1,201 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>KomaBon — Hardware Modding & Preparation Guide</title>
+    <link rel="stylesheet" href="installer.css">
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            line-height: 1.6;
+            color: #e0e0e0;
+            background-color: #121212;
+            max-width: 900px;
+            margin: 0 auto;
+            padding: 2rem 1.5rem;
+        }
+
+        a {
+            color: #4da3ff;
+            text-decoration: none;
+        }
+
+        a:hover {
+            text-decoration: underline;
+        }
+
+        h1,
+        h2,
+        h3 {
+            color: #ffffff;
+            border-bottom: 1px solid #2d2d2d;
+            padding-bottom: 0.4rem;
+        }
+
+        code,
+        pre {
+            background: #1e1e1e;
+            border: 1px solid #333;
+            border-radius: 4px;
+            font-family: "JetBrains Mono", Consolas, Monaco, monospace;
+        }
+
+        pre {
+            padding: 1rem;
+            overflow-x: auto;
+            color: #a9b7c6;
+        }
+
+        code {
+            padding: 0.2rem 0.4rem;
+            font-size: 0.9em;
+        }
+
+        .alert {
+            background: #2a1b1b;
+            border-left: 4px solid #ff5252;
+            padding: 1rem;
+            margin: 1.5rem 0;
+            border-radius: 0 4px 4px 0;
+        }
+
+        .alert-title {
+            font-weight: bold;
+            color: #ff5252;
+            margin-bottom: 0.25rem;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 1.5rem 0;
+        }
+
+        th,
+        td {
+            border: 1px solid #333;
+            padding: 0.6rem 0.8rem;
+            text-align: left;
+        }
+
+        th {
+            background: #1f1f1f;
+            color: #fff;
+        }
+
+        tr:nth-child(even) {
+            background: #161616;
+        }
+
+        .nav-bar {
+            margin-bottom: 2rem;
+            display: flex;
+            gap: 1rem;
+            font-size: 0.95rem;
+        }
+    </style>
+</head>
+
+<body>
+
+    <div class="nav-bar">
+        <a href="index.html">← Back to Web Installer</a>
+        <a href="https://github.com/alessandroabbasciano-cpu/KomaBon" target="_blank">GitHub Repository ↗</a>
+    </div>
+
+    <h1>Hardware Modding & eFuse Preparation</h1>
+    <p>Technical reference for building the <strong>KomaBon</strong> multi-format manga e-reader on the Seeed Studio
+        XIAO ESP32-S3 TRMNL 7.5" DIY Kit.</p>
+
+    <div class="alert">
+        <div class="alert-title">CRITICAL SILICON PREPARATION</div>
+        GPIO39, 41, and 42 overlap with the ESP32-S3 hardware JTAG controller. If left untouched, USB connection or soft
+        reboots will trigger debug signals on these lines and corrupt MicroSD initialization. You must blow the
+        <code>DIS_PAD_JTAG</code> eFuse.
+    </div>
+
+    <h2>1. Mandatory eFuse Burn Procedure</h2>
+    <p>This is a permanent silicon-level OTP (One-Time Programmable) operation that disables hardware JTAG pad
+        multiplexing without affecting USB flashing, CDC logging, or Wi-Fi OTA.</p>
+
+    <h3>Execution Steps:</h3>
+    <ol>
+        <li>
+            <strong>Install esptool:</strong>
+            <pre><code>pip install esptool</code></pre>
+        </li>
+        <li>
+            <strong>Verify current register (Read-Only):</strong>
+            <pre><code>python -m espefuse --port &lt;PORT&gt; summary</code></pre>
+            Ensure <code>DIS_PAD_JTAG (BLOCK0)</code> is currently <code>False</code>.
+        </li>
+        <li>
+            <strong>Burn the fuse:</strong>
+            <pre><code>python -m espefuse --port &lt;PORT&gt; burn_efuse DIS_PAD_JTAG</code></pre>
+            Type <code>BURN</code> in uppercase when prompted to confirm.
+        </li>
+        <li>
+            <strong>Cold Reset:</strong> Unplug the USB cable completely for 5 seconds and reconnect.
+        </li>
+    </ol>
+
+    <h2>2. Wiring & Pinout Matrix</h2>
+    <table>
+        <thead>
+            <tr>
+                <th>Target Pin</th>
+                <th>Function</th>
+                <th>Physical Connection</th>
+                <th>Engineering Note</th>
+            </tr>
+        </thead>
+        <tbody>
+            <tr>
+                <td>GPIO 39</td>
+                <td>SD_CS</td>
+                <td>XIAO Pin 16 (Castellated Pad)</td>
+                <td>Driven HIGH at startup to keep SD in High-Z (Alt: Font Chip U6 Pin 1)</td>
+            </tr>
+            <tr>
+                <td>GPIO 41</td>
+                <td>SD_SCK</td>
+                <td>NFC1 / RX1 Pad (J4)</td>
+                <td>Twist tightly with GND lead</td>
+            </tr>
+            <tr>
+                <td>GPIO 42</td>
+                <td>SD_MOSI</td>
+                <td>NFC2 / TX1 Pad (J4)</td>
+                <td>Dedicated SPI2 bus</td>
+            </tr>
+            <tr>
+                <td>GPIO 8</td>
+                <td>SD_MISO</td>
+                <td>Castellation Pin 10</td>
+                <td>Internal pull-up enabled</td>
+            </tr>
+            <tr>
+                <td>GPIO 2</td>
+                <td>JOY_ADC</td>
+                <td>KEY1 Switch Signal Pad</td>
+                <td>ADC1_CH1 ladder. Do not pull up digitally!</td>
+            </tr>
+        </tbody>
+    </table>
+
+    <h2>3. Assembly & EMI Shielding</h2>
+    <ul>
+        <li><strong>Wire Length:</strong> Keep all flying leads under <strong>5–6 cm</strong>.</li>
+        <li><strong>Decoupling:</strong> Solder a 100nF to 1µF ceramic capacitor directly across the MicroSD module VCC
+            and GND pins.</li>
+        <li><strong>Inductor Clearance:</strong> Route the SPI ribbon away from the carrier board's PMIC inductor (L1)
+            to prevent charging spikes from coupling into data lines.</li>
+        <li><strong>PSRAM Protection:</strong> Do not probe or attach anything to GPIO33–37 (120MHz Octal PSRAM bus).
+        </li>
+    </ul>
+
+</body>
+
+</html>

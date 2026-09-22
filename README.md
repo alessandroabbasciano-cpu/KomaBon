@@ -9,8 +9,6 @@ This project is a specialized branch built upon the foundational code of Book32 
 
 It features an intelligent dual-file-system architecture, native Wi-Fi web asset management, a custom hardware calibration wizard for the joystick, and secure manual OTA updates directly from the device settings.
 
----
-
 ## ⚙️ The Core Engine: Manga & Document Pre-Processing
 
 The true beating heart of KomaBon is its **Universal Conversion Pipeline**, implemented directly in browser-side JavaScript. Because raw manga archives (CBZ/ZIP) or complex documents (PDF, ODT, EPUB) would easily cause an ESP32-S3 microcontroller to run out of memory or choke on heavy image decoding, KomaBon offloads the heavy lifting to the client browser.
@@ -23,8 +21,6 @@ The true beating heart of KomaBon is its **Universal Conversion Pipeline**, impl
 4. **Atkinson Dithering & 1-Bit Packing:** Converts grayscale or full-color images into pure 1-bit black/white bitmaps using **Atkinson dithering**, packing pixels efficiently into custom binary payloads (`.kmb` raw comic files or optimized zero-decoding `.epub` archives).
 5. **Native Dual-Thumbnails Injection:** Automatically extracts or generates high-performance 60x80 and 120x160 thumbnails (`cover_thumb.raw`, `cover_main.raw`) for instant library rendering and main menu hero cards without runtime decoding overhead.
 
----
-
 ## 🚀 Key Hardware Specifications
 
 * **Microcontroller:** Seeed Studio XIAO ESP32-S3 Plus (Dual-core Xtensa LX7 @ 240MHz, 8MB Octal PSRAM, 8MB Flash)
@@ -34,8 +30,6 @@ The true beating heart of KomaBon is its **Universal Conversion Pipeline**, impl
   * **EbookFS (External MicroSD via SPI2):** Dedicated high-capacity external storage for user metadata, configs, and massive manga/EPUB libraries. Fully isolated to protect user data during firmware upgrades.
 * **Input System:** Custom 5-way tactile analog joystick interfaced via ADC1 (GPIO2) complemented by dedicated physical fallback buttons (KEY2/KEY3).
 * **Power Management:** Rechargeable 2000mAh Li-ion battery managed via advanced power architecture (compatible with ETA6003 and SY6974B PMIC revisions) and monitored via dedicated ADC channels.
-
----
 
 ## 🎮 Controls & Navigation
 
@@ -51,29 +45,34 @@ The true beating heart of KomaBon is its **Universal Conversion Pipeline**, impl
 * **KEY3 (GPIO 5):** Dedicated Back / Abort button (critical for escaping menus and running the Hardware Calibration Wizard).
 * **KEY2 (GPIO 3):** Click to trigger an immediate full display refresh, clearing accumulated e-ink ghosting. *(Note: Standby hold functionality on this button is disabled in firmware; deep sleep is managed automatically via idle timers).*
 
----
+## 🔌 Wiring & Hardware Preparation
 
-## 🔌 Wiring & Pinout Reference
+> ⚠️ **CRITICAL STEP — eFuse JTAG Disabling:**  
+> GPIO39, GPIO41, and GPIO42 overlap with the ESP32-S3 hardware JTAG controller. Connecting USB or soft-resetting the device forces debug signals onto these lines, crashing the MicroSD bus. You **must burn the `DIS_PAD_JTAG` eFuse** before reliable operation is possible.  
+> 📖 **Read the full assembly and electrical guide: [Hardware Modding & eFuse Guide](docs/HARDWARE_MODS.md)** (or view online on the [Web Documentation](https://alessandroabbasciano-cpu.github.io/KomaBon/hardware.html)).
 
-| Module | Function | XIAO ESP32-S3 Pin | Notes |
-| :--- | :--- | :--- | :--- |
-| **E-Ink Display** | MOSI | GPIO 9 | SPI0 bus |
-| E-Ink Display | SCK | GPIO 7 | SPI0 bus |
-| E-Ink Display | CS | GPIO 44 | Chip Select |
-| E-Ink Display | DC | GPIO 10 | Data/Command |
-| E-Ink Display | RST | GPIO 38 | Hard Reset |
-| E-Ink Display | BUSY | GPIO 4 | Hardware Busy Line |
-| **Physical Inputs** | KEY3 | GPIO 5 | Back / Wake |
-| Physical Inputs | KEY2 | GPIO 3 | Refresh / Ghosting Clear |
-| Physical Inputs | Joystick Center | GPIO 2 | Shared ADC1 Channel |
-| **MicroSD (SPI2)** | CS | GPIO 39 | Initialized High-Z at boot |
-| MicroSD (SPI2) | SCK | GPIO 41 | Dedicated SPI2 Bus |
-| MicroSD (SPI2) | MOSI | GPIO 42 | Dedicated SPI2 Bus |
-| MicroSD (SPI2) | MISO | GPIO 8 | Internal Pull-up Enabled |
-| **Power / Battery** | Voltage ADC | GPIO 1 | LiPo level monitoring |
-| Power / Battery | PMIC Switch | GPIO 6 | Power Status Line |
+### Pinout Reference
 
----
+| Module | Function | XIAO ESP32-S3 Pin | Physical Connection / Source Pad | Notes |
+| :--- | :--- | :--- | :--- | :--- |
+| **E-Ink Display** | MOSI | GPIO 9 | FPC Connector (24-pin) | SPI0 native bus |
+| E-Ink Display | SCK | GPIO 7 | FPC Connector (24-pin) | SPI0 native bus |
+| E-Ink Display | CS | GPIO 44 | FPC Connector (24-pin) | Chip Select |
+| E-Ink Display | DC | GPIO 10 | FPC Connector (24-pin) | Data/Command |
+| E-Ink Display | RST | GPIO 38 | FPC Connector (24-pin) | Hard Reset |
+| E-Ink Display | BUSY | GPIO 4 | FPC Connector (24-pin) | Hardware Busy Line |
+| **Physical Inputs** | KEY3 | GPIO 5 | On-board User Button 3 | Dedicated Back / Wake |
+| Physical Inputs | KEY2 | GPIO 3 | On-board User Button 2 | Click to clear ghosting (Full Refresh) |
+| Physical Inputs | Joystick ADC | GPIO 2 | KEY1 Button Pad (ADC1_CH1) | 5-Way resistor ladder analog input |
+| **MicroSD (SPI2)** | CS | GPIO 39 | Pin 16 on XIAO module (Alt: Font Chip U6 Pin 1 pad) | Initialized High at boot |
+| MicroSD (SPI2) | SCK | GPIO 41 | NFC1 / RX1 Pad (J4) | Dedicated SPI2 Bus (Twist with GND) |
+| MicroSD (SPI2) | MOSI | GPIO 42 | NFC2 / TX1 Pad (J4) | Dedicated SPI2 Bus |
+| MicroSD (SPI2) | MISO | GPIO 8 | Castellation Pin 10 | Weak internal pull-up enabled |
+| **Power / Battery** | Voltage ADC | GPIO 1 | Carrier Board Resistor Divider | Li-ion level monitoring |
+| Power / Battery | PMIC Switch | GPIO 6 | Carrier Board Status | SY6974B / ETA6003 line |
+
+> 🚫 **DO NOT TOUCH GPIO 33-37:**  
+> The Seeed XIAO ESP32-S3 Plus runs 8MB Octal PSRAM at 120MHz over pins GPIO33–37 (`qio_opi`). Never define, declare, or probe these pins.
 
 ## 🛠️ Installation & Development
 
@@ -97,8 +96,6 @@ To monitor real-time serial output for debugging:
 
 `python -m platformio device monitor`
 
----
-
 ## 🌐 First Boot & Access Control
 
 1. Power on KomaBon.
@@ -107,8 +104,6 @@ To monitor real-time serial output for debugging:
 4. Select your local network and provide credentials.
 5. Access the device's local web interface at `http://<KOMABON_IP>/` to upload books and manage settings.
 
----
-
 ## ✨ Core Features & Architecture
 
 * **Hardware Calibration Wizard:** Built-in routine to map and calibrate the 5-way analog joystick thresholds accurately.
@@ -116,8 +111,6 @@ To monitor real-time serial output for debugging:
 * **Universal Pre-processing Pipeline:** Translates CBZ, ZIP, PDF, ODT, and EPUB files directly into lightning-fast 1-bit E-Ink formats.
 * **Local Web Management:** Access the device over Wi-Fi to upload, organize, and delete books directly from your browser.
 * **Robust Power States:** Intelligent sleep management and battery level indicators tailored for extended reading sessions.
-
----
 
 ## 📦 Partition Notes
 

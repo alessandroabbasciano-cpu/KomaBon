@@ -8,6 +8,7 @@
 #include "Fonts/FreeSans.h"
 #include "SDMgr.h"
 #include <WiFi.h>
+#include "../../include/NetworkState.h"
 
 const float BatteryMgr::CHARGE_THRESHOLD = 0.03f;
 const float BatteryMgr::CRITICAL_VOLTAGE = 3.0f;
@@ -136,7 +137,8 @@ void BatteryMgr::updateCache(bool clearStaleCharging) {
     Book32Guard guard(_mutex);
 #ifdef PIN_VBAT_SWITCH
     digitalWrite(PIN_VBAT_SWITCH, VBAT_SWITCH_LEVEL);
-    delay(5);
+    // RC STABILIZATION: 5 Tau = 25ms (R28||R29=50k, C62=100nF). Padded to 30ms.
+    delay(30);
 #endif
 
     analogRead(PIN_BAT_VOLT);
@@ -151,18 +153,21 @@ void BatteryMgr::updateCache(bool clearStaleCharging) {
     digitalWrite(PIN_VBAT_SWITCH, !VBAT_SWITCH_LEVEL);
 #endif
 
-    float voltage = (raw_mv / 1000.0f) * 2.0f;
-    voltage *= BATTERY_VOLTAGE_CALIBRATION;
-    if (voltage > BATTERY_FULL_VOLTAGE) {
-        voltage = BATTERY_FULL_VOLTAGE;
+    float rawVoltage = (raw_mv / 1000.0f) * 2.0f;
+    rawVoltage *= BATTERY_VOLTAGE_CALIBRATION;
+    if (rawVoltage > BATTERY_FULL_VOLTAGE) {
+        rawVoltage = BATTERY_FULL_VOLTAGE;
     }
 
-    if (_lastValidVoltage > 0.0f && fabsf(voltage - _lastValidVoltage) > SPIKE_REJECT_THRESHOLD) {
-        voltage = _lastValidVoltage;
+    // EXPONENTIAL MOVING AVERAGE (EMA): Kills hardware noise and micro-bounces
+    if (_lastValidVoltage <= 0.0f) {
+        _lastValidVoltage = rawVoltage;
     } else {
-        _lastValidVoltage = voltage;
+        // 85% historical weight, 15% new reading weight
+        _lastValidVoltage = (_lastValidVoltage * 0.85f) + (rawVoltage * 0.15f);
     }
 
+    float voltage = _lastValidVoltage;
     int percentage = voltageToPercentage(voltage);
     float previousVoltage = _previousVoltage;
 
@@ -172,7 +177,7 @@ void BatteryMgr::updateCache(bool clearStaleCharging) {
     }
 
     if (previousVoltage > 0 && voltage > previousVoltage + 0.25f) {
-        if (!currentCharging) {
+        if (!currentCharging && !gNetworkStartupInProgress) {
             currentCharging = true;
             Serial.printf("Battery: Hard USB plug detected (%.3fV -> %.3fV, +%.3fV)\n", previousVoltage,
                           voltage, voltage - previousVoltage);
@@ -315,14 +320,12 @@ void BatteryMgr::drawStatusBar(KomaBonDisplay& display, int startX, int startY) 
     int percentage = bat.percentage;
     bool currentCharging = bat.charging;
 
-    // Tighter bounding box, pushed to the top-right corner
     const int INDICATOR_WIDTH = 110;
-    int cx = display.width() - INDICATOR_WIDTH - 4; // Minimal right margin
-    int cy = 4;                                     // Minimal top margin
+    int cx = display.width() - INDICATOR_WIDTH - 4;
+    int cy = 4;
 
     display.setTextColor(GxEPD_BLACK);
 
-    // 1. Wi-Fi Icon (Scaled down to 3px bars)
     if (currentWifi) {
         display.fillRect(cx, cy + 10, 3, 5, GxEPD_BLACK);
         display.fillRect(cx + 5, cy + 5, 3, 10, GxEPD_BLACK);
@@ -333,21 +336,18 @@ void BatteryMgr::drawStatusBar(KomaBonDisplay& display, int startX, int startY) 
     }
     cx += 18;
 
-    // 2. SD Icon (Scaled down to 12x16)
     if (currentSd) {
         display.fillRect(cx, cy, 12, 16, GxEPD_BLACK);
         display.fillRect(cx + 2, cy + 2, 8, 12, GxEPD_WHITE);
-        display.fillRect(cx + 2, cy, 3, 2, GxEPD_WHITE);     // Corner notch
-        display.fillRect(cx + 2, cy + 5, 8, 6, GxEPD_BLACK); // Inner contacts
+        display.fillRect(cx + 2, cy, 3, 2, GxEPD_WHITE);
+        display.fillRect(cx + 2, cy + 5, 8, 6, GxEPD_BLACK);
     }
     cx += 18;
 
-    // 3. Battery Icon (Scaled down to 20x10)
     int batW = 20;
     int batH = 10;
     display.fillRect(cx, cy + 3, batW, batH, GxEPD_BLACK);
     display.fillRect(cx + 2, cy + 5, batW - 4, batH - 4, GxEPD_WHITE);
-    // Positive terminal
     display.fillRect(cx + batW, cy + 5, 2, 6, GxEPD_BLACK);
 
     int fill = (percentage * (batW - 4)) / 100;
@@ -355,7 +355,6 @@ void BatteryMgr::drawStatusBar(KomaBonDisplay& display, int startX, int startY) 
 
     cx += batW + 6;
 
-    // 4. Percentage Text (Baseline adjusted for new cy)
     display.setFont(&FreeSans9pt8b);
     display.setCursor(cx, cy + 13);
     display.printf("%d%%", percentage);

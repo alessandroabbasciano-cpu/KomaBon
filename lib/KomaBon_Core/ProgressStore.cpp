@@ -1,6 +1,7 @@
 #include "ProgressStore.h"
 #include "KomaBonFS.h"
 #include "BookMeta.h"
+#include "SDMgr.h"
 
 static const char* PROGRESS_PATH = "/reader_progress.json";
 static const char* PROGRESS_TMP_PATH = "/reader_progress.tmp";
@@ -118,29 +119,46 @@ bool ProgressStore::save() {
         return false;
     }
 
-    File out = EbookFS.open(PROGRESS_TMP_PATH, FILE_WRITE);
-    if (!out) {
-        Serial.println("ProgressStore: cannot open temp file on EbookFS");
-        return false;
-    }
-    size_t written = serializeJson(doc, out);
-    out.flush();
-    out.close();
-    if (written == 0) {
-        EbookFS.remove(PROGRESS_TMP_PATH);
-        Serial.println("ProgressStore: serialisation wrote nothing");
-        return false;
-    }
-
-    if (!EbookFS.rename(PROGRESS_TMP_PATH, PROGRESS_PATH)) {
-        EbookFS.remove(PROGRESS_PATH);
-        if (!EbookFS.rename(PROGRESS_TMP_PATH, PROGRESS_PATH)) {
-            EbookFS.remove(PROGRESS_TMP_PATH);
-            Serial.println("ProgressStore: rename failed — progress not saved");
+    // Attempt to write with a single recovery retry if the SD has dropped
+    for (int attempt = 1; attempt <= 2; attempt++) {
+        File out = EbookFS.open(PROGRESS_TMP_PATH, FILE_WRITE);
+        if (!out) {
+            Serial.printf("ProgressStore: cannot open temp file on attempt %d\n", attempt);
+            if (attempt == 1 && SDMgr::getInstance().recover()) {
+                continue; // Retry after successful recovery
+            }
             return false;
         }
+
+        size_t written = serializeJson(doc, out);
+        out.flush();
+        out.close();
+
+        if (written == 0) {
+            EbookFS.remove(PROGRESS_TMP_PATH);
+            Serial.println("ProgressStore: serialisation wrote nothing");
+            if (attempt == 1 && SDMgr::getInstance().recover()) {
+                continue; // Retry after successful recovery
+            }
+            return false;
+        }
+
+        if (!EbookFS.rename(PROGRESS_TMP_PATH, PROGRESS_PATH)) {
+            EbookFS.remove(PROGRESS_PATH);
+            if (!EbookFS.rename(PROGRESS_TMP_PATH, PROGRESS_PATH)) {
+                EbookFS.remove(PROGRESS_TMP_PATH);
+                Serial.println("ProgressStore: rename failed — progress not saved");
+                if (attempt == 1 && SDMgr::getInstance().recover()) {
+                    continue; // Retry after successful recovery
+                }
+                return false;
+            }
+        }
+
+        // If we reached here, the write was successful.
+        return true;
     }
-    return true;
+    return false;
 }
 
 bool ProgressStore::get(const String& originalName, BookProgress& out) {

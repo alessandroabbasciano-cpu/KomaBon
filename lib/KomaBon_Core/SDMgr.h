@@ -14,6 +14,10 @@ class SDMgr {
 
     bool init();
 
+    // Reinitializes the SPI bus and SD card without a hard reset.
+    // Useful for recovering from EMI-induced state machine lockups.
+    bool recover();
+
     bool isMounted() const {
         return _mounted;
     }

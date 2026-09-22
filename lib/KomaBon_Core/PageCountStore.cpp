@@ -1,6 +1,7 @@
 #include "PageCountStore.h"
 #include "KomaBonFS.h"
 #include <ArduinoJson.h>
+#include "SDMgr.h"
 
 // Only ever touched from AppReader on the main loop (unlike ProgressStore /
 // SettingsStore, no web handler reads or writes this), so no mutex is needed.
@@ -80,11 +81,20 @@ bool PageCountStore::save() {
 
     if (doc.overflowed()) return false;
 
-    File file = SystemFS.open(PAGE_TOTALS_PATH, FILE_WRITE);
-    if (!file) return false;
-    serializeJson(doc, file);
-    file.close();
-    return true;
+    // Retry once if file fails to open due to an SD desync
+    for (int attempt = 1; attempt <= 2; attempt++) {
+        File file = SystemFS.open(PAGE_TOTALS_PATH, FILE_WRITE);
+        if (!file) {
+            if (attempt == 1 && SDMgr::getInstance().recover()) {
+                continue;
+            }
+            return false;
+        }
+        serializeJson(doc, file);
+        file.close();
+        return true;
+    }
+    return false;
 }
 
 // (fontSize, fontFamily) mismatching what's on disk means every stored total

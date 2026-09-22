@@ -20,11 +20,6 @@
 volatile bool gNetworkStartupInProgress = false;
 
 void setup() {
-    // IMMEDIATE HARDWARE SAFETY: Force SD Card to High-Z and stabilize floating MISO
-    pinMode(39, OUTPUT);
-    digitalWrite(39, HIGH);
-    pinMode(8, INPUT_PULLUP);
-
     esp_ota_mark_app_valid_cancel_rollback();
 
     Serial.begin(115200);
@@ -38,6 +33,7 @@ void setup() {
 
     gNetworkStartupInProgress = false;
 
+    // SDMgr::init() now safely handles CS HIGH pinning natively to prevent JTAG conflicts
     Serial.println("[BOOT] Initializing MicroSD Hardware...");
     SDMgr::getInstance().init();
 
