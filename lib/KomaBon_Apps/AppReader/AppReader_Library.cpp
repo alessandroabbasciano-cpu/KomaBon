@@ -49,23 +49,18 @@ struct LibraryDirtyRect {
 };
 
 static LibraryDirtyRect libraryItemRect(int index, int scrollOffset, int screenW) {
-    const int HEADER_H = 60;
-    const int BACK_ITEM_HEIGHT = 42;
+    const int HEADER_H = 50;
     const int ITEM_HEIGHT = 88;
-    if (index < 0) {
-        return {12, HEADER_H, screenW - 24, BACK_ITEM_HEIGHT + 4};
-    }
     int visibleRow = index - scrollOffset;
-    return {12, HEADER_H + BACK_ITEM_HEIGHT + (visibleRow * ITEM_HEIGHT), screenW - 24, ITEM_HEIGHT + 4};
+    return {12, HEADER_H + (visibleRow * ITEM_HEIGHT), screenW - 24, ITEM_HEIGHT + 4};
 }
 
 static int libraryItemsPerPage(int screenHeight) {
-    const int HEADER_H = 60;
-    const int BACK_ITEM_HEIGHT = 42;
+    const int HEADER_H = 50;
     const int ITEM_HEIGHT = 88;
-    int y = HEADER_H + BACK_ITEM_HEIGHT;
+    int y = HEADER_H;
     int count = 0;
-    while (y <= screenHeight - 50) {
+    while (y + ITEM_HEIGHT <= screenHeight - 45) {
         count++;
         y += ITEM_HEIGHT;
     }
@@ -285,14 +280,18 @@ void AppReader::drawLibrary() {
         _booksScanned = true;
     }
 
-    int maxOffset = std::max(0, (int)_books.size() - 1);
-    if (_libraryScrollOffset > maxOffset) _libraryScrollOffset = 0;
+    if (_books.empty()) {
+        _selectedBookIndex = 0;
+    } else {
+        int maxOffset = std::max(0, (int)_books.size() - 1);
+        if (_libraryScrollOffset > maxOffset) _libraryScrollOffset = 0;
+    }
+
     DisplayMgr& dispMgr = DisplayMgr::getInstance();
     KomaBonDisplay& display = dispMgr.getDisplay();
     FontMgr& fontMgr = FontMgr::getInstance();
 
-    const int HEADER_H = 60;
-    const int BACK_ITEM_HEIGHT = 42;
+    const int HEADER_H = 50;
     const int COVER_WIDTH = 60;
     const int COVER_HEIGHT = 80;
     const int ITEM_HEIGHT = 88;
@@ -315,9 +314,10 @@ void AppReader::drawLibrary() {
     _librarySelectionOnlyRedraw = false;
 
     std::map<int, std::vector<uint8_t>> thumbCache;
-    int preLoadY = HEADER_H + BACK_ITEM_HEIGHT;
+    int preLoadY = HEADER_H;
     for (size_t idx = (size_t)_libraryScrollOffset; idx < _books.size(); idx++) {
-        if (preLoadY > display.height() - 50) break;
+        if (preLoadY + ITEM_HEIGHT > display.height() - 45) break;
+
         if (_books[idx].hasCoverThumb) {
             String thumbPath = "/covers/" + _books[idx].baseName + ".thumb";
             File f = SystemFS.open(thumbPath, "r");
@@ -336,23 +336,16 @@ void AppReader::drawLibrary() {
     do {
         display.fillScreen(GxEPD_WHITE);
 
+        // Header text re-aligned lower after removing the line
         drawTextWithFont(display, "Library", 16, 36, &FreeSansBold12pt8b, GxEPD_BLACK);
 
         char countText[24];
         snprintf(countText, sizeof(countText), "%d books", (int)_books.size());
         fontMgr.drawTextRight(display, countText, display.width() - 16, 38, FONT_SIZE_SMALL, GxEPD_BLACK);
 
-        display.drawFastHLine(16, 46, display.width() - 32, GxEPD_BLACK);
+        // Line removed: display.drawFastHLine(16, 42, display.width() - 32, GxEPD_BLACK);
 
         int y = HEADER_H;
-
-        bool backSelected = (_selectedBookIndex == -1);
-        if (backSelected) {
-            display.fillRect(14, y + 5, 4, BACK_ITEM_HEIGHT - 10, GxEPD_BLACK);
-        }
-        drawTextWithFont(display, "<  Back to Menu", ITEM_PADDING + 10, y + 28,
-                         backSelected ? &FreeSansBold12pt8b : &FreeSans12pt8b, GxEPD_BLACK);
-        y += BACK_ITEM_HEIGHT;
 
         if (_books.empty()) {
             drawTextWithFont(display, "No books found.", 20, y + 45, &FreeSansBold12pt8b, GxEPD_BLACK);
@@ -360,7 +353,7 @@ void AppReader::drawLibrary() {
                              GxEPD_BLACK);
         } else {
             for (size_t idx = (size_t)_libraryScrollOffset; idx < _books.size(); idx++) {
-                if (y > display.height() - 50) break;
+                if (y + ITEM_HEIGHT > display.height() - 45) break;
 
                 const auto& book = _books[idx];
                 bool isSelected = ((int)idx == _selectedBookIndex);
@@ -398,11 +391,11 @@ void AppReader::drawLibrary() {
 
                 if (author.length() > 36) author = author.substring(0, 33) + "...";
                 if (dashPos != -1) {
-                    drawTextWithFont(display, author.c_str(), textX, y + 26, &FreeSans9pt8b, textColor);
+                    drawTextWithFont(display, author.c_str(), textX, y + 24, &FreeSans9pt8b, textColor);
                 }
 
                 const GFXfont* titleFont = &FreeSansBold12pt8b;
-                int currentLineY = dashPos != -1 ? (y + 52) : (y + 42);
+                int currentLineY = dashPos != -1 ? (y + 50) : (y + 40);
                 int lineHeight = 22;
                 int maxLines = 2;
                 int lineCount = 0;
@@ -464,15 +457,30 @@ void AppReader::drawLibrary() {
 
                 y += ITEM_HEIGHT;
             }
+
+            int itemsPerPage = libraryItemsPerPage(display.height());
+            if ((int)_books.size() > itemsPerPage) {
+                int scrollBarX = display.width() - 8;
+                int scrollBarY = HEADER_H;
+                int scrollBarH = display.height() - scrollBarY - 45;
+
+                display.drawFastVLine(scrollBarX + 1, scrollBarY, scrollBarH, GxEPD_BLACK);
+
+                float progress = (float)_libraryScrollOffset / (_books.size() - itemsPerPage);
+                int thumbH = std::max(20, (scrollBarH * itemsPerPage) / (int)_books.size());
+                int thumbY = scrollBarY + (int)(progress * (scrollBarH - thumbH));
+                display.fillRect(scrollBarX - 1, thumbY, 4, thumbH, GxEPD_BLACK);
+            }
         }
 
         char pageStr[24];
-        if (_selectedBookIndex == -1) {
-            snprintf(pageStr, sizeof(pageStr), "Menu");
+        if (_books.empty()) {
+            snprintf(pageStr, sizeof(pageStr), "0/0");
         } else {
             snprintf(pageStr, sizeof(pageStr), "%d/%d", _selectedBookIndex + 1, (int)_books.size());
         }
-        display.drawFastHLine(12, display.height() - 40, display.width() - 24, GxEPD_BLACK);
+
+        // Line removed: display.drawFastHLine(12, display.height() - 40, display.width() - 24, GxEPD_BLACK);
 
         fontMgr.drawText(display, "Joy: Move  |  Center: Open  |  Hold Left: Menu", 16, display.height() - 16,
                          FONT_SIZE_SMALL, GxEPD_BLACK);

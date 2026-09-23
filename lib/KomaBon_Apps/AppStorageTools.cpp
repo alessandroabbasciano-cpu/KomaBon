@@ -37,7 +37,7 @@ static StorageDirtyRect unionStorageRect(StorageDirtyRect a, StorageDirtyRect b)
 }
 
 const uint8_t* AppStorageTools::getIconImage() {
-    return icon_storage_bits;
+    return icon_storage_160x160;
 }
 
 void AppStorageTools::start() {
