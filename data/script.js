@@ -240,6 +240,48 @@ function resetReaderProgress() {
         });
 }
 
+// Storage Recovery Handlers
+async function remountSD() {
+    const btn = document.getElementById('btn-remount-sd');
+    const msg = document.getElementById('sd-remount-status');
+
+    if (!btn || !msg) return;
+
+    btn.disabled = true;
+    btn.innerText = "Remounting...";
+    msg.textContent = "Negotiating hardware SPI bus teardown...";
+    msg.style.color = "var(--accent)";
+
+    try {
+        const res = await fetch('/api/system/sd_remount', { method: 'POST' });
+        const data = await res.json();
+
+        if (res.ok && data.status === "ok") {
+            msg.textContent = "MicroSD bus remounted successfully.";
+            msg.style.color = "var(--success)";
+
+            // Force a refresh of the library view to show the newly mounted files
+            if (typeof fetchBooks === 'function') {
+                setTimeout(fetchBooks, 500);
+            }
+        } else {
+            throw new Error(data.error || "Remount sequence failed");
+        }
+    } catch (error) {
+        console.error("SD Remount Error:", error);
+        msg.textContent = `Remount Failed: ${error.message}. Try power cycling the device.`;
+        msg.style.color = "var(--danger)";
+    } finally {
+        btn.disabled = false;
+        btn.innerText = "Remount SD Bus";
+        setTimeout(() => {
+            if (msg.style.color === "var(--success)") {
+                msg.textContent = "";
+            }
+        }, 4000);
+    }
+}
+
 // Sleep and Timeout Settings
 function getSleepSettings() {
     fetch('/api/settings/sleep')

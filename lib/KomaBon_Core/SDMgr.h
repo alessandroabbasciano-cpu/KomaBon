@@ -18,8 +18,10 @@ class SDMgr {
     // Useful for recovering from EMI-induced state machine lockups.
     bool recover();
     bool ensureReady();
+
     // Force a complete SPI bus reset and remount cycle initiated by the user
     bool remountManual();
+    bool remount();
 
     bool isMounted() const {
         return _mounted;

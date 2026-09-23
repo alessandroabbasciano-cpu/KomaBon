@@ -7,6 +7,7 @@
 #include "../KomaBon_Core/AppMgr.h"
 #include "../KomaBon_Core/BatteryMgr.h"
 #include "../KomaBon_OTA/GitHubMgr.h"
+#include "../KomaBon_Core/SDMgr.h"
 #include <SD.h>
 
 // Helper function to stream entire FS tree dynamically
@@ -159,6 +160,25 @@ void setupSystemEndpoints(AsyncWebServer* server) {
         } else {
             request->send(404, "application/json", "{\"error\":\"App not found\"}");
         }
+    });
+
+    server->on("/api/system/sd_remount", HTTP_POST, [](AsyncWebServerRequest* request) {
+        AsyncResponseStream* response = request->beginResponseStream("application/json");
+        DynamicJsonDocument doc(128);
+
+        bool success = SDMgr::getInstance().remount();
+
+        if (success) {
+            doc["status"] = "ok";
+            response->setCode(200);
+        } else {
+            doc["status"] = "error";
+            doc["error"] = "SD remount failed";
+            response->setCode(500);
+        }
+
+        serializeJson(doc, *response);
+        request->send(response);
     });
 
     server->on("/api/wifi/status", HTTP_GET, [](AsyncWebServerRequest* request) {
