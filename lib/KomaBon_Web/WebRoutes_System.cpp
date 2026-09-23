@@ -55,6 +55,11 @@ void setupSystemEndpoints(AsyncWebServer* server) {
 
     server->on("/api/status", HTTP_GET, [](AsyncWebServerRequest* request) {
         AsyncResponseStream* response = request->beginResponseStream("application/json");
+
+        // Force the browser to close the socket instead of keeping it alive.
+        // Prevents dangling PCBs in lwIP when the network is shut down.
+        response->addHeader("Connection", "close");
+
         DynamicJsonDocument doc(512);
 
         unsigned long totalSeconds = millis() / 1000;

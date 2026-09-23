@@ -27,9 +27,7 @@ void AppWebTransfer::start() {
 
 void AppWebTransfer::stop() {
     Serial.println("AppWebTransfer: Clean shutdown of network services.");
-    WiFi.softAPdisconnect(true);
-    WiFi.disconnect(true);
-    WiFi.mode(WIFI_OFF);
+
     WebMgr::getInstance().stopNetwork();
 
     _state = WebTransferState::Init;
