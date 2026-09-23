@@ -22,7 +22,6 @@ bool SDMgr::init() {
 
     if (!_spi) {
         _spi = new SPIClass(HSPI);
-        // Evitiamo che l'hardware SPI si impossessi del pin CS
         _spi->begin(SD_SCK_PIN, SD_MISO_PIN, SD_MOSI_PIN, -1);
     }
 
@@ -30,14 +29,14 @@ bool SDMgr::init() {
 
     for (int attempt = 1; attempt <= 3; attempt++) {
         digitalWrite(SD_CS_PIN, HIGH);
-
-        // Force cleanup of any previous failed FatFS state before retrying
         SD.end();
+        delay(20);
 
-        // Flush SD state machine with 200 dummy clocks (25 bytes of 0xFF) while CS is HIGH
+        // SD Physical Specification Protocol: Supply 74 to 80 clock cycles with CS HIGH
+        // to wake up the card's internal state machine before any commands.
         _spi->beginTransaction(SPISettings(400000, MSBFIRST, SPI_MODE0));
-        for (int i = 0; i < 25; i++) {
-            _spi->transfer(0xFF);
+        for (int i = 0; i < 10; i++) {
+            _spi->transfer(0xFF); // 10 bytes * 8 bits = 80 clock cycles
         }
         _spi->endTransaction();
 
@@ -76,7 +75,6 @@ bool SDMgr::init() {
 }
 
 bool SDMgr::recover() {
-    // If card was never mounted at boot, do not attempt recovery to avoid VFS conflicts
     if (!_mounted) {
         return false;
     }
@@ -93,7 +91,6 @@ bool SDMgr::ensureReady() {
         return false;
     }
 
-    // Quick hardware probe: check if card is still answering
     uint8_t type = SD.cardType();
     if (type == CARD_NONE) {
         Serial.println("SDMgr: Card connection lost, recovering...");
@@ -112,34 +109,45 @@ bool SDMgr::remountManual() {
         _mounted = false;
     }
 
-    // 1. Reset the ESP32-S3 SPI peripheral hardware registers
+    // 1. Detach hardware SPI to take manual control of the pins
     if (_spi) {
         _spi->end();
-        delay(20);
-        _spi->begin(SD_SCK_PIN, SD_MISO_PIN, SD_MOSI_PIN, -1);
     }
 
-    // 2. Enforce slew-rate limiting on flying leads to suppress switching ringing
-    gpio_set_drive_capability((gpio_num_t)SD_SCK_PIN, GPIO_DRIVE_CAP_1);
-    gpio_set_drive_capability((gpio_num_t)SD_MOSI_PIN, GPIO_DRIVE_CAP_1);
-    gpio_set_drive_capability((gpio_num_t)SD_CS_PIN, GPIO_DRIVE_CAP_1);
-
+    // 2. Force pins to safe idle state imitating MCU reset
     pinMode(SD_CS_PIN, OUTPUT);
     digitalWrite(SD_CS_PIN, HIGH);
+
+    pinMode(SD_MOSI_PIN, OUTPUT);
+    digitalWrite(SD_MOSI_PIN, HIGH);
+
+    pinMode(SD_SCK_PIN, OUTPUT);
+    digitalWrite(SD_SCK_PIN, LOW);
+
     pinMode(SD_MISO_PIN, INPUT_PULLUP);
 
-    // 3. Drain card FIFO: 320 dummy clock pulses (40 bytes of 0xFF) with CS de-asserted
-    if (_spi) {
-        _spi->beginTransaction(SPISettings(400000, MSBFIRST, SPI_MODE0));
-        for (int i = 0; i < 40; i++) {
-            _spi->transfer(0xFF);
-        }
-        _spi->endTransaction();
+    delay(20);
+
+    // 3. SD Physical Spec protocol: send >74 dummy clock cycles with CS and MOSI HIGH
+    // This physically wakes the SD controller out of EMI-induced lockup states
+    for (int i = 0; i < 200; i++) {
+        digitalWrite(SD_SCK_PIN, HIGH);
+        delayMicroseconds(5);
+        digitalWrite(SD_SCK_PIN, LOW);
+        delayMicroseconds(5);
     }
 
     delay(50);
 
-    // 4. Negotiate card handshake
+    // 4. Re-attach the hardware SPI peripheral
+    if (_spi) {
+        _spi->begin(SD_SCK_PIN, SD_MISO_PIN, SD_MOSI_PIN, -1);
+    }
+
+    gpio_set_drive_capability((gpio_num_t)SD_SCK_PIN, GPIO_DRIVE_CAP_1);
+    gpio_set_drive_capability((gpio_num_t)SD_MOSI_PIN, GPIO_DRIVE_CAP_1);
+    gpio_set_drive_capability((gpio_num_t)SD_CS_PIN, GPIO_DRIVE_CAP_1);
+
     bool success = false;
     for (int attempt = 1; attempt <= 3; attempt++) {
         digitalWrite(SD_CS_PIN, HIGH);
@@ -149,7 +157,7 @@ bool SDMgr::remountManual() {
             break;
         }
         Serial.printf("SDMgr: Manual attempt %d failed.\n", attempt);
-        delay(200);
+        delay(250);
     }
 
     _mounted = success;

@@ -101,6 +101,11 @@ void AppStorageTools::executeSelection() {
 }
 
 void AppStorageTools::remountSD() {
+    // Immediate visual feedback without flashing
+    _statusMessage = "Resetting SPI2 Bus...";
+    _selectionOnlyRedraw = false;
+    draw();
+
     bool ok = SDMgr::getInstance().remountManual();
 
     if (ok) {
@@ -199,15 +204,19 @@ void AppStorageTools::draw() {
     FontMgr& font = FontMgr::getInstance();
 
     int w = display.width();
+    int h = display.height();
     int actionsStartY = LIST_START_Y + (ROW_HEIGHT * 3) + 20;
 
-    if (_selectionOnlyRedraw && !_firstDraw) {
+    if (_firstDraw) {
+        display.setFullWindow();
+        _firstDraw = false;
+    } else if (_selectionOnlyRedraw) {
         StorageDirtyRect dirty = unionStorageRect(storageRowRect(_previousSelectedIndex, w, actionsStartY),
                                                   storageRowRect(_selectedIndex, w, actionsStartY));
         display.setPartialWindow(dirty.x, dirty.y, dirty.w, dirty.h);
     } else {
-        display.setFullWindow();
-        _firstDraw = false;
+        // Full screen fast update without high-voltage blanking flash
+        display.setPartialWindow(0, 0, w, h);
     }
 
     _selectionOnlyRedraw = false;

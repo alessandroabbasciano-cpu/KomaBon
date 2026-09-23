@@ -34,7 +34,9 @@ void setup() {
 
     gNetworkStartupInProgress = false;
 
-    // SDMgr::init() now safely handles CS HIGH pinning natively to prevent JTAG conflicts
+    // Execute hardware initialization in electrical silence.
+    // The E-ink charge pump is kept strictly OFF to prevent VCC brownouts
+    // during the critical MicroSD SPI negotiation.
     Serial.println("[BOOT] Initializing MicroSD Hardware...");
     SDMgr::getInstance().init();
 
@@ -46,13 +48,9 @@ void setup() {
     displayMgr.init();
     displayMgr.loadDisplaySettings();
 
-    displayMgr.showBootScreen(10, "Storage & System Init Complete");
-
-    displayMgr.showBootScreen(40, "Init Power & Controls");
     BatteryMgr::getInstance().init();
     InputMgr::getInstance().init();
 
-    displayMgr.showBootScreen(70, "Registering Core Apps");
     AppMgr& appMgr = AppMgr::getInstance();
 
     appMgr.registerApp(new AppMainMenu());
@@ -69,7 +67,15 @@ void setup() {
     AppSettings* settingsApp = new AppSettings();
     appMgr.registerApp(settingsApp);
 
-    displayMgr.showBootScreen(100, "System Ready");
+    // Compile post-boot diagnostic report
+    char bootReport[64];
+    snprintf(bootReport, sizeof(bootReport), "SD: %s | Joy: %s | Bat: %d%%",
+             SDMgr::getInstance().isMounted() ? "Mounted" : "Failed",
+             (SystemFS.exists("/joy_cal.json") || EbookFS.exists("/joy_cal.json")) ? "Calibrated" : "Default",
+             BatteryMgr::getInstance().getStatus().percentage);
+
+    // Single full-screen update only after all buses are safely stabilized
+    displayMgr.showBootScreen(100, bootReport);
 
     if (!SystemFS.exists("/joy_cal.json") && !EbookFS.exists("/joy_cal.json")) {
         Serial.println("[BOOT] Missing calibration. Starting wizard.");

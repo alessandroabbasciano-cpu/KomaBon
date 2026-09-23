@@ -81,18 +81,15 @@ bool PageCountStore::save() {
 
     if (doc.overflowed()) return false;
 
-    // Retry once if file fails to open due to an SD desync
-    for (int attempt = 1; attempt <= 2; attempt++) {
-        File file = SystemFS.open(PAGE_TOTALS_PATH, FILE_WRITE);
-        if (!file) {
-            Serial.println("PageCountStore: failed to open storage on SystemFS");
-            return false;
-        }
-        serializeJson(doc, file);
-        file.close();
-        return true;
+    File file = SystemFS.open(PAGE_TOTALS_PATH, FILE_WRITE);
+    if (!file) {
+        Serial.println("PageCountStore: failed to open storage on SystemFS");
+        return false;
     }
-    return false;
+
+    serializeJson(doc, file);
+    file.close();
+    return true;
 }
 
 // (fontSize, fontFamily) mismatching what's on disk means every stored total
