@@ -3,6 +3,7 @@
 #include "KBReader.h"
 #include "EpubLoader.h"
 #include "KomaBonFS.h"
+#include "SDMgr.h"
 
 bool CoverExtractor::processNextCover(std::vector<BookEntry>& books) {
     for (auto& book : books) {
@@ -14,6 +15,11 @@ bool CoverExtractor::processNextCover(std::vector<BookEntry>& books) {
         if (book.hasCoverThumb && SystemFS.exists(thumbPath) && SystemFS.exists(coverPath)) {
             book.coverAttempted = true;
             continue;
+        }
+
+        if (!SDMgr::getInstance().ensureReady()) {
+            // Bus dropped due to EMI/refresh; leave coverAttempted = false to retry next loop
+            return false;
         }
 
         book.coverAttempted = true;

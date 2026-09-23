@@ -16,6 +16,7 @@
 #include "../KomaBon_Apps/AppReader/AppReader.h"
 #include "../KomaBon_Apps/AppSettings.h"
 #include "../KomaBon_Apps/AppWebTransfer.h"
+#include "AppStorageTools.h"
 
 volatile bool gNetworkStartupInProgress = false;
 
@@ -58,6 +59,9 @@ void setup() {
 
     AppReader* readerApp = new AppReader();
     appMgr.registerApp(readerApp);
+
+    static AppStorageTools appStorageTools;
+    appMgr.registerApp(&appStorageTools);
 
     AppWebTransfer* webTransferApp = new AppWebTransfer();
     appMgr.registerApp(webTransferApp);

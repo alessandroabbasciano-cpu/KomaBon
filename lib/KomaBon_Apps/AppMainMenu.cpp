@@ -25,7 +25,7 @@ struct MenuDirtyRect {
 // Dynamic bounds calculation adaptive for Portrait (480x800) and Landscape (800x480)
 static MenuDirtyRect menuItemRect(int index, int screenW, int screenH, int numApps) {
     bool isPortrait = screenH > screenW;
-    int ROW_HEIGHT = isPortrait ? 85 : 65;
+    int ROW_HEIGHT = isPortrait ? 80 : 50;
     int numAppItems = numApps - 1;
     int START_Y = screenH - 70 - (numAppItems * ROW_HEIGHT); // Anchored to bottom above footer
 
@@ -443,7 +443,7 @@ void AppMainMenu::draw() {
         }
 
         // --- 3. VERTICAL LIST APPS (Bottom Anchored) ---
-        int ROW_HEIGHT = isPortrait ? 85 : 65;
+        int ROW_HEIGHT = isPortrait ? 80 : 50;
         int numAppItems = apps.size() - 1;
         int START_Y = screenH - 70 - (numAppItems * ROW_HEIGHT);
 
@@ -457,11 +457,11 @@ void AppMainMenu::draw() {
 
             // Left Sidebar Highlight
             if ((int)i == selectedIndex) {
-                display.fillRect(15, y + 5, 6, ROW_HEIGHT - 20, GxEPD_BLACK);
+                display.fillRect(15, y + 3, 6, ROW_HEIGHT - 10, GxEPD_BLACK);
             }
 
             const uint8_t* icon = app->getIconImage();
-            int iconSize = 64;
+            int iconSize = isPortrait ? 60 : 42;
 
             if (icon) {
                 for (int cy = 0; cy < iconSize; cy++) {

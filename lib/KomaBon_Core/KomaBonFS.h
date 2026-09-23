@@ -10,6 +10,7 @@ extern fs::FS* EbookFSPtr;
 #define EbookFS (*EbookFSPtr)
 namespace KomaBonStorage {
 bool mountEbooks();
+bool ensureReady();
 size_t getUsedBytes();
 size_t getTotalBytes();
 } // namespace KomaBonStorage

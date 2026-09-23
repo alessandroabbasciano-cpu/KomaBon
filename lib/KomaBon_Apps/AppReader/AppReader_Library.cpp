@@ -83,8 +83,8 @@ static LibraryDirtyRect unionLibraryRect(LibraryDirtyRect a, LibraryDirtyRect b)
 void AppReader::scanBooks() {
     _books.clear();
 
-    if (!SDMgr::getInstance().isMounted()) {
-        Serial.println("AppReader: Cannot scan books, SD card not mounted.");
+    if (!SDMgr::getInstance().ensureReady()) {
+        Serial.println("AppReader: Cannot scan books, SD card bus not responding.");
         return;
     }
 
@@ -112,6 +112,9 @@ void AppReader::scanBooks() {
     // Closure to safely scan and index a directory
     auto scanDir = [&](const char* dirPath) {
         File root = EbookFS.open(dirPath);
+        if (!root && SDMgr::getInstance().ensureReady()) {
+            root = EbookFS.open(dirPath);
+        }
         if (!root || !root.isDirectory()) return;
 
         File file = root.openNextFile();
@@ -161,6 +164,9 @@ void AppReader::scanBooks() {
 
                 if (fileNameLower.endsWith(".kmb")) {
                     File kmbFile = EbookFS.open(entry.path.c_str(), "r");
+                    if (!kmbFile && SDMgr::getInstance().ensureReady()) {
+                        kmbFile = EbookFS.open(entry.path.c_str(), "r");
+                    }
                     if (kmbFile) {
                         char magic[5] = {0};
                         kmbFile.readBytes(magic, 4);
@@ -184,12 +190,15 @@ void AppReader::scanBooks() {
     // Index both root and standard ebooks folder
     scanDir("/");
 
-    {
+    if (!_books.empty()) {
         ProgressStore& store = ProgressStore::getInstance();
+        store.begin();
+
         std::vector<String> present;
         present.reserve(_books.size());
-        for (const auto& b : _books)
+        for (const auto& b : _books) {
             present.push_back(b.originalName);
+        }
         store.reconcile(present);
 
         for (auto& b : _books) {

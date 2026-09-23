@@ -25,8 +25,17 @@ ProgressStore& ProgressStore::getInstance() {
 
 void ProgressStore::begin() {
     Book32Guard guard(_mutex);
-    if (_loaded) return;
+    // Reload if previously uninitialised OR if an external SD card became available after boot
+    if (_loaded && (!_books.empty() || !EbookFS.exists(PROGRESS_PATH))) {
+        return;
+    }
     _loaded = true;
+    load();
+}
+
+void ProgressStore::reload() {
+    Book32Guard guard(_mutex);
+    _loaded = false;
     load();
 }
 
@@ -114,51 +123,25 @@ bool ProgressStore::save() {
         if (kv.second.pending) entry["pending"] = true;
     }
 
-    if (doc.overflowed()) {
-        Serial.println("ProgressStore: document overflowed — write refused");
+    if (doc.overflowed()) return false;
+
+    File out = EbookFS.open(PROGRESS_TMP_PATH, FILE_WRITE);
+    if (!out) return false;
+
+    size_t written = serializeJson(doc, out);
+    out.flush();
+    out.close();
+
+    if (written == 0) {
+        EbookFS.remove(PROGRESS_TMP_PATH);
         return false;
     }
 
-    // Attempt to write with a single recovery retry if the SD has dropped
-    for (int attempt = 1; attempt <= 2; attempt++) {
-        File out = EbookFS.open(PROGRESS_TMP_PATH, FILE_WRITE);
-        if (!out) {
-            Serial.printf("ProgressStore: cannot open temp file on attempt %d\n", attempt);
-            if (attempt == 1 && SDMgr::getInstance().recover()) {
-                continue; // Retry after successful recovery
-            }
-            return false;
-        }
-
-        size_t written = serializeJson(doc, out);
-        out.flush();
-        out.close();
-
-        if (written == 0) {
-            EbookFS.remove(PROGRESS_TMP_PATH);
-            Serial.println("ProgressStore: serialisation wrote nothing");
-            if (attempt == 1 && SDMgr::getInstance().recover()) {
-                continue; // Retry after successful recovery
-            }
-            return false;
-        }
-
-        if (!EbookFS.rename(PROGRESS_TMP_PATH, PROGRESS_PATH)) {
-            EbookFS.remove(PROGRESS_PATH);
-            if (!EbookFS.rename(PROGRESS_TMP_PATH, PROGRESS_PATH)) {
-                EbookFS.remove(PROGRESS_TMP_PATH);
-                Serial.println("ProgressStore: rename failed — progress not saved");
-                if (attempt == 1 && SDMgr::getInstance().recover()) {
-                    continue; // Retry after successful recovery
-                }
-                return false;
-            }
-        }
-
-        // If we reached here, the write was successful.
-        return true;
+    if (!EbookFS.rename(PROGRESS_TMP_PATH, PROGRESS_PATH)) {
+        EbookFS.remove(PROGRESS_PATH);
+        EbookFS.rename(PROGRESS_TMP_PATH, PROGRESS_PATH);
     }
-    return false;
+    return true;
 }
 
 bool ProgressStore::get(const String& originalName, BookProgress& out) {
@@ -223,7 +206,10 @@ bool ProgressStore::resumeOnBoot() {
 }
 
 void ProgressStore::reconcile(const std::vector<String>& presentOriginalNames) {
+
+    if (presentOriginalNames.empty()) return;
     Book32Guard guard(_mutex);
+
     begin();
     bool changed = false;
 

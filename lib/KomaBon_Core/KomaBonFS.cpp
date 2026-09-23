@@ -1,5 +1,6 @@
 #include "KomaBonFS.h"
 #include <Arduino.h>
+#include "SDMgr.h"
 
 // The physical instance of the internal memory (Fallback)
 fs::LittleFSFS InternalEbookFS;
@@ -8,6 +9,13 @@ fs::LittleFSFS InternalEbookFS;
 fs::FS* EbookFSPtr = &InternalEbookFS;
 
 namespace KomaBonStorage {
+
+bool ensureReady() {
+    if (EbookFSPtr == &SD) {
+        return SDMgr::getInstance().ensureReady();
+    }
+    return true;
+}
 
 bool mountEbooks() {
     if (EbookFSPtr == &SD) {

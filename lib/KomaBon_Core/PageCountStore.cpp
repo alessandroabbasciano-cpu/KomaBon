@@ -85,9 +85,7 @@ bool PageCountStore::save() {
     for (int attempt = 1; attempt <= 2; attempt++) {
         File file = SystemFS.open(PAGE_TOTALS_PATH, FILE_WRITE);
         if (!file) {
-            if (attempt == 1 && SDMgr::getInstance().recover()) {
-                continue;
-            }
+            Serial.println("PageCountStore: failed to open storage on SystemFS");
             return false;
         }
         serializeJson(doc, file);

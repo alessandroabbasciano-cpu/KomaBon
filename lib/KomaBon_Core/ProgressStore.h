@@ -38,6 +38,8 @@ class ProgressStore {
   public:
     static ProgressStore& getInstance();
 
+    void reload();
+
     // Loads and migrates on first call; cheap afterwards.
     void begin();
 
