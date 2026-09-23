@@ -4,8 +4,21 @@
 void AppReader::handleInput(InputAction action) {
     if (action == INPUT_NONE) return;
 
+    // Global override: Long pressing Center/KEY1 instantly exits the Reader from any state
+    if (action == INPUT_GO_TO_MAIN_MENU) {
+        if (_state == VIEW_READING || _state == VIEW_OVERLAY_SETTINGS || _state == VIEW_OVERLAY_TOC) {
+            closeBook();
+        }
+        _state = VIEW_LIBRARY;
+        _booksScanned = false;
+        _librarySelectionOnlyRedraw = false;
+        markProgressInactive();
+        AppMgr::getInstance().switchTo(0);
+        return;
+    }
+
     if (_state == VIEW_LIBRARY) {
-        if (action == INPUT_BACK || action == INPUT_GO_TO_MAIN_MENU || action == INPUT_LEFT) {
+        if (action == INPUT_BACK || action == INPUT_LEFT) {
             markProgressInactive();
             AppMgr::getInstance().switchTo(0);
             return;
@@ -43,7 +56,7 @@ void AppReader::handleInput(InputAction action) {
             openSettingsOverlay();
         else if (action == INPUT_PREV)
             openTOCOverlay();
-        else if (action == INPUT_BACK || action == INPUT_GO_TO_MAIN_MENU) {
+        else if (action == INPUT_BACK) {
             closeBook();
             _state = VIEW_LIBRARY;
             _booksScanned = false;

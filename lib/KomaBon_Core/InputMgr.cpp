@@ -47,10 +47,6 @@ void InputMgr::update() {
         enterStandby();
     }
 
-    if (!_taskRunning) {
-        // btn.tick();
-    }
-
     InputAction action = INPUT_NONE;
     while (dequeueAction(action)) {
         if (action == INPUT_REFRESH) {
@@ -70,15 +66,22 @@ void InputMgr::inputTask(void* parameter) {
     JoyDirection lastJoyDirection = JOY_NONE;
     unsigned long joyPressTime = 0;
     bool joyLongPressSent = false;
+    unsigned long joyCooldown = 0;
 
     while (true) {
+        unsigned long now = millis();
         bool key1Pressed = (digitalRead(PIN_BUTTON_BACK) == LOW);
         bool key2Pressed = (digitalRead(PIN_BUTTON_SLEEP) == LOW);
 
         JoyDirection currentJoyDir = JoystickMgr::getInstance().getDirection();
+
+        // SIGNAL INTEGRITY: Mask ADC transients caused by mechanical release and resistive ladder discharge
+        if (now < joyCooldown) {
+            currentJoyDir = JOY_NONE;
+        }
+
         bool key3Pressed = (currentJoyDir == JOY_CENTER);
         bool joyActive = (currentJoyDir != JOY_NONE);
-        unsigned long now = millis();
 
         self->_isInteracting = (key1Pressed || key2Pressed || joyActive);
 
@@ -106,15 +109,17 @@ void InputMgr::inputTask(void* parameter) {
                 lastJoyDirection = currentJoyDir;
             } else if (!joyLongPressSent) {
                 unsigned long heldTime = now - joyPressTime;
-                if (heldTime < 15) {
+
+                if (heldTime < 30) {
+                    // Lock the direction to prevent thumb rolling errors
                     lastJoyDirection = currentJoyDir;
                 } else if (heldTime >= BUTTON_LONG_PRESS_MS) {
-                    if (currentJoyDir == JOY_CENTER) {
-                        Serial.println("INPUT: JOY Center / KEY1 Long Press -> GO TO MAIN MENU");
+                    if (lastJoyDirection == JOY_CENTER) {
+                        Serial.println("INPUT: JOY Center Long Press -> GO TO MAIN MENU");
                         BatteryMgr::getInstance().resetIdleTimer();
                         self->enqueueAction(INPUT_GO_TO_MAIN_MENU);
                         joyLongPressSent = true;
-                    } else if (currentJoyDir == JOY_LEFT) {
+                    } else if (lastJoyDirection == JOY_LEFT) {
                         Serial.println("INPUT: JOY Left Long Press -> BACK");
                         BatteryMgr::getInstance().resetIdleTimer();
                         self->enqueueAction(INPUT_BACK);
@@ -148,9 +153,13 @@ void InputMgr::inputTask(void* parameter) {
                             break;
                     }
                 }
+
                 joyPressTime = 0;
                 joyLongPressSent = false;
                 lastJoyDirection = JOY_NONE;
+
+                // Engage deadzone to absorb voltage spikes as the switch opens
+                joyCooldown = now + 200;
             }
         }
 
@@ -171,7 +180,6 @@ void InputMgr::inputTask(void* parameter) {
         } else {
             if (self->_btnBackPressTime != 0) {
                 unsigned long pressDuration = now - self->_btnBackPressTime;
-                Serial.printf("KEY1: Button released after %lu ms\n", pressDuration);
 
                 if (classifyButtonRelease(pressDuration, self->_btnBackLongPressSent) ==
                     BUTTON_RELEASE_CLICK) {
