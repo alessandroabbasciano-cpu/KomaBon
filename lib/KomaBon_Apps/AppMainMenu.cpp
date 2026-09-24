@@ -311,7 +311,7 @@ void AppMainMenu::draw() {
                     if (kb->open(("/ebooks/" + realFilename).c_str()) || kb->open(realFilename.c_str())) {
                         uint16_t w = kb->getWidth();
                         uint16_t h = kb->getHeight();
-                        size_t bufSize = (w + 7) / 8 * h;
+                        size_t bufSize = static_cast<size_t>(w + 7) / 8 * h;
                         uint8_t* pageBuf = (uint8_t*)ps_malloc(bufSize);
                         if (pageBuf && kb->readPage(0, pageBuf)) {
                             uint8_t cover[2400] = {0};
