@@ -29,9 +29,9 @@
 #include <freertos/FreeRTOS.h>
 #include <freertos/semphr.h>
 
-class Book32Mutex {
+class KomaBonMutex {
   public:
-    Book32Mutex() : _handle(xSemaphoreCreateRecursiveMutex()) {}
+    KomaBonMutex() : _handle(xSemaphoreCreateRecursiveMutex()) {}
 
     // A null handle (no memory for the semaphore at startup) degrades to
     // "no lock" behavior instead of locking the system forever.
@@ -46,18 +46,18 @@ class Book32Mutex {
     SemaphoreHandle_t _handle;
 };
 
-class Book32Guard {
+class KomaBonGuard {
   public:
-    explicit Book32Guard(Book32Mutex& mutex) : _mutex(mutex) {
+    explicit KomaBonGuard(KomaBonMutex& mutex) : _mutex(mutex) {
         _mutex.lock();
     }
-    ~Book32Guard() {
+    ~KomaBonGuard() {
         _mutex.unlock();
     }
 
-    Book32Guard(const Book32Guard&) = delete;
-    Book32Guard& operator=(const Book32Guard&) = delete;
+    KomaBonGuard(const KomaBonGuard&) = delete;
+    KomaBonGuard& operator=(const KomaBonGuard&) = delete;
 
   private:
-    Book32Mutex& _mutex;
+    KomaBonMutex& _mutex;
 };

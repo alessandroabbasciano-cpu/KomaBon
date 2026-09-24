@@ -78,7 +78,7 @@ class SettingsStore {
     // Serializes access to configuration files between the main loop
     // and the web server task. See Lock.h.
     // (Transaction is a nested class, so it already has access to this.)
-    Book32Mutex _mutex;
+    KomaBonMutex _mutex;
 };
 
 #endif

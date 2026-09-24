@@ -1,10 +1,10 @@
 #pragma once
 #include "ButtonPressLogic.h"
 
-// KomaBon v1.9.2 — who can send the device to standby.
+// Book32 v1.9.2 — who can send the device to standby.
 //
 // Manual standby is currently disabled by default
-// (BOOK32_KEY2_STANDBY_ENABLED=0 in Config.h): only BatteryMgr's automatic
+// (KOMABON_KEY2_STANDBY_ENABLED=0 in Config.h): only BatteryMgr's automatic
 // idle timeout puts the device to sleep, and the code below compiles
 // but stays out of InputMgr's path until the flag goes back to 1. Kept as-is
 // for that case.

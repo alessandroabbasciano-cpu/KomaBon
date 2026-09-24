@@ -41,7 +41,7 @@ BatteryMgr& BatteryMgr::getInstance() {
 }
 
 void BatteryMgr::init() {
-    Book32Guard guard(_mutex);
+    KomaBonGuard guard(_mutex);
     pinMode(PIN_BAT_VOLT, INPUT);
 #ifdef PIN_VBAT_SWITCH
     pinMode(PIN_VBAT_SWITCH, OUTPUT);
@@ -68,7 +68,7 @@ void BatteryMgr::update() {
     unsigned long now = millis();
 
     {
-        Book32Guard guard(_mutex);
+        KomaBonGuard guard(_mutex);
 
         if (now - _lastHistoryUpdate >= HISTORY_INTERVAL_MS) {
             if (now - _lastReadTime >= CACHE_DURATION_MS) {
@@ -115,7 +115,7 @@ void BatteryMgr::update() {
     bool charging;
     unsigned long lastActivity;
     {
-        Book32Guard guard(_mutex);
+        KomaBonGuard guard(_mutex);
         sleepTimeoutMinutes = _sleepTimeoutMinutes;
         charging = _cachedStatus.charging;
         lastActivity = _lastActivityTime;
@@ -134,7 +134,7 @@ void BatteryMgr::update() {
 }
 
 void BatteryMgr::updateCache(bool clearStaleCharging) {
-    Book32Guard guard(_mutex);
+    KomaBonGuard guard(_mutex);
 #ifdef PIN_VBAT_SWITCH
     digitalWrite(PIN_VBAT_SWITCH, VBAT_SWITCH_LEVEL);
     // RC STABILIZATION: 5 Tau = 25ms (R28||R29=50k, C62=100nF). Padded to 30ms.
@@ -197,7 +197,7 @@ void BatteryMgr::updateCache(bool clearStaleCharging) {
 }
 
 bool BatteryMgr::isCriticallyLow() {
-    Book32Guard guard(_mutex);
+    KomaBonGuard guard(_mutex);
     if (millis() - _lastReadTime >= CACHE_DURATION_MS) {
         updateCache();
     }
@@ -232,7 +232,7 @@ void BatteryMgr::shutdownLowBattery() {
 }
 
 BatteryStatus BatteryMgr::getStatus() {
-    Book32Guard guard(_mutex);
+    KomaBonGuard guard(_mutex);
     if (millis() - _lastReadTime >= CACHE_DURATION_MS) {
         updateCache();
     }
@@ -240,13 +240,13 @@ BatteryStatus BatteryMgr::getStatus() {
 }
 
 BatteryStatus BatteryMgr::refreshNow() {
-    Book32Guard guard(_mutex);
+    KomaBonGuard guard(_mutex);
     updateCache(true);
     return _cachedStatus;
 }
 
 void BatteryMgr::loadSleepSettings() {
-    Book32Guard guard(_mutex);
+    KomaBonGuard guard(_mutex);
     if (EbookFS.exists("/sleep_config.json")) {
         File file = EbookFS.open("/sleep_config.json", "r");
         if (file) {
@@ -264,14 +264,14 @@ void BatteryMgr::loadSleepSettings() {
 }
 
 void BatteryMgr::resetIdleTimer() {
-    Book32Guard guard(_mutex);
+    KomaBonGuard guard(_mutex);
     _lastActivityTime = millis();
 }
 
 void BatteryMgr::enterIdleSleep(const char* reason) {
     String sleepMessage;
     {
-        Book32Guard guard(_mutex);
+        KomaBonGuard guard(_mutex);
         sleepMessage = _sleepMessage;
     }
 

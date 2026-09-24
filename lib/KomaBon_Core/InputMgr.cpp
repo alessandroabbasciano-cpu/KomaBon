@@ -203,7 +203,7 @@ void InputMgr::inputTask(void* parameter) {
                 Serial.println("KEY2: Button pressed");
             } else if (!self->_btnSleepLongPressSent && !self->_btnSleepAborted &&
                        (now - self->_btnSleepPressTime) >= STANDBY_HOLD_MS) {
-#if BOOK32_KEY2_STANDBY_ENABLED
+#if KOMABON_KEY2_STANDBY_ENABLED
                 StandbyDecision decision = classifyStandbyRequest(digitalRead(PIN_BUTTON_SLEEP) == LOW,
                                                                   digitalRead(PIN_BUTTON_BACK) == LOW,
                                                                   joyActive, now - self->_btnSleepPressTime);

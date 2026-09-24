@@ -60,6 +60,7 @@ EpubLoader::EpubLoader() {
 }
 
 EpubLoader::~EpubLoader() {
+    close();
     if (zip) {
         zip->~UNZIP();
         free(zip);

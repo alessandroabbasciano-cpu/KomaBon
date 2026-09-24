@@ -97,7 +97,7 @@ void AppReader::handleInput(InputAction action) {
     } else if (_state == VIEW_OVERLAY_TOC) {
         int total = 0;
         {
-            Book32Guard guard(_epubMutex);
+            KomaBonGuard guard(_epubMutex);
             if (_epubLoader) total = _epubLoader->getChapterCount();
         }
 
@@ -156,7 +156,7 @@ void AppReader::closeOverlay() {
     if (_settingsChanged) {
         _settingsChanged = false;
         if (_textRenderer) {
-            Book32Guard guard(_epubMutex);
+            KomaBonGuard guard(_epubMutex);
             _textRenderer->setFontSize(_fontSizePt);
             _textRenderer->setFontFamily(_fontFamily);
         }

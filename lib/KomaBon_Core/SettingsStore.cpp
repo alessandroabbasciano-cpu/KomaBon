@@ -48,7 +48,7 @@ int SettingsStore::clampSleepTimeout(int minutes) {
 }
 
 ReaderSettings SettingsStore::loadReader() {
-    Book32Guard guard(_mutex);
+    KomaBonGuard guard(_mutex);
     ReaderSettings s;
 
     File file;
@@ -72,7 +72,7 @@ ReaderSettings SettingsStore::loadReader() {
 }
 
 DisplaySettings SettingsStore::loadDisplay() {
-    Book32Guard guard(_mutex);
+    KomaBonGuard guard(_mutex);
     DisplaySettings s;
 
     File file;
@@ -94,7 +94,7 @@ DisplaySettings SettingsStore::loadDisplay() {
 }
 
 SleepSettings SettingsStore::loadSleep() {
-    Book32Guard guard(_mutex);
+    KomaBonGuard guard(_mutex);
     SleepSettings s;
 
     File file;
@@ -117,7 +117,7 @@ SleepSettings SettingsStore::loadSleep() {
 }
 
 bool SettingsStore::saveReader(const ReaderSettings& s) {
-    Book32Guard guard(_mutex);
+    KomaBonGuard guard(_mutex);
     DynamicJsonDocument doc(256);
     doc["refreshFrequency"] = clampRefreshFrequency(s.refreshFrequency);
     doc["fontSize"] = clampFontSize(s.fontSize);
@@ -151,7 +151,7 @@ bool SettingsStore::saveReader(const ReaderSettings& s) {
 }
 
 bool SettingsStore::saveDisplay(const DisplaySettings& s) {
-    Book32Guard guard(_mutex);
+    KomaBonGuard guard(_mutex);
     DynamicJsonDocument doc(128);
     doc["rotation"] = clampRotation(s.rotation);
 
@@ -181,7 +181,7 @@ bool SettingsStore::saveDisplay(const DisplaySettings& s) {
 }
 
 bool SettingsStore::saveSleep(const SleepSettings& s) {
-    Book32Guard guard(_mutex);
+    KomaBonGuard guard(_mutex);
     DynamicJsonDocument doc(512);
     doc["sleepTimeout"] = clampSleepTimeout(s.timeout);
     doc["sleepMessage"] = s.message;

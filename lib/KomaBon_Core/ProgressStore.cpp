@@ -24,7 +24,7 @@ ProgressStore& ProgressStore::getInstance() {
 }
 
 void ProgressStore::begin() {
-    Book32Guard guard(_mutex);
+    KomaBonGuard guard(_mutex);
     // Reload if previously uninitialised OR if an external SD card became available after boot
     if (_loaded && (!_books.empty() || !EbookFS.exists(PROGRESS_PATH))) {
         return;
@@ -34,7 +34,7 @@ void ProgressStore::begin() {
 }
 
 void ProgressStore::reload() {
-    Book32Guard guard(_mutex);
+    KomaBonGuard guard(_mutex);
     _loaded = false;
     load();
 }
@@ -145,7 +145,7 @@ bool ProgressStore::save() {
 }
 
 bool ProgressStore::get(const String& originalName, BookProgress& out) {
-    Book32Guard guard(_mutex);
+    KomaBonGuard guard(_mutex);
     begin();
     auto it = _books.find(originalName);
     if (it == _books.end()) return false;
@@ -154,7 +154,7 @@ bool ProgressStore::get(const String& originalName, BookProgress& out) {
 }
 
 void ProgressStore::set(const String& originalName, const BookProgress& progress) {
-    Book32Guard guard(_mutex);
+    KomaBonGuard guard(_mutex);
     begin();
     if (originalName.length() == 0) return;
     BookProgress p = progress;
@@ -165,7 +165,7 @@ void ProgressStore::set(const String& originalName, const BookProgress& progress
 }
 
 void ProgressStore::remove(const String& originalName) {
-    Book32Guard guard(_mutex);
+    KomaBonGuard guard(_mutex);
     begin();
     bool changed = _books.erase(originalName) > 0;
     if (_lastBook == originalName) {
@@ -177,7 +177,7 @@ void ProgressStore::remove(const String& originalName) {
 }
 
 void ProgressStore::setLast(const String& originalName, bool resumeOnBoot) {
-    Book32Guard guard(_mutex);
+    KomaBonGuard guard(_mutex);
     begin();
     if (_lastBook == originalName && _resumeOnBoot == resumeOnBoot) return;
     _lastBook = originalName;
@@ -186,7 +186,7 @@ void ProgressStore::setLast(const String& originalName, bool resumeOnBoot) {
 }
 
 void ProgressStore::setResumeOnBoot(bool resume) {
-    Book32Guard guard(_mutex);
+    KomaBonGuard guard(_mutex);
     begin();
     if (_resumeOnBoot == resume) return;
     _resumeOnBoot = resume;
@@ -194,13 +194,13 @@ void ProgressStore::setResumeOnBoot(bool resume) {
 }
 
 String ProgressStore::lastBook() {
-    Book32Guard guard(_mutex);
+    KomaBonGuard guard(_mutex);
     begin();
     return _lastBook;
 }
 
 bool ProgressStore::resumeOnBoot() {
-    Book32Guard guard(_mutex);
+    KomaBonGuard guard(_mutex);
     begin();
     return _resumeOnBoot;
 }
@@ -208,7 +208,7 @@ bool ProgressStore::resumeOnBoot() {
 void ProgressStore::reconcile(const std::vector<String>& presentOriginalNames) {
 
     if (presentOriginalNames.empty()) return;
-    Book32Guard guard(_mutex);
+    KomaBonGuard guard(_mutex);
 
     begin();
     bool changed = false;
@@ -250,7 +250,7 @@ void ProgressStore::reconcile(const std::vector<String>& presentOriginalNames) {
 }
 
 void ProgressStore::clearAll() {
-    Book32Guard guard(_mutex);
+    KomaBonGuard guard(_mutex);
     begin();
     _books.clear();
     _lastBook = "";
@@ -260,13 +260,13 @@ void ProgressStore::clearAll() {
 }
 
 size_t ProgressStore::count() {
-    Book32Guard guard(_mutex);
+    KomaBonGuard guard(_mutex);
     begin();
     return _books.size();
 }
 
 void ProgressStore::streamExportJson(Print* out) {
-    Book32Guard guard(_mutex);
+    KomaBonGuard guard(_mutex);
     begin();
     bool first = true;
     for (const auto& kv : _books) {
@@ -316,7 +316,7 @@ static void collectPresentOriginalNames(std::map<String, bool>& present) {
 }
 
 ImportReport ProgressStore::applyImportedJson(JsonObjectConst src) {
-    Book32Guard guard(_mutex);
+    KomaBonGuard guard(_mutex);
     begin();
     ImportReport report;
 

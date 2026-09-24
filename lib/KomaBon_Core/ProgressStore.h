@@ -1,5 +1,5 @@
 #pragma once
-// KomaBon v1.8.0 — single owner of /reader_progress.json (EbookFS).
+// Book32 v1.8.0 — single owner of /reader_progress.json (EbookFS).
 //
 // Before this, READER_PROGRESS_PATH was declared in both AppReader.cpp and
 // WebMgr.cpp and each side opened and rewrote the file its own way. Import and
@@ -80,7 +80,7 @@ class ProgressStore {
     // the main loop while the /api/reader/progress, /api/library/*, and
     // /api/books/delete endpoints modify the same map from the web server task.
     // See Lock.h.
-    Book32Mutex _mutex;
+    KomaBonMutex _mutex;
 
     std::map<String, BookProgress> _books;
     String _lastBook;

@@ -96,7 +96,7 @@ void AppReader::start() {
 
     loadSettings();
     if (_textRenderer) {
-        Book32Guard guard(_epubMutex);
+        KomaBonGuard guard(_epubMutex);
         _textRenderer->setFontSize(_fontSizePt);
         _textRenderer->setFontFamily(_fontFamily);
     }
@@ -173,7 +173,7 @@ bool AppReader::openBook(const String& path, bool restoreProgress) {
 
     } else {
         _isComicMode = false;
-        Book32Guard guard(_epubMutex);
+        KomaBonGuard guard(_epubMutex);
         _epubLoader = new EpubLoader();
 
         if (!_epubLoader->open(fullPath.c_str())) {
@@ -294,7 +294,7 @@ void AppReader::closeBook(bool markInactive) {
     if (markInactive && _state != VIEW_LIBRARY) saveReadingProgress(false);
     flushProgress();
 
-    Book32Guard guard(_epubMutex);
+    KomaBonGuard guard(_epubMutex);
 
     if (_epubLoader) {
         _epubLoader->close();

@@ -22,13 +22,13 @@
 // LittleFS default LFS_NAME_MAX is 255, but the upload handler already
 // truncates to 28 characters plus a possible "_NN" dedup suffix. 63 leaves
 // headroom without permitting absurd names.
-#ifndef BOOK32_MAX_NAME_LEN
-#define BOOK32_MAX_NAME_LEN 63
+#ifndef KOMABON_MAX_NAME_LEN
+#define KOMABON_MAX_NAME_LEN 63
 #endif
 
 template <typename S> bool isSafeBookName(const S& name) {
     const size_t n = name.length();
-    if (n == 0 || n > BOOK32_MAX_NAME_LEN) return false;
+    if (n == 0 || n > KOMABON_MAX_NAME_LEN) return false;
 
     for (size_t i = 0; i < n; i++) {
         const unsigned char c = (unsigned char)name[i];

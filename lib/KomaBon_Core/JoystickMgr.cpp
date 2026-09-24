@@ -105,6 +105,7 @@ int JoystickMgr::readAnalogAveraged() {
 }
 
 void JoystickMgr::init() {
+    pinMode(JOY_ADC_PIN, ANALOG); // explicitly disable digital I/O buffer to prevent leakage
     analogSetPinAttenuation(JOY_ADC_PIN, ADC_11db);
     analogReadResolution(12);
     Serial.println("JoystickMgr: ADC1 initialized safely on JOY_ADC_PIN.");

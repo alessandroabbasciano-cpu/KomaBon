@@ -6,7 +6,7 @@
 
 static const char* BOOKS_META_PATH = "/books_meta.json";
 
-static Book32Mutex g_metaMutex;
+static KomaBonMutex g_metaMutex;
 
 static size_t metaCapacityFor(size_t fileSize) {
     size_t cap = fileSize * 2 + 1024;
@@ -24,7 +24,7 @@ static bool openMetaForRead(File& file) {
 }
 
 void loadBookMetadata(std::map<String, String>& metadata) {
-    Book32Guard guard(g_metaMutex);
+    KomaBonGuard guard(g_metaMutex);
     metadata.clear();
 
     File file;
@@ -42,7 +42,7 @@ void loadBookMetadata(std::map<String, String>& metadata) {
 }
 
 String getOriginalFilename(const String& truncatedName) {
-    Book32Guard guard(g_metaMutex);
+    KomaBonGuard guard(g_metaMutex);
     File file;
     if (!openMetaForRead(file)) return truncatedName;
 
@@ -58,7 +58,7 @@ String getOriginalFilename(const String& truncatedName) {
 }
 
 String findFilenameForOriginal(const String& originalName) {
-    Book32Guard guard(g_metaMutex);
+    KomaBonGuard guard(g_metaMutex);
     std::map<String, String> metadata;
     loadBookMetadata(metadata);
 
@@ -111,7 +111,7 @@ static bool writeMetaDoc(const DynamicJsonDocument& doc) {
 }
 
 void saveBookMetadata(const String& truncatedName, const String& originalName) {
-    Book32Guard guard(g_metaMutex);
+    KomaBonGuard guard(g_metaMutex);
     size_t extra = truncatedName.length() + originalName.length() + 64;
     DynamicJsonDocument doc(metaCapacityFor(existingMetaSize()) + extra);
     loadMetaDoc(doc);
@@ -124,7 +124,7 @@ void saveBookMetadata(const String& truncatedName, const String& originalName) {
 }
 
 void removeBookMetadata(const String& truncatedName) {
-    Book32Guard guard(g_metaMutex);
+    KomaBonGuard guard(g_metaMutex);
     size_t existingSize = existingMetaSize();
     if (existingSize == 0) return;
 

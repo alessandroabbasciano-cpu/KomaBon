@@ -32,7 +32,7 @@ void AppReader::startTotalPagesCounting() {
     _chapterStartPages.push_back(1);
 
     if (_countRenderer) {
-        Book32Guard guard(_epubMutex);
+        KomaBonGuard guard(_epubMutex);
         delete _countRenderer;
         _countRenderer = nullptr;
     }
@@ -59,7 +59,7 @@ void AppReader::updateTotalPagesCount() {
     KomaBonDisplay& display = dispMgr.getDisplay();
 
     if (!_countRenderer) {
-        Book32Guard guard(_epubMutex);
+        KomaBonGuard guard(_epubMutex);
         if (!_epubLoader) return;
         _countRenderer = new TextRenderer(display.width(), display.height(), _fontSizePt, _epubLoader);
         _countRenderer->setFontFamily(_fontFamily);
@@ -68,7 +68,7 @@ void AppReader::updateTotalPagesCount() {
     String key = getOriginalFilename(normalizedBookName(_currentBookPath));
 
     if (_countChapterContent.empty()) {
-        Book32Guard guard(_epubMutex);
+        KomaBonGuard guard(_epubMutex);
         if (!_epubLoader) return;
 
         if (_countChapter >= _epubLoader->getChapterCount()) {
@@ -95,7 +95,7 @@ void AppReader::updateTotalPagesCount() {
 
     RenderResult r;
     {
-        Book32Guard guard(_epubMutex);
+        KomaBonGuard guard(_epubMutex);
         if (!_countRenderer) return;
         r = _countRenderer->renderRichPageDynamic(display, _countChapterContent, _countPointer.nodeIndex,
                                                   _countPointer.charOffset, 0, 0, false);
@@ -115,7 +115,7 @@ void AppReader::updateTotalPagesCount() {
 }
 
 void AppReader::loadChapter(int chapterIndex) {
-    Book32Guard guard(_epubMutex);
+    KomaBonGuard guard(_epubMutex);
 
     if (!_epubLoader) return;
     if (chapterIndex < 0 || chapterIndex >= _epubLoader->getChapterCount()) return;
@@ -151,7 +151,7 @@ void AppReader::nextPage() {
         return;
     }
 
-    Book32Guard guard(_epubMutex);
+    KomaBonGuard guard(_epubMutex);
     if (!_textRenderer) return;
 
     RenderResult result = _currentPageRender;
@@ -193,7 +193,7 @@ void AppReader::prevPage() {
         return;
     }
 
-    Book32Guard guard(_epubMutex);
+    KomaBonGuard guard(_epubMutex);
 
     if (!_pageHistory.empty()) {
         _currentPagePointer = _pageHistory.back();
@@ -240,13 +240,13 @@ void AppReader::prevPage() {
 }
 
 void AppReader::nextChapter() {
-    Book32Guard guard(_epubMutex);
+    KomaBonGuard guard(_epubMutex);
     if (!_epubLoader) return;
     if (_currentChapter < _epubLoader->getChapterCount() - 1) loadChapter(_currentChapter + 1);
 }
 
 void AppReader::prevChapter() {
-    Book32Guard guard(_epubMutex);
+    KomaBonGuard guard(_epubMutex);
     if (!_epubLoader) return;
     if (_currentChapter > 0) {
         int tryChapter = _currentChapter - 1;
@@ -262,7 +262,7 @@ void AppReader::prevChapter() {
 }
 
 void AppReader::applyFontSize(int pt) {
-    Book32Guard guard(_epubMutex);
+    KomaBonGuard guard(_epubMutex);
     int normalized = (pt >= 18) ? 18 : (pt >= 12 ? 12 : 9);
     _fontSizePt = normalized;
     if (_textRenderer) _textRenderer->setFontSize(normalized);
@@ -274,7 +274,7 @@ void AppReader::applyFontSize(int pt) {
 }
 
 void AppReader::applyFontFamily(int family) {
-    Book32Guard guard(_epubMutex);
+    KomaBonGuard guard(_epubMutex);
     int normalized =
         (family >= READER_FONT_SANS && family <= READER_FONT_OPEN_SANS) ? family : READER_FONT_SANS;
     _fontFamily = normalized;

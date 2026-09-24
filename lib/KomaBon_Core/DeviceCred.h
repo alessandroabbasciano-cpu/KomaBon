@@ -30,12 +30,12 @@
 #include <cstddef>
 
 // "book" + 6 hex digits + NUL.
-#define BOOK32_CRED_LEN 11
+#define KOMABON_CRED_LEN 11
 
 // Write "book<XXYYZZ>" (uppercase hex of mac[3..5]) into out.
-// out must be at least BOOK32_CRED_LEN bytes.
+// out must be at least KOMABON_CRED_LEN bytes.
 inline void deriveDevicePassword(const uint8_t mac[6], char* out, size_t outLen) {
-    if (!out || outLen < BOOK32_CRED_LEN) {
+    if (!out || outLen < KOMABON_CRED_LEN) {
         if (out && outLen > 0) out[0] = '\0';
         return;
     }

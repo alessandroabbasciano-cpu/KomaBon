@@ -46,7 +46,7 @@ class AppMainMenu : public App {
     int _lastBookPage = 0;
     void loadResumeData();
 
-    Book32Mutex _updateMutex;
+    KomaBonMutex _updateMutex;
     bool _updateAvailable = false;
     String _updateVersion = "";
     String getWifiFooterText() const;

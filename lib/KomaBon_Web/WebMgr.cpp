@@ -16,7 +16,7 @@
 #include "../../include/NetworkState.h"
 
 const char* WebMgr::devicePassword() {
-    static char pw[BOOK32_CRED_LEN] = {0};
+    static char pw[KOMABON_CRED_LEN] = {0};
     if (pw[0] == '\0') {
         uint8_t mac[6];
         WiFi.macAddress(mac);
@@ -35,7 +35,7 @@ WebMgr& WebMgr::getInstance() {
 WebMgr::WebMgr() : server(new AsyncWebServer(80)) {}
 
 static void listFiles(fs::FS& fs, const char* dirname, uint8_t levels) {
-#if BOOK32_VERBOSE_BOOT_LOG
+#if KOMABON_VERBOSE_BOOT_LOG
     Serial.printf("Listing directory: %s\n", dirname);
     File root = fs.open(dirname);
     if (!root || !root.isDirectory()) return;
@@ -137,7 +137,7 @@ void WebMgr::startServer() {
 
     if (MDNS.begin(DEVICE_NAME)) {
         MDNS.addService("http", "tcp", 80);
-        Serial.println("mDNS: http://book32.local/");
+        Serial.println("mDNS: http://komabon.local/");
     }
 
     gNetworkStartupInProgress = false;

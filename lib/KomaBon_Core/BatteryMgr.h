@@ -42,7 +42,7 @@ class BatteryMgr {
 
     void updateCache(bool clearStaleCharging = false);
 
-    Book32Mutex _mutex;
+    KomaBonMutex _mutex;
 
     BatteryStatus _cachedStatus;
     unsigned long _lastReadTime;

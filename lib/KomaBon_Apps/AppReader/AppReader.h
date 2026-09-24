@@ -107,7 +107,7 @@ class AppReader : public App {
     uint8_t* _comicPageBuffer = nullptr;
 
     // Thread-Safety and FreeRTOS Multi-Core Pagination
-    Book32Mutex _epubMutex;
+    KomaBonMutex _epubMutex;
     TaskHandle_t _pageCountTaskHandle = nullptr;
     volatile bool _killPageCountTask = false;
 

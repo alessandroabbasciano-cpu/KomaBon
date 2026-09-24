@@ -24,7 +24,7 @@ void AppReader::draw() {
 }
 
 void AppReader::drawReading() {
-    Book32Guard guard(_epubMutex);
+    KomaBonGuard guard(_epubMutex);
 
     if (!_isComicMode && !_textRenderer) {
         _state = VIEW_LIBRARY;
@@ -169,7 +169,7 @@ void AppReader::drawOverlayTOC() {
 
         int totalChapters = 0;
         {
-            Book32Guard guard(_epubMutex);
+            KomaBonGuard guard(_epubMutex);
             if (_epubLoader) totalChapters = _epubLoader->getChapterCount();
         }
 
