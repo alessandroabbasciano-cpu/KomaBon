@@ -32,6 +32,12 @@
 class KomaBonMutex {
   public:
     KomaBonMutex() : _handle(xSemaphoreCreateRecursiveMutex()) {}
+    ~KomaBonMutex() {
+        if (_handle) {
+            vSemaphoreDelete(_handle);
+            _handle = nullptr;
+        }
+    }
 
     // A null handle (no memory for the semaphore at startup) degrades to
     // "no lock" behavior instead of locking the system forever.
