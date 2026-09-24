@@ -72,9 +72,10 @@ void setupSystemEndpoints(AsyncWebServer* server) {
         doc["uptimeSeconds"] = totalSeconds;
 
         doc["rssi"] = WiFi.RSSI();
-        doc["battery"] = BatteryMgr::getInstance().getPercentage();
-        doc["voltage"] = BatteryMgr::getInstance().getVoltage();
-        doc["charging"] = BatteryMgr::getInstance().isCharging();
+        BatteryStatus batStatus = BatteryMgr::getInstance().getStatus();
+        doc["battery"] = batStatus.percentage;
+        doc["voltage"] = batStatus.voltage;
+        doc["charging"] = batStatus.charging;
         doc["version"] = SYSTEM_VERSION;
 
         doc["freeSpace"] = KomaBonStorage::getTotalBytes() - KomaBonStorage::getUsedBytes();

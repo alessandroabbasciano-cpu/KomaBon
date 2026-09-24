@@ -245,18 +245,6 @@ BatteryStatus BatteryMgr::refreshNow() {
     return _cachedStatus;
 }
 
-float BatteryMgr::getVoltage() {
-    return getStatus().voltage;
-}
-
-int BatteryMgr::getPercentage() {
-    return getStatus().percentage;
-}
-
-bool BatteryMgr::isCharging() {
-    return getStatus().charging;
-}
-
 void BatteryMgr::loadSleepSettings() {
     Book32Guard guard(_mutex);
     if (EbookFS.exists("/sleep_config.json")) {

@@ -23,11 +23,6 @@ class BatteryMgr {
     BatteryStatus getStatus();
     BatteryStatus refreshNow();
 
-    // Legacy methods (still work, but use getStatus() to avoid multiple reads)
-    float getVoltage();
-    int getPercentage();
-    bool isCharging();
-
     // Check if battery is critically low (should shutdown)
     bool isCriticallyLow();
 

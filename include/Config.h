@@ -40,6 +40,10 @@
 // ==========================================
 // MICRO SD CARD PINS (SPI2 Hardware)
 // ==========================================
+// CRITICAL: TRMNL 7.5" OG DIY Kit has parasitic capacitance on the SD lines.
+// SD SPI pins (SCK, MOSI, CS) MUST have their drive capability set to
+// GPIO_DRIVE_CAP_DEFAULT (~20mA). Defaulting to CAP_1 (~5mA) will cause
+// rounded signal edges that fail under Wi-Fi current spikes. See SDMgr.cpp.
 #define SD_CS_PIN 39
 #define SD_SCK_PIN 41
 #define SD_MOSI_PIN 42
