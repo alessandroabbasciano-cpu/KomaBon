@@ -56,7 +56,7 @@ function renderBooks() {
         if (bookIsKmb) displayIcon = '🖼️ [Comic] ';
 
         return `
-        <div class="book-item">
+        <div class="book-item" data-filename="${nameAttr}">
             ${orderBtns}
             <span class="book-title">${displayIcon}${escapeHtml(book.name)}</span>
             <span class="book-size">${Math.round(book.size / 1024)} KB</span>
@@ -87,6 +87,23 @@ function bindBookListActions() {
     bookListBound = true;
 }
 
+function updateOrderButtons() {
+    const bookList = document.getElementById('book-list');
+    if (!bookList) return;
+    const epubs = currentBooks.filter(b => isEpub(b.filename));
+    if (epubs.length <= 1) return;
+
+    const items = Array.from(bookList.querySelectorAll('.book-item'));
+    epubs.forEach((book, idx) => {
+        const item = items.find(el => el.dataset.filename === book.filename);
+        if (!item) return;
+        const upBtn = item.querySelector('button[data-action="move"][data-dir="-1"]');
+        const downBtn = item.querySelector('button[data-action="move"][data-dir="1"]');
+        if (upBtn) upBtn.disabled = (idx === 0);
+        if (downBtn) downBtn.disabled = (idx === epubs.length - 1);
+    });
+}
+
 function moveBook(filename, dir) {
     const epubIdxs = currentBooks
         .map((b, i) => isEpub(b.filename) ? i : -1)
@@ -96,8 +113,29 @@ function moveBook(filename, dir) {
     if (pos < 0 || target < 0 || target >= epubIdxs.length) return;
 
     const a = epubIdxs[pos], b = epubIdxs[target];
+    const targetFilename = currentBooks[b].filename;
     [currentBooks[a], currentBooks[b]] = [currentBooks[b], currentBooks[a]];
-    renderBooks();
+
+    const bookList = document.getElementById('book-list');
+    if (bookList) {
+        const items = Array.from(bookList.querySelectorAll('.book-item'));
+        const itemA = items.find(el => el.dataset.filename === filename);
+        const itemB = items.find(el => el.dataset.filename === targetFilename);
+
+        if (itemA && itemB) {
+            if (dir === -1) {
+                bookList.insertBefore(itemA, itemB);
+            } else {
+                bookList.insertBefore(itemB, itemA);
+            }
+            updateOrderButtons();
+        } else {
+            renderBooks();
+        }
+    } else {
+        renderBooks();
+    }
+
     scheduleSaveOrder();
 }
 
