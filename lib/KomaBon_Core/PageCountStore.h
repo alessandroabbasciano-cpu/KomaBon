@@ -40,6 +40,7 @@ class PageCountStore {
     // Returns 0 when the book has no cached total, or the cache was computed
     // at different reader font settings than (fontSize, fontFamily).
     int get(const String& originalName, int fontSize, int fontFamily);
+    int getTotal(const String& originalName);
 
     // Persists the total for originalName. If (fontSize, fontFamily) differs
     // from what the cache currently holds, every existing entry (totals and

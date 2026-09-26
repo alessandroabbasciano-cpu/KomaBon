@@ -110,6 +110,12 @@ int PageCountStore::get(const String& originalName, int fontSize, int fontFamily
     return it != _totals.end() ? it->second : 0;
 }
 
+int PageCountStore::getTotal(const String& originalName) {
+    load();
+    auto it = _totals.find(originalName);
+    return it != _totals.end() ? it->second : 0;
+}
+
 void PageCountStore::set(const String& originalName, int fontSize, int fontFamily, int totalPages) {
     load();
     resetIfFontChanged(fontSize, fontFamily);

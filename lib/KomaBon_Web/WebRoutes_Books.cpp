@@ -9,6 +9,7 @@
 #include "../KomaBon_Core/BookOrderLogic.h"
 #include "../KomaBon_Core/BookMeta.h"
 #include "../KomaBon_Core/ProgressStore.h"
+#include "../KomaBon_Core/PageCountStore.h"
 #include <SD.h>
 
 // --- Helper Functions & State ---
@@ -289,12 +290,40 @@ void setupBookEndpoints(AsyncWebServer* server) {
         for (const String& name : epubs) {
             File f = EbookFS.open("/" + name, FILE_READ);
             size_t sz = f ? f.size() : 0;
+            uint16_t kmbPages = 0;
+            if (f && hasExtensionCI(name, ".kmb") && sz > 12) {
+                char magic[5] = {0};
+                f.readBytes(magic, 4);
+                if (strcmp(magic, "KMB1") == 0) {
+                    f.seek(10);
+                    f.read((uint8_t*)&kmbPages, 2);
+                }
+            }
             if (f) f.close();
+
+            String origName = getOriginalFilename(name);
+            int totalPages = kmbPages;
+            if (totalPages == 0 && hasExtensionCI(name, ".epub")) {
+                totalPages = PageCountStore::getInstance().getTotal(origName);
+            }
+
+            int currentPage = 0;
+            BookProgress bp;
+            if (ProgressStore::getInstance().get(origName, bp)) {
+                currentPage = bp.globalPage;
+            }
+
+            int percent = 0;
+            if (totalPages > 0 && currentPage > 0) {
+                percent = (currentPage >= totalPages) ? 100 : (int)((currentPage * 100) / totalPages);
+            }
+
             if (!first) response->print(",");
             first = false;
-            response->printf("{\"name\":\"%s\",\"filename\":\"%s\",\"size\":%u}",
-                             jsonEscape(getOriginalFilename(name)).c_str(), jsonEscape(name).c_str(),
-                             (unsigned)sz);
+            response->printf("{\"name\":\"%s\",\"filename\":\"%s\",\"size\":%u,\"page\":%d,\"totalPages\":%d,"
+                             "\"percent\":%d}",
+                             jsonEscape(origName).c_str(), jsonEscape(name).c_str(), (unsigned)sz,
+                             currentPage, totalPages, percent);
         }
         response->print("]}");
         request->send(response);

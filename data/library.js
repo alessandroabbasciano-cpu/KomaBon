@@ -37,6 +37,34 @@ function parseSeriesInfo(filename) {
     return null;
 }
 
+function renderProgressBar(book) {
+    if (!book || (!book.page && !book.percent)) {
+        return '';
+    }
+    const percent = book.percent || 0;
+    const isCompleted = percent >= 100;
+    const badgeClass = isCompleted ? 'progress-completed' : 'progress-ongoing';
+
+    let label = '';
+    if (isCompleted) {
+        label = '✓ Completato';
+    } else if (book.totalPages > 0) {
+        label = `Pag. ${book.page || 1}/${book.totalPages} (${percent}%)`;
+    } else if (book.page > 0) {
+        label = `Pag. ${book.page}`;
+    }
+
+    if (!label) return '';
+
+    return `
+    <div class="book-progress-wrap ${badgeClass}">
+        <div class="progress-bar-bg">
+            <div class="progress-bar-fill" style="width: ${percent > 0 ? percent : 5}%"></div>
+        </div>
+        <span class="progress-label">${label}</span>
+    </div>`;
+}
+
 function renderBookItem(book, epubs) {
     const bookIsFont = isFont(book.filename);
     const bookIsKmb = isKmb(book.filename);
@@ -56,10 +84,15 @@ function renderBookItem(book, epubs) {
     if (bookIsFont) displayIcon = '📂 [Font] ';
     if (bookIsKmb) displayIcon = '🖼️ [Comic] ';
 
+    const progressHtml = renderProgressBar(book);
+
     return `
     <div class="book-item" data-filename="${nameAttr}">
         ${orderBtns}
-        <span class="book-title">${displayIcon}${escapeHtml(book.name)}</span>
+        <div class="book-info-col">
+            <span class="book-title">${displayIcon}${escapeHtml(book.name)}</span>
+            ${progressHtml}
+        </div>
         <span class="book-size">${Math.round(book.size / 1024)} KB</span>
         <button class="btn-order" data-action="download" data-filename="${nameAttr}" title="Download File">DL</button>
         <button class="btn-delete" data-action="delete" data-filename="${nameAttr}" data-name="${escapeAttr(book.name)}">Delete</button>
@@ -135,11 +168,24 @@ function renderBooks() {
             const totalMb = (item.totalSize / (1024 * 1024)).toFixed(1);
             const sizeStr = item.totalSize >= 1024 * 1024 ? `${totalMb} MB` : `${Math.round(item.totalSize / 1024)} KB`;
 
+            const completedCount = item.books.filter(b => b.percent >= 100).length;
+            const ongoingCount = item.books.filter(b => b.percent > 0 && b.percent < 100).length;
+            let seriesProgressBadge = '';
+            if (completedCount === item.books.length && item.books.length > 0) {
+                seriesProgressBadge = `<span class="series-progress-badge completed">✓ Serie letta (${completedCount}/${item.books.length})</span>`;
+            } else if (completedCount > 0 || ongoingCount > 0) {
+                seriesProgressBadge = `<span class="series-progress-badge ongoing">${completedCount}/${item.books.length} letti</span>`;
+            }
+
             const nestedHtml = item.books.map(b => {
                 const nameAttr = escapeAttr(b.filename);
+                const progressHtml = renderProgressBar(b);
                 return `
                 <div class="book-item series-nested-item" data-filename="${nameAttr}">
-                    <span class="book-title">🖼️ ${escapeHtml(b.name)}</span>
+                    <div class="book-info-col">
+                        <span class="book-title">🖼️ ${escapeHtml(b.name)}</span>
+                        ${progressHtml}
+                    </div>
                     <span class="book-size">${Math.round(b.size / 1024)} KB</span>
                     <button class="btn-order" data-action="download" data-filename="${nameAttr}" title="Download File">DL</button>
                     <button class="btn-delete" data-action="delete" data-filename="${nameAttr}" data-name="${escapeAttr(b.name)}">Delete</button>
@@ -151,6 +197,7 @@ function renderBooks() {
                 <summary class="series-header">
                     <span class="series-title">📚 <strong>${escapeHtml(item.name)}</strong></span>
                     <span class="series-badge">${item.books.length} volumi</span>
+                    ${seriesProgressBadge}
                     <span class="book-size">${sizeStr}</span>
                 </summary>
                 <div class="series-items">
