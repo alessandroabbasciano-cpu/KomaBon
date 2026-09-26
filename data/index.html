@@ -49,6 +49,13 @@
                         <input type="text" id="book-search" placeholder="Search library..." onkeyup="filterBooks()"
                             style="padding: 6px 12px; width: 100%; max-width: 250px; background: var(--paper); border: 1px solid var(--line); color: var(--ink); border-radius: 6px;">
                     </div>
+                    <div id="bulk-bar" class="bulk-action-bar hidden">
+                        <span id="bulk-count">0 selected</span>
+                        <div class="bulk-btns">
+                            <button type="button" class="btn-bulk-delete" onclick="executeBulkDelete()">Delete Selected</button>
+                            <button type="button" class="btn-bulk-cancel" onclick="clearBulkSelection()">Deselect All</button>
+                        </div>
+                    </div>
                     <div id="book-list" class="book-list-container">
                         <!-- Books injected by JS -->
                     </div>

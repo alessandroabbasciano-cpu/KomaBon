@@ -1,5 +1,5 @@
 // Book32 v1.4.1 — host test for filename sanitisation (path-traversal guard).
-// Build: g++ -std=c++17 -I lib/Book32_Core tools/tests/test_safe_name.cpp
+// Build: g++ -std=c++17 -I lib/KomaBon_Core tools/tests/test_safe_name.cpp
 #include <cassert>
 #include <cstdio>
 #include <string>
@@ -10,7 +10,7 @@ int main() {
 
     // Plain names are accepted.
     assert(isSafeBookName(string("book.epub")));
-    assert(isSafeBookName(string("Meu Livro.EPUB")));
+    assert(isSafeBookName(string("My Book.EPUB")));
     assert(isSafeBookName(string("font.ttf")));
 
     // Path separators must be rejected (traversal into other directories).

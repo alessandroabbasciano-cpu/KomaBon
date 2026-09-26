@@ -25,7 +25,7 @@ int main() {
 
     // 1. Word that fits: copied entirely, width preserved.
     {
-        string w = "livro";
+        string w = "novel";
         WordFit f = fitWordIntoLine(w.c_str(), w.size(), widthOf(w), 100, 200, widths);
         assert(f.take == 5 && f.width == 50);
     }

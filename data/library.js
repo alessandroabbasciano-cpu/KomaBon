@@ -6,12 +6,86 @@ const isKmb = f => f.toLowerCase().endsWith('.kmb');
 let currentBooks = [];
 let saveOrderTimer = null;
 let bookListBound = false;
+let selectedBooks = new Set();
+
+function onBookCheckChange(checkbox) {
+    const filename = checkbox.dataset.filename;
+    if (checkbox.checked) {
+        selectedBooks.add(filename);
+    } else {
+        selectedBooks.delete(filename);
+    }
+    updateBulkBar();
+}
+
+function onSeriesCheckChange(checkbox, seriesName) {
+    const group = Array.from(document.querySelectorAll('.series-group')).find(g => g.dataset.series === seriesName);
+    if (!group) return;
+    const checks = group.querySelectorAll('.book-select-check');
+    checks.forEach(c => {
+        c.checked = checkbox.checked;
+        if (checkbox.checked) {
+            selectedBooks.add(c.dataset.filename);
+        } else {
+            selectedBooks.delete(c.dataset.filename);
+        }
+    });
+    updateBulkBar();
+}
+
+function updateBulkBar() {
+    const bulkBar = document.getElementById('bulk-bar');
+    const bulkCount = document.getElementById('bulk-count');
+    if (!bulkBar) return;
+
+    if (selectedBooks.size > 0) {
+        bulkBar.classList.remove('hidden');
+        if (bulkCount) {
+            bulkCount.textContent = `${selectedBooks.size} selected`;
+        }
+    } else {
+        bulkBar.classList.add('hidden');
+    }
+}
+
+function clearBulkSelection() {
+    selectedBooks.clear();
+    document.querySelectorAll('.book-select-check, .series-select-check').forEach(c => c.checked = false);
+    updateBulkBar();
+}
+
+async function executeBulkDelete() {
+    if (selectedBooks.size === 0) return;
+    const count = selectedBooks.size;
+    if (!confirm(`Permanently delete ${count} selected file(s)?`)) return;
+
+    const filenames = Array.from(selectedBooks);
+    try {
+        const res = await fetch('/api/library/bulk_delete', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ filenames })
+        });
+        if (res.ok) {
+            selectedBooks.clear();
+            updateBulkBar();
+            fetchBooks();
+        } else {
+            alert('Failed to delete selected files.');
+        }
+    } catch (e) {
+        alert('Connection error during deletion.');
+        console.error('Bulk delete failed', e);
+    }
+}
 
 // Fetch library from ESP32
 async function fetchBooks() {
     const bookList = document.getElementById('book-list');
     if (!bookList) return;
     bookList.innerHTML = '<p>Loading...</p>';
+    selectedBooks.clear();
+    updateBulkBar();
 
     try {
         const res = await fetch('/api/books');
@@ -47,11 +121,11 @@ function renderProgressBar(book) {
 
     let label = '';
     if (isCompleted) {
-        label = '✓ Completato';
+        label = '✓ Completed';
     } else if (book.totalPages > 0) {
-        label = `Pag. ${book.page || 1}/${book.totalPages} (${percent}%)`;
+        label = `Page ${book.page || 1}/${book.totalPages} (${percent}%)`;
     } else if (book.page > 0) {
-        label = `Pag. ${book.page}`;
+        label = `Page ${book.page}`;
     }
 
     if (!label) return '';
@@ -85,9 +159,11 @@ function renderBookItem(book, epubs) {
     if (bookIsKmb) displayIcon = '🖼️ [Comic] ';
 
     const progressHtml = renderProgressBar(book);
+    const isChecked = selectedBooks.has(book.filename) ? 'checked' : '';
 
     return `
     <div class="book-item" data-filename="${nameAttr}">
+        <input type="checkbox" class="book-select-check" data-filename="${nameAttr}" ${isChecked} onchange="onBookCheckChange(this)" title="Select">
         ${orderBtns}
         <div class="book-info-col">
             <span class="book-title">${displayIcon}${escapeHtml(book.name)}</span>
@@ -172,16 +248,18 @@ function renderBooks() {
             const ongoingCount = item.books.filter(b => b.percent > 0 && b.percent < 100).length;
             let seriesProgressBadge = '';
             if (completedCount === item.books.length && item.books.length > 0) {
-                seriesProgressBadge = `<span class="series-progress-badge completed">✓ Serie letta (${completedCount}/${item.books.length})</span>`;
+                seriesProgressBadge = `<span class="series-progress-badge completed">✓ Completed (${completedCount}/${item.books.length})</span>`;
             } else if (completedCount > 0 || ongoingCount > 0) {
-                seriesProgressBadge = `<span class="series-progress-badge ongoing">${completedCount}/${item.books.length} letti</span>`;
+                seriesProgressBadge = `<span class="series-progress-badge ongoing">${completedCount}/${item.books.length} read</span>`;
             }
 
             const nestedHtml = item.books.map(b => {
                 const nameAttr = escapeAttr(b.filename);
                 const progressHtml = renderProgressBar(b);
+                const isChecked = selectedBooks.has(b.filename) ? 'checked' : '';
                 return `
                 <div class="book-item series-nested-item" data-filename="${nameAttr}">
+                    <input type="checkbox" class="book-select-check" data-filename="${nameAttr}" ${isChecked} onchange="onBookCheckChange(this)" title="Select">
                     <div class="book-info-col">
                         <span class="book-title">🖼️ ${escapeHtml(b.name)}</span>
                         ${progressHtml}
@@ -192,11 +270,14 @@ function renderBooks() {
                 </div>`;
             }).join('');
 
+            const allChecked = item.books.length > 0 && item.books.every(b => selectedBooks.has(b.filename));
+
             return `
             <details class="series-group" data-series="${seriesNameAttr}">
                 <summary class="series-header">
+                    <input type="checkbox" class="series-select-check" data-series="${seriesNameAttr}" ${allChecked ? 'checked' : ''} title="Select all in series" onclick="event.stopPropagation()" onchange="onSeriesCheckChange(this, '${seriesNameAttr}')">
                     <span class="series-title">📚 <strong>${escapeHtml(item.name)}</strong></span>
-                    <span class="series-badge">${item.books.length} volumi</span>
+                    <span class="series-badge">${item.books.length} volumes</span>
                     ${seriesProgressBadge}
                     <span class="book-size">${sizeStr}</span>
                 </summary>

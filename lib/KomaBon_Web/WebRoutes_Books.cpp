@@ -246,6 +246,27 @@ static ImportOutcome applyImportBundle(const char* path) {
 
 // --- Route Definitions ---
 
+static bool deleteSingleBookInternal(const String& filename) {
+    if (!isSafeBookName(filename)) return false;
+
+    String path = "/" + filename;
+    if (!EbookFS.exists(path)) return false;
+    if (!EbookFS.remove(path)) return false;
+
+    removeBookProgress(filename);
+    removeFromBookOrder(filename);
+    removeBookMetadata(filename);
+
+    int dot = filename.lastIndexOf('.');
+    String base = (dot > 0) ? filename.substring(0, dot) : filename;
+    const char* derivedExts[] = {".thumb", ".cover", ".cover2"};
+    for (const char* ext : derivedExts) {
+        String derived = "/covers/" + base + ext;
+        if (EbookFS.exists(derived)) EbookFS.remove(derived);
+    }
+    return true;
+}
+
 void setupBookEndpoints(AsyncWebServer* server) {
     server->on("/api/books", HTTP_GET, [](AsyncWebServerRequest* request) {
         // Safe download routing without duplicate disposition headers
@@ -508,36 +529,45 @@ void setupBookEndpoints(AsyncWebServer* server) {
         }
 
         String filename = request->getParam("name")->value();
-        if (!isSafeBookName(filename)) {
-            request->send(400, "text/plain", "Invalid name");
-            return;
-        }
-
-        String path = "/" + filename;
-        if (EbookFS.exists(path)) {
-            if (EbookFS.remove(path)) {
-                removeBookProgress(filename);
-                removeFromBookOrder(filename);
-                removeBookMetadata(filename);
-
-                // Clear page counts so re-uploaded books get a fresh count calculation
-                if (EbookFS.exists("/page_totals.json")) EbookFS.remove("/page_totals.json");
-
-                int dot = filename.lastIndexOf('.');
-                String base = (dot > 0) ? filename.substring(0, dot) : filename;
-                const char* derivedExts[] = {".thumb", ".cover", ".cover2"};
-                for (const char* ext : derivedExts) {
-                    String derived = "/covers/" + base + ext;
-                    if (EbookFS.exists(derived)) EbookFS.remove(derived);
-                }
-                request->send(200, "text/plain", "Deleted");
-            } else {
-                request->send(500, "text/plain", "Delete failed");
-            }
+        if (deleteSingleBookInternal(filename)) {
+            if (EbookFS.exists("/page_totals.json")) EbookFS.remove("/page_totals.json");
+            request->send(200, "text/plain", "Deleted");
         } else {
-            request->send(404, "text/plain", "Not found");
+            request->send(500, "text/plain", "Delete failed");
         }
     });
+
+    AsyncCallbackJsonWebHandler* bulkDeleteHandler = new AsyncCallbackJsonWebHandler(
+        "/api/library/bulk_delete", [](AsyncWebServerRequest* request, JsonVariant& json) {
+            JsonArray arr;
+            if (json.is<JsonArray>()) {
+                arr = json.as<JsonArray>();
+            } else if (json.containsKey("filenames") && json["filenames"].is<JsonArray>()) {
+                arr = json["filenames"].as<JsonArray>();
+            } else if (json.containsKey("books") && json["books"].is<JsonArray>()) {
+                arr = json["books"].as<JsonArray>();
+            }
+
+            int deleted = 0;
+            int failed = 0;
+            for (JsonVariant v : arr) {
+                String fname = v.as<String>();
+                if (deleteSingleBookInternal(fname)) {
+                    deleted++;
+                } else {
+                    failed++;
+                }
+            }
+
+            if (deleted > 0 && EbookFS.exists("/page_totals.json")) {
+                EbookFS.remove("/page_totals.json");
+            }
+
+            AsyncResponseStream* response = request->beginResponseStream("application/json");
+            response->printf("{\"status\":\"ok\",\"deleted\":%d,\"failed\":%d}", deleted, failed);
+            request->send(response);
+        });
+    server->addHandler(bulkDeleteHandler);
 
     server->on("/api/reader/progress", HTTP_GET, [](AsyncWebServerRequest* request) {
         AsyncResponseStream* response = request->beginResponseStream("application/json");

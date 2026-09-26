@@ -27,10 +27,10 @@ class App {
     virtual void applyFontSize(int pt) {}
     virtual void applyFontFamily(int family) {}
 
-    // O indicador de bateria do sistema faz um refresh parcial no canto
-    // superior direito, a partir do loop principal e sem passar pelo app.
-    // Ecrãs que ocupam a área toda (a página do leitor) devolvem false para
-    // que não lhes apareça um ícone por cima do conteúdo.
+    // The system battery indicator performs a partial refresh in the upper-right
+    // corner, driven directly from the main loop without going through the app.
+    // Screens that occupy the full area (like the reader page) return false so
+    // that no status icon appears over the reading content.
     virtual bool allowsSystemStatusIndicator() {
         return true;
     }
