@@ -165,6 +165,606 @@ function applyDitheringAndPack(ctx, kmbBytes, offset, width, height, bytesPerRow
     }
 }
 
+// --- Panel Focus & Smart Splitting Core ---
+
+function togglePanelOptions() {
+    const mode = document.getElementById('panel-mode')?.value;
+    const container = document.getElementById('panel-options-container');
+    if (!container) return;
+    if (mode === 'panel_ai' || mode === 'panel_gutter') {
+        container.classList.remove('hidden');
+    } else {
+        container.classList.add('hidden');
+    }
+}
+
+const ONNX_CDN_URL = 'https://cdn.jsdelivr.net/npm/onnxruntime-web@1.17.1/dist/ort.all.min.js';
+const ONNX_WASM_PATH = 'https://cdn.jsdelivr.net/npm/onnxruntime-web@1.17.1/dist/';
+const AI_MODEL_URL = 'https://huggingface.co/mednasserallah/manga-panel-detector-yolo26n-onnx/resolve/main/manga_panel_detector_fp32_1024.onnx';
+const AI_CACHE_NAME = 'komabon-ai-cache-v1';
+
+let ortLoadedPromise = null;
+let cachedAiSession = null;
+
+function ensureOnnxRuntime() {
+    if (typeof window !== 'undefined' && window.ort) {
+        return Promise.resolve(window.ort);
+    }
+    if (ortLoadedPromise) return ortLoadedPromise;
+
+    ortLoadedPromise = new Promise((resolve, reject) => {
+        if (typeof document === 'undefined') {
+            return reject(new Error("Document object is not available."));
+        }
+        const script = document.createElement('script');
+        script.src = ONNX_CDN_URL;
+        script.async = true;
+        script.onload = () => {
+            if (window.ort) {
+                window.ort.env.wasm.wasmPaths = ONNX_WASM_PATH;
+                resolve(window.ort);
+            } else {
+                reject(new Error("ONNX Runtime loaded but window.ort is undefined."));
+            }
+        };
+        script.onerror = () => reject(new Error("Failed to load ONNX Runtime Web from CDN."));
+        document.head.appendChild(script);
+    });
+    return ortLoadedPromise;
+}
+
+async function getOrFetchModelBuffer(url) {
+    if (typeof window !== 'undefined' && 'caches' in window) {
+        try {
+            const cache = await caches.open(AI_CACHE_NAME);
+            const cached = await cache.match(url);
+            if (cached) {
+                logMessage("AI panel detector loaded from browser cache.");
+                return await cached.arrayBuffer();
+            }
+            logMessage("Downloading AI panel detector model (~9.6 MB, permanently cached)...");
+            const resp = await fetch(url);
+            if (!resp.ok) throw new Error(`Model download failed: HTTP ${resp.status}`);
+            await cache.put(url, resp.clone());
+            logMessage("AI panel detector model cached successfully.");
+            return await resp.arrayBuffer();
+        } catch (e) {
+            logMessage(`Cache notice: ${e.message}. Attempting direct fetch...`);
+        }
+    }
+    const resp = await fetch(url);
+    if (!resp.ok) throw new Error(`Model fetch failed: HTTP ${resp.status}`);
+    return await resp.arrayBuffer();
+}
+
+async function initAiPanelDetector() {
+    if (cachedAiSession) return cachedAiSession;
+    await ensureOnnxRuntime();
+    const buffer = await getOrFetchModelBuffer(AI_MODEL_URL);
+
+    logMessage("Initializing neural engine session...");
+    const hasWebGPU = typeof navigator !== 'undefined' && 'gpu' in navigator;
+    if (hasWebGPU) {
+        try {
+            cachedAiSession = await ort.InferenceSession.create(buffer, {
+                executionProviders: ['webgpu', 'wasm'],
+                graphOptimizationLevel: 'all'
+            });
+            logMessage("AI panel detector ready (WebGPU accelerated).");
+            return cachedAiSession;
+        } catch (err) {
+            logMessage(`WebGPU note: ${err.message}. Using WebAssembly SIMD mode.`);
+        }
+    }
+
+    cachedAiSession = await ort.InferenceSession.create(buffer, {
+        executionProviders: ['wasm'],
+        graphOptimizationLevel: 'all'
+    });
+    logMessage("AI panel detector ready (WASM SIMD mode).");
+    return cachedAiSession;
+}
+
+// --- Bounding Box & Geometry Helpers ---
+
+function boxArea(box) {
+    return Math.max(0, box[2] - box[0]) * Math.max(0, box[3] - box[1]);
+}
+
+function overlapArea(a, b) {
+    const ox1 = Math.max(a[0], b[0]);
+    const oy1 = Math.max(a[1], b[1]);
+    const ox2 = Math.min(a[2], b[2]);
+    const oy2 = Math.min(a[3], b[3]);
+    return Math.max(0, ox2 - ox1) * Math.max(0, oy2 - oy1);
+}
+
+function unionBox(a, b) {
+    return [
+        Math.min(a[0], b[0]),
+        Math.min(a[1], b[1]),
+        Math.max(a[2], b[2]),
+        Math.max(a[3], b[3])
+    ];
+}
+
+function isSliverPanel(box, pageW, pageH) {
+    const w = Math.max(1, box[2] - box[0]);
+    const h = Math.max(1, box[3] - box[1]);
+    const areaFrac = (w * h) / Math.max(1, pageW * pageH);
+    const aspect = Math.max(w / h, h / w);
+    return (areaFrac < 0.025 && aspect > 4.0) || areaFrac < 0.025;
+}
+
+function isFullPagePanel(box, pageW, pageH, threshold = 0.92) {
+    const w = Math.max(1, box[2] - box[0]);
+    const h = Math.max(1, box[3] - box[1]);
+    return (w / Math.max(1, pageW)) >= threshold && (h / Math.max(1, pageH)) >= threshold;
+}
+
+function dedupeBoxes(boxesWithConf, overlapThresh = 0.60) {
+    const ordered = [...boxesWithConf].sort((a, b) => b.score - a.score);
+    const kept = [];
+    for (const item of ordered) {
+        const box = item.box;
+        const area = boxArea(box);
+        if (area <= 0) continue;
+
+        let mergedIdx = -1;
+        for (let i = 0; i < kept.length; i++) {
+            const kArea = boxArea(kept[i]);
+            if (kArea > 0 && (overlapArea(box, kept[i]) / Math.min(area, kArea)) > overlapThresh) {
+                mergedIdx = i;
+                break;
+            }
+        }
+        if (mergedIdx >= 0) {
+            kept[mergedIdx] = unionBox(kept[mergedIdx], box);
+        } else {
+            kept.push(box);
+        }
+    }
+    return kept;
+}
+
+function expandPanelsOverText(panels, texts, pageW, pageH) {
+    if (!texts || texts.length === 0) return panels;
+
+    const pad = Math.max(6, Math.round(Math.min(pageW, pageH) * 0.02));
+    const expanded = panels.map(p => [...p]);
+
+    for (const text of texts) {
+        const tArea = boxArea(text);
+        if (tArea <= 0) continue;
+
+        let bestOwner = -1;
+        let bestOverlap = 0;
+        for (let i = 0; i < panels.length; i++) {
+            const o = overlapArea(panels[i], text);
+            if (o > bestOverlap) {
+                bestOverlap = o;
+                bestOwner = i;
+            }
+        }
+
+        // Ownership threshold: at least 25% of the text bubble must belong to the panel
+        if (bestOwner >= 0 && bestOverlap >= tArea * 0.25) {
+            const base = panels[bestOwner];
+            const target = expanded[bestOwner];
+            if (text[0] < base[0]) target[0] = Math.min(target[0], text[0] - pad);
+            if (text[1] < base[1]) target[1] = Math.min(target[1], text[1] - pad);
+            if (text[2] > base[2]) target[2] = Math.max(target[2], text[2] + pad);
+            if (text[3] > base[3]) target[3] = Math.max(target[3], text[3] + pad);
+        }
+    }
+
+    for (const b of expanded) {
+        b[0] = Math.max(0, b[0]);
+        b[1] = Math.max(0, b[1]);
+        b[2] = Math.min(pageW, b[2]);
+        b[3] = Math.min(pageH, b[3]);
+    }
+    return expanded;
+}
+
+function mergeSmallGaps(splits, minSize) {
+    if (!splits || splits.length <= 2) return splits || [];
+    const merged = [splits[0]];
+    for (let i = 1; i < splits.length; i++) {
+        if (splits[i] - merged[merged.length - 1] < minSize) {
+            continue;
+        }
+        merged.push(splits[i]);
+    }
+    if (merged[merged.length - 1] !== splits[splits.length - 1]) {
+        merged[merged.length - 1] = splits[splits.length - 1];
+    }
+    return merged;
+}
+
+function detectPanelsGrid(sourceCanvas) {
+    const w = sourceCanvas.width;
+    const h = sourceCanvas.height;
+    const ctx = sourceCanvas.getContext('2d', { willReadFrequently: true });
+    const imgData = ctx.getImageData(0, 0, w, h).data;
+
+    const threshold = 215;
+    const purity = 0.94;
+    const minGutter = Math.max(6, Math.floor(h * 0.013));
+    const minBandH = Math.max(Math.floor(h * 0.05), 60);
+    const minBandW = Math.max(Math.floor(w * 0.06), 60);
+
+    const isWhiteRow = (y) => {
+        let white = 0;
+        const total = Math.floor(w / 2);
+        for (let x = 0; x < w; x += 2) {
+            const idx = (y * w + x) * 4;
+            const luma = (imgData[idx] * 0.299) + (imgData[idx + 1] * 0.587) + (imgData[idx + 2] * 0.114);
+            if (luma > threshold) white++;
+        }
+        return white > total * purity;
+    };
+
+    const hSplits = [0];
+    let inGutter = false;
+    let gutterStart = 0;
+    for (let y = 0; y < h; y++) {
+        const whiteRow = isWhiteRow(y);
+        if (whiteRow && !inGutter) {
+            inGutter = true;
+            gutterStart = y;
+        } else if (!whiteRow && inGutter) {
+            if (y - gutterStart >= minGutter) {
+                hSplits.push(Math.floor((gutterStart + y) / 2));
+            }
+            inGutter = false;
+        }
+    }
+    hSplits.push(h);
+    const mergedHSplits = mergeSmallGaps(hSplits, minBandH);
+
+    const panels = [];
+    for (let b = 0; b < mergedHSplits.length - 1; b++) {
+        const y1 = mergedHSplits[b];
+        const y2 = mergedHSplits[b + 1];
+
+        const isWhiteCol = (x) => {
+            let white = 0;
+            const total = Math.max(1, Math.floor((y2 - y1) / 2));
+            for (let y = y1; y < y2; y += 2) {
+                const idx = (y * w + x) * 4;
+                const luma = (imgData[idx] * 0.299) + (imgData[idx + 1] * 0.587) + (imgData[idx + 2] * 0.114);
+                if (luma > threshold) white++;
+            }
+            return white > total * purity;
+        };
+
+        const vSplits = [0];
+        let inVGutter = false;
+        let vGutterStart = 0;
+        for (let x = 0; x < w; x++) {
+            const whiteCol = isWhiteCol(x);
+            if (whiteCol && !inVGutter) {
+                inVGutter = true;
+                vGutterStart = x;
+            } else if (!whiteCol && inVGutter) {
+                if (x - vGutterStart >= minGutter) {
+                    vSplits.push(Math.floor((vGutterStart + x) / 2));
+                }
+                inVGutter = false;
+            }
+        }
+        vSplits.push(w);
+        const mergedVSplits = mergeSmallGaps(vSplits, minBandW);
+
+        for (let c = 0; c < mergedVSplits.length - 1; c++) {
+            const x1 = mergedVSplits[c];
+            const x2 = mergedVSplits[c + 1];
+            panels.push([x1, y1, x2, y2]);
+        }
+    }
+
+    if (panels.length <= 1) {
+        return [[0, 0, w, h]];
+    }
+    return panels;
+}
+
+function yOverlapFrac(a, b) {
+    const overlap = Math.min(a[3], b[3]) - Math.max(a[1], b[1]);
+    const minH = Math.min(a[3] - a[1], b[3] - b[1]);
+    return Math.max(0.0, overlap) / Math.max(1, minH);
+}
+
+function sortPanelsReadingOrder(panels, isRTL = true) {
+    const n = panels.length;
+    if (n <= 1) return panels;
+
+    const OVERLAP_THRESHOLD = 0.30;
+    const edges = Array.from({ length: n }, () => []);
+    const inDegree = new Array(n).fill(0);
+
+    for (let i = 0; i < n; i++) {
+        for (let j = 0; j < n; j++) {
+            if (i === j) continue;
+            const a = panels[i];
+            const b = panels[j];
+            const aCx = (a[0] + a[2]) / 2;
+            const bCx = (b[0] + b[2]) / 2;
+            const aCy = (a[1] + a[3]) / 2;
+            const bCy = (b[1] + b[3]) / 2;
+
+            let readsFirst = false;
+            if (yOverlapFrac(a, b) > OVERLAP_THRESHOLD) {
+                readsFirst = isRTL ? (aCx > bCx) : (aCx < bCx);
+            } else {
+                readsFirst = aCy < bCy;
+            }
+
+            if (readsFirst) {
+                edges[i].push(j);
+                inDegree[j]++;
+            }
+        }
+    }
+
+    const tieBreakKey = (i) => {
+        const p = panels[i];
+        const cx = (p[0] + p[2]) / 2;
+        const cy = (p[1] + p[3]) / 2;
+        return { cy, hx: isRTL ? -cx : cx };
+    };
+
+    const available = [];
+    for (let i = 0; i < n; i++) {
+        if (inDegree[i] === 0) available.push(i);
+    }
+
+    const result = [];
+    while (available.length > 0) {
+        available.sort((idxA, idxB) => {
+            const keyA = tieBreakKey(idxA);
+            const keyB = tieBreakKey(idxB);
+            if (Math.abs(keyA.cy - keyB.cy) > 5) return keyA.cy - keyB.cy;
+            return keyA.hx - keyB.hx;
+        });
+
+        const node = available.shift();
+        result.push(node);
+
+        for (const neighbor of edges[node]) {
+            inDegree[neighbor]--;
+            if (inDegree[neighbor] === 0) {
+                available.push(neighbor);
+            }
+        }
+    }
+
+    if (result.length !== n) {
+        return [...panels].sort((a, b) => a[1] - b[1]);
+    }
+
+    return result.map(i => panels[i]);
+}
+
+async function detectPanelsAI(sourceCanvas) {
+    const session = await initAiPanelDetector();
+    const origW = sourceCanvas.width;
+    const origH = sourceCanvas.height;
+
+    const inputDim = 1024;
+    const scale = Math.min(inputDim / origW, inputDim / origH);
+    const scaledW = Math.round(origW * scale);
+    const scaledH = Math.round(origH * scale);
+    const padX = Math.floor((inputDim - scaledW) / 2);
+    const padY = Math.floor((inputDim - scaledH) / 2);
+
+    const letterboxCanvas = document.createElement('canvas');
+    letterboxCanvas.width = inputDim;
+    letterboxCanvas.height = inputDim;
+    const lCtx = letterboxCanvas.getContext('2d', { willReadFrequently: true });
+
+    // Fill with letterbox padding color (standard YOLO 114 gray)
+    lCtx.fillStyle = 'rgb(114, 114, 114)';
+    lCtx.fillRect(0, 0, inputDim, inputDim);
+    lCtx.drawImage(sourceCanvas, 0, 0, origW, origH, padX, padY, scaledW, scaledH);
+
+    const imgData = lCtx.getImageData(0, 0, inputDim, inputDim).data;
+    const planeSize = inputDim * inputDim;
+    const floatData = new Float32Array(3 * planeSize);
+
+    for (let i = 0; i < planeSize; i++) {
+        const p = i * 4;
+        floatData[i] = imgData[p] / 255.0;
+        floatData[planeSize + i] = imgData[p + 1] / 255.0;
+        floatData[2 * planeSize + i] = imgData[p + 2] / 255.0;
+    }
+
+    const inputName = session.inputNames[0];
+    const tensor = new ort.Tensor('float32', floatData, [1, 3, inputDim, inputDim]);
+    const results = await session.run({ [inputName]: tensor });
+    const outputName = session.outputNames[0];
+    const output = results[outputName];
+    const dims = output.dims;
+    const data = output.data;
+
+    const panelCandidates = [];
+    const textCandidates = [];
+
+    // Model is Ultralytics YOLO26n end2end: dims [1, 300, 6]
+    // where each box has: [x1, y1, x2, y2, score, class_id]
+    // class_id 0 = frame/panel, 1 = text
+    const numDetections = (dims.length === 3) ? (dims[1] === 6 ? dims[2] : dims[1]) : (dims[0] === 6 ? dims[1] : dims[0]);
+    const isChannelFirst = (dims.length === 3 && dims[1] === 6) || (dims.length === 2 && dims[0] === 6);
+
+    for (let i = 0; i < numDetections; i++) {
+        const x1 = isChannelFirst ? data[0 * numDetections + i] : data[i * 6 + 0];
+        const y1 = isChannelFirst ? data[1 * numDetections + i] : data[i * 6 + 1];
+        const x2 = isChannelFirst ? data[2 * numDetections + i] : data[i * 6 + 2];
+        const y2 = isChannelFirst ? data[3 * numDetections + i] : data[i * 6 + 3];
+        const score = isChannelFirst ? data[4 * numDetections + i] : data[i * 6 + 4];
+        const cls = Math.round(isChannelFirst ? data[5 * numDetections + i] : data[i * 6 + 5]);
+
+        if (score < 0.35) continue;
+
+        // Map back from letterbox 1024x1024 to source canvas coordinates
+        const origX1 = Math.max(0, Math.min(origW, (x1 - padX) / scale));
+        const origY1 = Math.max(0, Math.min(origH, (y1 - padY) / scale));
+        const origX2 = Math.max(0, Math.min(origW, (x2 - padX) / scale));
+        const origY2 = Math.max(0, Math.min(origH, (y2 - padY) / scale));
+
+        const box = [Math.round(origX1), Math.round(origY1), Math.round(origX2), Math.round(origY2)];
+        const bw = box[2] - box[0];
+        const bh = box[3] - box[1];
+
+        if (cls === 1) {
+            // Text / Speech bubble: never a panel crop! Used exclusively to expand panels
+            if (score >= 0.40 && bw >= 10 && bh >= 10) {
+                textCandidates.push(box);
+            }
+        } else if (cls === 0) {
+            // Panel frame
+            if (isSliverPanel(box, origW, origH)) continue;
+            if (bw < origW * 0.08 || bh < origH * 0.05) continue;
+            panelCandidates.push({ box, score });
+        }
+    }
+
+    if (panelCandidates.length === 0) {
+        return detectPanelsGrid(sourceCanvas);
+    }
+
+    // Deduplicate overlapping candidate frames into unions
+    let frames = dedupeBoxes(panelCandidates, 0.60);
+
+    // Safeguard: Check page coverage
+    const totalArea = origW * origH;
+    const coveredArea = frames.reduce((sum, b) => sum + boxArea(b), 0);
+    const coverFrac = coveredArea / totalArea;
+
+    // If only one full-page panel found or coverage is too low, use conservative gutter fallback
+    if (frames.length <= 1) {
+        if (frames.length === 1 && isFullPagePanel(frames[0], origW, origH)) {
+            const grid = detectPanelsGrid(sourceCanvas);
+            return grid.length > 1 ? grid : [[0, 0, origW, origH]];
+        }
+        const grid = detectPanelsGrid(sourceCanvas);
+        return grid.length > 1 ? grid : [[0, 0, origW, origH]];
+    }
+
+    if (coverFrac < 0.35) {
+        const grid = detectPanelsGrid(sourceCanvas);
+        if (grid.length > 1) return grid;
+    }
+
+    // Grow panel frames over speech bubbles that straddle borders so text is never sliced
+    frames = expandPanelsOverText(frames, textCandidates, origW, origH);
+
+    return frames;
+}
+
+function renderCroppedToPage(sourceCanvas, crop, targetWidth, targetHeight, bytesPerRow, rotateWide = false) {
+    const pageCanvas = document.createElement('canvas');
+    pageCanvas.width = targetWidth;
+    pageCanvas.height = targetHeight;
+    const ctx = pageCanvas.getContext('2d', { willReadFrequently: true });
+
+    ctx.fillStyle = '#FFFFFF';
+    ctx.fillRect(0, 0, targetWidth, targetHeight);
+
+    if (rotateWide && crop.w > crop.h) {
+        // Optional user setting: rotate wide panel 90 degrees to fill vertical display
+        const scale = Math.min(targetHeight / crop.w, targetWidth / crop.h);
+        const w = crop.w * scale;
+        const h = crop.h * scale;
+
+        ctx.save();
+        ctx.translate(targetWidth / 2, targetHeight / 2);
+        ctx.rotate(-Math.PI / 2);
+        ctx.drawImage(sourceCanvas, crop.x, crop.y, crop.w, crop.h, -w / 2, -h / 2, w, h);
+        ctx.restore();
+    } else {
+        // Natural upright orientation (preserves reading direction and text orientation)
+        const scale = Math.min(targetWidth / crop.w, targetHeight / crop.h);
+        const w = Math.round(crop.w * scale);
+        const h = Math.round(crop.h * scale);
+        const x = Math.round((targetWidth - w) / 2);
+        const y = Math.round((targetHeight - h) / 2);
+        ctx.drawImage(sourceCanvas, crop.x, crop.y, crop.w, crop.h, x, y, w, h);
+    }
+
+    const pageBytes = new Uint8Array(bytesPerRow * targetHeight);
+    applyDitheringAndPack(ctx, pageBytes, 0, targetWidth, targetHeight, bytesPerRow);
+    return pageBytes;
+}
+
+async function extractPagePanels(tempCanvas, tempCtx, panelMode, isRTL, paddingPercent, includeOverview) {
+    const panelsOut = [];
+    const W = tempCanvas.width;
+    const H = tempCanvas.height;
+    const fullCrop = getCropBounds(tempCtx, W, H);
+
+    if (panelMode === 'full') {
+        panelsOut.push(fullCrop);
+        return panelsOut;
+    }
+
+    if (includeOverview) {
+        panelsOut.push(fullCrop);
+    }
+
+    let detected = [];
+    if (panelMode === 'panel_ai') {
+        try {
+            detected = await detectPanelsAI(tempCanvas);
+        } catch (aiErr) {
+            logMessage(`AI detection note: ${aiErr.message}. Using gutter detection.`, true);
+            detected = detectPanelsGrid(tempCanvas);
+        }
+    } else {
+        detected = detectPanelsGrid(tempCanvas);
+    }
+
+    if (!detected || detected.length === 0) {
+        if (!includeOverview) {
+            panelsOut.push(fullCrop);
+        }
+        return panelsOut;
+    }
+
+    // If only 1 panel was detected and it covers almost full page, treat as full page
+    if (detected.length === 1 && isFullPagePanel(detected[0], W, H)) {
+        if (!includeOverview) {
+            panelsOut.push(fullCrop);
+        }
+        return panelsOut;
+    }
+
+    // Sort in topological reading order (RTL for manga, LTR for western comic)
+    const sorted = sortPanelsReadingOrder(detected, isRTL);
+
+    for (const b of sorted) {
+        const bw = b[2] - b[0];
+        const bh = b[3] - b[1];
+        const padX = bw * paddingPercent;
+        const padY = bh * paddingPercent;
+        const cx = Math.max(0, Math.floor(b[0] - padX));
+        const cy = Math.max(0, Math.floor(b[1] - padY));
+        const cw = Math.min(W - cx, Math.ceil(bw + padX * 2));
+        const ch = Math.min(H - cy, Math.ceil(bh + padY * 2));
+
+        if (cw > 20 && ch > 20) {
+            panelsOut.push({ x: cx, y: cy, w: cw, h: ch });
+        }
+    }
+
+    if (panelsOut.length === 0) {
+        panelsOut.push(fullCrop);
+    }
+
+    return panelsOut;
+}
+
 async function createRawImageBlob(bitmap, maxWidth, maxHeight) {
     let scale = Math.min(maxWidth / bitmap.width, maxHeight / bitmap.height);
     if (scale > 1.0) scale = 1.0;
@@ -322,6 +922,12 @@ async function processInputFiles(droppedFiles = null) {
 async function processArchive(file) {
     const targetWidth = parseInt(document.getElementById('eink-width').value);
     const targetHeight = parseInt(document.getElementById('eink-height').value);
+    const panelMode = document.getElementById('panel-mode')?.value || 'full';
+    const isRTL = (document.getElementById('panel-order')?.value || 'rtl') === 'rtl';
+    const paddingPercent = parseInt(document.getElementById('panel-padding')?.value || '3') / 100;
+    const includeOverview = document.getElementById('panel-overview')?.checked || false;
+    const rotateWide = document.getElementById('panel-rotate')?.checked || false;
+
     const progressBar = document.getElementById('comic-progress-bar');
     const progressContainer = document.getElementById('comic-progress');
 
@@ -341,26 +947,22 @@ async function processArchive(file) {
         }
 
         const pageCount = imgFiles.length;
-        logMessage(`Found ${pageCount} pages. Starting KMB conversion...`);
+        const modeLabel = panelMode === 'panel_ai' ? 'Panel Focus (AI)' : (panelMode === 'panel_gutter' ? 'Panel Focus (Gutter)' : 'Full Page');
+        logMessage(`Found ${pageCount} pages. Mode: ${modeLabel}. Starting KMB conversion...`);
+
+        let effectivePanelMode = panelMode;
+        if (panelMode === 'panel_ai') {
+            try {
+                await initAiPanelDetector();
+            } catch (aiInitErr) {
+                logMessage(`AI model initialization failed (${aiInitErr.message}). Falling back to Smart Gutter detection.`, true);
+                effectivePanelMode = 'panel_gutter';
+            }
+        }
 
         const coverLen = 3040; // 640 bytes thumb (60x80) + 2400 bytes main cover (120x160)
         const bytesPerRow = Math.ceil(targetWidth / 8);
         const bytesPerPage = bytesPerRow * targetHeight;
-        const totalSize = 16 + coverLen + (bytesPerPage * pageCount);
-
-        const kmbBuffer = new ArrayBuffer(totalSize);
-        const kmbView = new DataView(kmbBuffer);
-        const kmbBytes = new Uint8Array(kmbBuffer);
-
-        kmbView.setUint8(0, 'K'.charCodeAt(0));
-        kmbView.setUint8(1, 'M'.charCodeAt(0));
-        kmbView.setUint8(2, 'B'.charCodeAt(0));
-        kmbView.setUint8(3, '1'.charCodeAt(0));
-        kmbView.setUint16(4, 3, true);
-        kmbView.setUint16(6, targetWidth, true);
-        kmbView.setUint16(8, targetHeight, true);
-        kmbView.setUint16(10, pageCount, true);
-        kmbView.setUint32(12, coverLen, true);
 
         // Generate and inject high-quality dual thumbnails from the first page (cover)
         logMessage("Generating high-quality dual thumbnails for KMB...");
@@ -371,21 +973,13 @@ async function processArchive(file) {
         const mainCoverBlob = await createMainCoverBlob(firstBitmap);
         const thumbBuffer = await thumbBlob.arrayBuffer();
         const mainCoverBuffer = await mainCoverBlob.arrayBuffer();
-
-        kmbBytes.set(new Uint8Array(thumbBuffer), 16);
-        kmbBytes.set(new Uint8Array(mainCoverBuffer), 16 + 640);
         firstBitmap.close();
 
-        let offset = 16 + coverLen;
-
-        const canvas = document.createElement('canvas');
-        canvas.width = targetWidth;
-        canvas.height = targetHeight;
-        const ctx = canvas.getContext('2d', { willReadFrequently: true });
+        const pageBuffers = [];
 
         for (let i = 0; i < pageCount; i++) {
-            progressBar.style.width = `${10 + (i / pageCount * 80)}%`;
-            logMessage(`Processing page ${i + 1}/${pageCount}`);
+            progressBar.style.width = `${5 + (i / pageCount * 85)}%`;
+            logMessage(`Processing source page ${i + 1}/${pageCount}...`);
 
             const imgData = await zip.file(imgFiles[i]).async("blob");
             const bitmap = await createImageBitmap(imgData);
@@ -398,38 +992,43 @@ async function processArchive(file) {
             tempCtx.fillRect(0, 0, tempCanvas.width, tempCanvas.height);
             tempCtx.drawImage(bitmap, 0, 0);
 
-            const crop = getCropBounds(tempCtx, tempCanvas.width, tempCanvas.height);
-
-            ctx.fillStyle = '#FFFFFF';
-            ctx.fillRect(0, 0, targetWidth, targetHeight);
-
-            if (crop.w > crop.h) {
-                const scale = Math.min(targetHeight / crop.w, targetWidth / crop.h);
-                const w = crop.w * scale;
-                const h = crop.h * scale;
-
-                ctx.save();
-                ctx.translate(targetWidth / 2, targetHeight / 2);
-                ctx.rotate(-Math.PI / 2);
-                ctx.drawImage(tempCanvas, crop.x, crop.y, crop.w, crop.h, -w / 2, -h / 2, w, h);
-                ctx.restore();
-            } else {
-                const scale = Math.min(targetWidth / crop.w, targetHeight / crop.h);
-                const w = crop.w * scale;
-                const h = crop.h * scale;
-                const x = (targetWidth - w) / 2;
-                const y = (targetHeight - h) / 2;
-                ctx.drawImage(tempCanvas, crop.x, crop.y, crop.w, crop.h, x, y, w, h);
+            const crops = await extractPagePanels(tempCanvas, tempCtx, effectivePanelMode, isRTL, paddingPercent, includeOverview);
+            for (const crop of crops) {
+                pageBuffers.push(renderCroppedToPage(tempCanvas, crop, targetWidth, targetHeight, bytesPerRow, rotateWide));
             }
 
-            applyDitheringAndPack(ctx, kmbBytes, offset, targetWidth, targetHeight, bytesPerRow);
-
-            offset += bytesPerPage;
             bitmap.close();
         }
 
+        const finalPageCount = pageBuffers.length;
+        logMessage(`Conversion completed: generated ${finalPageCount} e-paper pages. Packing KMB...`);
+
+        const totalSize = 16 + coverLen + (bytesPerPage * finalPageCount);
+        const kmbBuffer = new ArrayBuffer(totalSize);
+        const kmbView = new DataView(kmbBuffer);
+        const kmbBytes = new Uint8Array(kmbBuffer);
+
+        kmbView.setUint8(0, 'K'.charCodeAt(0));
+        kmbView.setUint8(1, 'M'.charCodeAt(0));
+        kmbView.setUint8(2, 'B'.charCodeAt(0));
+        kmbView.setUint8(3, '1'.charCodeAt(0));
+        kmbView.setUint16(4, 3, true);
+        kmbView.setUint16(6, targetWidth, true);
+        kmbView.setUint16(8, targetHeight, true);
+        kmbView.setUint16(10, finalPageCount, true);
+        kmbView.setUint32(12, coverLen, true);
+
+        kmbBytes.set(new Uint8Array(thumbBuffer), 16);
+        kmbBytes.set(new Uint8Array(mainCoverBuffer), 16 + 640);
+
+        let offset = 16 + coverLen;
+        for (let p = 0; p < finalPageCount; p++) {
+            kmbBytes.set(pageBuffers[p], offset);
+            offset += bytesPerPage;
+        }
+
         progressBar.style.width = '95%';
-        logMessage("Conversion completed. Preparing upload...");
+        logMessage("Packing complete. Preparing upload...");
 
         let rawName = file.name.replace(/\.(zip|cbz)$/i, '');
         let safeName = rawName.normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-zA-Z0-9_\-\s]/g, "") + '.kmb';
@@ -445,6 +1044,12 @@ async function processArchive(file) {
 async function processPDF(file) {
     const targetWidth = parseInt(document.getElementById('eink-width').value);
     const targetHeight = parseInt(document.getElementById('eink-height').value);
+    const panelMode = document.getElementById('panel-mode')?.value || 'full';
+    const isRTL = (document.getElementById('panel-order')?.value || 'rtl') === 'rtl';
+    const paddingPercent = parseInt(document.getElementById('panel-padding')?.value || '3') / 100;
+    const includeOverview = document.getElementById('panel-overview')?.checked || false;
+    const rotateWide = document.getElementById('panel-rotate')?.checked || false;
+
     const progressBar = document.getElementById('comic-progress-bar');
     const progressContainer = document.getElementById('comic-progress');
 
@@ -457,26 +1062,22 @@ async function processPDF(file) {
         const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
 
         const pageCount = pdf.numPages;
-        logMessage(`PDF loaded. Found ${pageCount} pages.`);
+        const modeLabel = panelMode === 'panel_ai' ? 'Panel Focus (AI)' : (panelMode === 'panel_gutter' ? 'Panel Focus (Gutter)' : 'Full Page');
+        logMessage(`PDF loaded. Found ${pageCount} pages. Mode: ${modeLabel}.`);
+
+        let effectivePanelMode = panelMode;
+        if (panelMode === 'panel_ai') {
+            try {
+                await initAiPanelDetector();
+            } catch (aiInitErr) {
+                logMessage(`AI model initialization failed (${aiInitErr.message}). Falling back to Smart Gutter detection.`, true);
+                effectivePanelMode = 'panel_gutter';
+            }
+        }
 
         const coverLen = 3040; // 640 bytes thumb (60x80) + 2400 bytes main cover (120x160)
         const bytesPerRow = Math.ceil(targetWidth / 8);
         const bytesPerPage = bytesPerRow * targetHeight;
-        const totalSize = 16 + coverLen + (bytesPerPage * pageCount);
-
-        const kmbBuffer = new ArrayBuffer(totalSize);
-        const kmbView = new DataView(kmbBuffer);
-        const kmbBytes = new Uint8Array(kmbBuffer);
-
-        kmbView.setUint8(0, 'K'.charCodeAt(0));
-        kmbView.setUint8(1, 'M'.charCodeAt(0));
-        kmbView.setUint8(2, 'B'.charCodeAt(0));
-        kmbView.setUint8(3, '1'.charCodeAt(0));
-        kmbView.setUint16(4, 3, true);
-        kmbView.setUint16(6, targetWidth, true);
-        kmbView.setUint16(8, targetHeight, true);
-        kmbView.setUint16(10, pageCount, true);
-        kmbView.setUint32(12, coverLen, true);
 
         // Generate high-quality dual thumbnails from the first PDF page
         logMessage("Generating high-quality dual thumbnails for PDF cover...");
@@ -499,30 +1100,24 @@ async function processPDF(file) {
         const mainCoverBlob = await createMainCoverBlob(firstBitmap);
         const thumbBuffer = await thumbBlob.arrayBuffer();
         const mainCoverBuffer = await mainCoverBlob.arrayBuffer();
-
-        kmbBytes.set(new Uint8Array(thumbBuffer), 16);
-        kmbBytes.set(new Uint8Array(mainCoverBuffer), 16 + 640);
         firstBitmap.close();
 
-        let offset = 16 + coverLen; const canvas = document.createElement('canvas');
-        canvas.width = targetWidth;
-        canvas.height = targetHeight;
-        const ctx = canvas.getContext('2d', { willReadFrequently: true });
+        const pageBuffers = [];
 
         for (let i = 1; i <= pageCount; i++) {
-            progressBar.style.width = `${10 + (i / pageCount * 80)}%`;
+            progressBar.style.width = `${5 + (i / pageCount * 85)}%`;
             logMessage(`Rendering PDF page ${i}/${pageCount}...`);
 
             const page = await pdf.getPage(i);
             let baseViewport = page.getViewport({ scale: 1.0 });
             let pageRotation = baseViewport.rotation;
 
-            if (baseViewport.width > baseViewport.height) {
+            if (effectivePanelMode === 'full' && baseViewport.width > baseViewport.height) {
                 pageRotation = (pageRotation + 270) % 360;
             }
 
             let rotatedViewport = page.getViewport({ scale: 1.0, rotation: pageRotation });
-            const baseScale = Math.min(targetWidth / rotatedViewport.width, targetHeight / rotatedViewport.height) * 2.0;
+            const baseScale = Math.max(1.5, Math.min(2048 / rotatedViewport.width, 2048 / rotatedViewport.height));
             const hiResViewport = page.getViewport({ scale: baseScale, rotation: pageRotation });
 
             const tempCanvas = document.createElement('canvas');
@@ -539,25 +1134,42 @@ async function processPDF(file) {
             };
 
             await page.render(renderContext).promise;
-            const crop = getCropBounds(tempCtx, tempCanvas.width, tempCanvas.height);
 
-            ctx.fillStyle = '#FFFFFF';
-            ctx.fillRect(0, 0, targetWidth, targetHeight);
+            const crops = await extractPagePanels(tempCanvas, tempCtx, effectivePanelMode, isRTL, paddingPercent, includeOverview);
+            for (const crop of crops) {
+                pageBuffers.push(renderCroppedToPage(tempCanvas, crop, targetWidth, targetHeight, bytesPerRow, rotateWide));
+            }
+        }
 
-            const finalScale = Math.min(targetWidth / crop.w, targetHeight / crop.h);
-            const w = crop.w * finalScale;
-            const h = crop.h * finalScale;
-            const x = (targetWidth - w) / 2;
-            const y = (targetHeight - h) / 2;
+        const finalPageCount = pageBuffers.length;
+        logMessage(`PDF conversion completed: generated ${finalPageCount} e-paper pages. Packing KMB...`);
 
-            ctx.drawImage(tempCanvas, crop.x, crop.y, crop.w, crop.h, x, y, w, h);
+        const totalSize = 16 + coverLen + (bytesPerPage * finalPageCount);
+        const kmbBuffer = new ArrayBuffer(totalSize);
+        const kmbView = new DataView(kmbBuffer);
+        const kmbBytes = new Uint8Array(kmbBuffer);
 
-            applyDitheringAndPack(ctx, kmbBytes, offset, targetWidth, targetHeight, bytesPerRow);
+        kmbView.setUint8(0, 'K'.charCodeAt(0));
+        kmbView.setUint8(1, 'M'.charCodeAt(0));
+        kmbView.setUint8(2, 'B'.charCodeAt(0));
+        kmbView.setUint8(3, '1'.charCodeAt(0));
+        kmbView.setUint16(4, 3, true);
+        kmbView.setUint16(6, targetWidth, true);
+        kmbView.setUint16(8, targetHeight, true);
+        kmbView.setUint16(10, finalPageCount, true);
+        kmbView.setUint32(12, coverLen, true);
+
+        kmbBytes.set(new Uint8Array(thumbBuffer), 16);
+        kmbBytes.set(new Uint8Array(mainCoverBuffer), 16 + 640);
+
+        let offset = 16 + coverLen;
+        for (let p = 0; p < finalPageCount; p++) {
+            kmbBytes.set(pageBuffers[p], offset);
             offset += bytesPerPage;
         }
 
         progressBar.style.width = '95%';
-        logMessage("PDF Conversion completed. Preparing upload...");
+        logMessage("PDF Packing complete. Preparing upload...");
 
         let rawName = file.name.replace(/\.pdf$/i, '');
         let safeName = rawName.normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-zA-Z0-9_\-\s]/g, "") + '.kmb';

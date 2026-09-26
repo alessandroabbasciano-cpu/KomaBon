@@ -70,8 +70,34 @@
                                 them directly.</p>
 
                             <details class="advanced-settings subtle-details inline-details">
-                                <summary>Advanced Resolution Options</summary>
+                                <summary>Conversion &amp; Panel Options</summary>
                                 <div class="setting-row compact-row">
+                                    <label for="panel-mode">Mode:</label>
+                                    <select id="panel-mode" class="input-micro" style="width: auto; min-width: 140px;" onchange="togglePanelOptions()">
+                                        <option value="full">Full Page</option>
+                                        <option value="panel_ai">Panel Focus (AI)</option>
+                                        <option value="panel_gutter">Panel Focus (Gutter)</option>
+                                    </select>
+                                </div>
+                                <div id="panel-options-container" class="hidden" style="margin-top: 8px;">
+                                    <div class="setting-row compact-row">
+                                        <label for="panel-order">Order:</label>
+                                        <select id="panel-order" class="input-micro" style="width: auto;">
+                                            <option value="rtl">Manga (RTL)</option>
+                                            <option value="ltr">Comic (LTR)</option>
+                                        </select>
+                                    </div>
+                                    <div class="setting-row compact-row" style="margin-top: 6px;">
+                                        <label for="panel-padding">Padding:</label>
+                                        <input type="number" id="panel-padding" value="3" min="0" max="15" class="input-micro" title="Margin padding around panels (%)">
+                                        <span style="font-size: 11px; color: var(--muted); margin-left: -4px;">%</span>
+                                        <label for="panel-overview" style="margin-left: 8px;">Overview:</label>
+                                        <input type="checkbox" id="panel-overview" title="Include full page overview before panels">
+                                        <label for="panel-rotate" style="margin-left: 8px;">Rotate Wide:</label>
+                                        <input type="checkbox" id="panel-rotate" title="Rotate wide panels 90 degrees to fill screen (requires turning device)">
+                                    </div>
+                                </div>
+                                <div class="setting-row compact-row" style="margin-top: 8px;">
                                     <label for="eink-width">W:</label>
                                     <input type="number" id="eink-width" value="480" class="input-micro">
                                     <label for="eink-height">H:</label>

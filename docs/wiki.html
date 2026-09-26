@@ -94,6 +94,7 @@
           <li><a href="#converter-overview">In-Browser Universal Pipeline</a></li>
           <li><a href="#supported-formats">Supported Formats (CBZ, EPUB, PDF)</a></li>
           <li><a href="#dithering-cropping">Atkinson Dithering & Auto-Crop</a></li>
+          <li><a href="#panel-focus-mode">Smart Panel Focus Mode (AI)</a></li>
           <li><a href="#kmb-format">The .kmb Binary Comic Format</a></li>
         </ul>
       </div>
@@ -537,6 +538,18 @@ python -m espefuse --port &lt;YOUR_COM_PORT&gt; burn_efuse DIS_PAD_JTAG
         <p>
           Grayscale and color images are translated into binary black-and-white using <strong>Atkinson Dithering</strong>, preserving delicate line art, screentones, and gradients without the harsh clustering artifacts typical of Floyd-Steinberg dithering.
         </p>
+
+        <h3 id="panel-focus-mode">Smart Panel Focus Mode (AI &amp; Gutter Detection)</h3>
+        <p>
+          For readers who prefer reading individual panels zoomed-in to full screen, the converter provides <strong>Panel Focus Mode</strong>:
+        </p>
+        <ul>
+          <li><strong>AI Panel Detector (YOLO26-nano):</strong> An in-browser neural network fine-tuned on manga layouts that identifies individual panel frames, speech balloon relationships, and complex action sequences. Hardware-accelerated via WebGPU and WebAssembly SIMD.</li>
+          <li><strong>Smart Gutter Splitter (Fallback):</strong> A mathematical white-space projection algorithm that slices grid-based pages along whitespace gutters with zero external downloads.</li>
+          <li><strong>Authentic Reading Order:</strong> Graph-based topological sort automatically sequences detected panels according to genuine reading order: <strong>RTL (Right-to-Left)</strong> for Japanese manga or <strong>LTR (Left-to-Right)</strong> for Western comics.</li>
+          <li><strong>Natural Upright Scaling &amp; Text Protection:</strong> Automatically scales panels to fit the screen while keeping text and artwork right-side up. Speech bubbles straddling borders are dynamically included to prevent cut dialogue, with optional 90° rotation for wide landscape panels.</li>
+          <li><strong>Configurable Padding &amp; Overview:</strong> Adds custom safety margins (default 3–5%) around panel bounding boxes and supports an optional full-page overview before panel sequence.</li>
+        </ul>
 
         <h3 id="kmb-format">The .kmb Binary Comic Format</h3>
         <p>

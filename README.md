@@ -18,8 +18,9 @@ The true beating heart of KomaBon is its **Universal Conversion Pipeline**, impl
 1. **Archive & Document Ingestion:** The engine unpacks CBZ/ZIP comic archives, parses PDF pages, or extracts text/images from ODT and EPUB files directly inside the browser.
 2. **Smart Bounding-Box Cropping:** Automatically detects active image bounds (`getCropBounds`), stripping away unnecessary white margins to maximize the usable display area on the 7.5-inch panel.
 3. **Aspect Ratio & Orientation Alignment:** Automatically handles landscape-to-portrait rotation or centers panels to fit the native **800x480** resolution.
-4. **Atkinson Dithering & 1-Bit Packing:** Converts grayscale or full-color images into pure 1-bit black/white bitmaps using **Atkinson dithering**, packing pixels efficiently into custom binary payloads (`.kmb` raw comic files or optimized zero-decoding `.epub` archives).
-5. **Native Dual-Thumbnails Injection:** Automatically extracts or generates high-performance 60x80 and 120x160 thumbnails (`cover_thumb.raw`, `cover_main.raw`) for instant library rendering and main menu hero cards without runtime decoding overhead.
+4. **Smart Panel Focus Mode (AI & Gutter Detection):** In addition to full-page mode, an integrated client-side YOLO26-nano neural model (with geometric gutter fallback) detects individual manga panels and automatically sequences them in genuine reading order (RTL for manga, LTR for comics), zooming each panel to full screen for maximum readability.
+5. **Atkinson Dithering & 1-Bit Packing:** Converts grayscale or full-color images into pure 1-bit black/white bitmaps using **Atkinson dithering**, packing pixels efficiently into custom binary payloads (`.kmb` raw comic files or optimized zero-decoding `.epub` archives).
+6. **Native Dual-Thumbnails Injection:** Automatically extracts or generates high-performance 60x80 and 120x160 thumbnails (`cover_thumb.raw`, `cover_main.raw`) for instant library rendering and main menu hero cards without runtime decoding overhead.
 
 ## 🚀 Key Hardware Specifications
 
