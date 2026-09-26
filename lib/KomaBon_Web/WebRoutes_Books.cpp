@@ -251,7 +251,11 @@ static bool deleteSingleBookInternal(const String& filename) {
 
     String path = "/" + filename;
     if (!EbookFS.exists(path)) return false;
-    if (!EbookFS.remove(path)) return false;
+    if (!EbookFS.remove(path)) {
+        Serial.printf("[HTTP] DELETE ERROR: Could not remove '%s' from storage\n", path.c_str());
+        return false;
+    }
+    Serial.printf("[HTTP] Book deleted: '%s'\n", filename.c_str());
 
     removeBookProgress(filename);
     removeFromBookOrder(filename);
@@ -283,48 +287,71 @@ void setupBookEndpoints(AsyncWebServer* server) {
             return;
         }
 
-        std::vector<String> epubs, fonts;
+        struct BookListItem {
+            String name;
+            size_t size;
+        };
+
+        std::vector<BookListItem> epubs, fonts;
         File root = EbookFS.open("/");
         if (root && root.isDirectory()) {
             File file = root.openNextFile();
             while (file) {
                 String name = file.name();
+                int slash = name.lastIndexOf('/');
+                if (slash >= 0) name = name.substring(slash + 1);
                 if (hasExtensionCI(name, ".epub") || hasExtensionCI(name, ".kmb"))
-                    epubs.push_back(name);
+                    epubs.push_back({name, file.size()});
                 else if (hasExtensionCI(name, ".ttf"))
-                    fonts.push_back(name);
+                    fonts.push_back({name, file.size()});
                 file.close();
                 file = root.openNextFile();
             }
             root.close();
         }
 
+        Serial.printf("[HTTP] GET /api/books: %u books loaded\n", (unsigned)epubs.size());
+
         std::vector<String> order;
         loadBookOrder(order);
-        applyBookOrder(order, epubs);
-        for (const String& f : fonts)
+        applyBookOrderT(order, epubs,
+                        [](const BookListItem& item, const String& key) { return item.name == key; });
+        for (const auto& f : fonts)
             epubs.push_back(f);
+
+        std::map<String, String> metaMap;
+        loadBookMetadata(metaMap);
 
         AsyncResponseStream* response = request->beginResponseStream("application/json");
         response->print("{\"books\":[");
         bool first = true;
-        for (const String& name : epubs) {
-            File f = EbookFS.open("/" + name, FILE_READ);
-            size_t sz = f ? f.size() : 0;
-            uint16_t kmbPages = 0;
-            if (f && hasExtensionCI(name, ".kmb") && sz > 12) {
-                char magic[5] = {0};
-                f.readBytes(magic, 4);
-                if (strcmp(magic, "KMB1") == 0) {
-                    f.seek(10);
-                    f.read((uint8_t*)&kmbPages, 2);
-                }
-            }
-            if (f) f.close();
+        for (const auto& item : epubs) {
+            const String& name = item.name;
+            size_t sz = item.size;
 
-            String origName = getOriginalFilename(name);
-            int totalPages = kmbPages;
-            if (totalPages == 0 && hasExtensionCI(name, ".epub")) {
+            auto itMeta = metaMap.find(name);
+            String origName = (itMeta != metaMap.end()) ? itMeta->second : name;
+
+            int totalPages = 0;
+            bool isKmb = hasExtensionCI(name, ".kmb");
+            if (isKmb) {
+                totalPages = PageCountStore::getInstance().getTotal(origName);
+                if (totalPages == 0 && sz > 12) {
+                    File f = EbookFS.open("/" + name, FILE_READ);
+                    if (f) {
+                        char magic[5] = {0};
+                        f.readBytes(magic, 4);
+                        if (strcmp(magic, "KMB1") == 0) {
+                            f.seek(10);
+                            uint16_t kmbPages = 0;
+                            f.read((uint8_t*)&kmbPages, 2);
+                            totalPages = kmbPages;
+                            PageCountStore::getInstance().set(origName, 0, 0, totalPages);
+                        }
+                        f.close();
+                    }
+                }
+            } else if (hasExtensionCI(name, ".epub")) {
                 totalPages = PageCountStore::getInstance().getTotal(origName);
             }
 
@@ -345,6 +372,9 @@ void setupBookEndpoints(AsyncWebServer* server) {
                              "\"percent\":%d}",
                              jsonEscape(origName).c_str(), jsonEscape(name).c_str(), (unsigned)sz,
                              currentPage, totalPages, percent);
+
+            vTaskDelay(pdMS_TO_TICKS(1));
+            yield();
         }
         response->print("]}");
         request->send(response);
@@ -384,23 +414,29 @@ void setupBookEndpoints(AsyncWebServer* server) {
 
             switch (g_uploadState.status) {
                 case UploadStatus::Ok: {
+                    Serial.printf("[HTTP] Upload SUCCESS: '%s'\n", g_uploadState.finalName.c_str());
                     String body = "{\"ok\":true,\"name\":\"" + jsonEscape(g_uploadState.finalName) + "\"}";
                     request->send(200, "application/json", body);
                     break;
                 }
                 case UploadStatus::BadExtension:
+                    Serial.printf("[HTTP] Upload REJECTED: unsupported file extension\n");
                     request->send(415, "application/json",
                                   "{\"ok\":false,\"error\":\"unsupported file type\"}");
                     break;
                 case UploadStatus::UnsafeName:
+                    Serial.printf("[HTTP] Upload REJECTED: invalid filename\n");
                     request->send(400, "application/json", "{\"ok\":false,\"error\":\"invalid filename\"}");
                     break;
                 case UploadStatus::NoSpace:
+                    Serial.printf("[HTTP] Upload REJECTED: out of storage space\n");
                     request->send(507, "application/json",
                                   "{\"ok\":false,\"error\":\"out of storage space\"}");
                     break;
                 case UploadStatus::WriteFailed:
                 default:
+                    Serial.printf("[HTTP] Upload FAILED (500): storage write failure for '%s'\n",
+                                  g_uploadState.finalName.c_str());
                     request->send(500, "application/json",
                                   "{\"ok\":false,\"error\":\"storage write failure\"}");
                     break;
@@ -490,8 +526,13 @@ void setupBookEndpoints(AsyncWebServer* server) {
 
                 g_uploadState.path = "/" + safeName;
                 g_uploadState.tempPath = g_uploadState.path + ".part";
+                Serial.printf("[HTTP] Upload START: '%s' (target: '%s', size: %u bytes)\n", filename.c_str(),
+                              safeName.c_str(), (unsigned)request->contentLength());
+
                 g_uploadState.file = EbookFS.open(g_uploadState.tempPath, FILE_WRITE);
                 if (!g_uploadState.file) {
+                    Serial.printf("[HTTP] Upload ERROR: Failed to open '%s' for write on storage\n",
+                                  g_uploadState.tempPath.c_str());
                     g_uploadState.status = UploadStatus::WriteFailed;
                     return;
                 }
@@ -501,7 +542,11 @@ void setupBookEndpoints(AsyncWebServer* server) {
             if (g_uploadState.owner != request || g_uploadState.status != UploadStatus::Ok) return;
 
             if (g_uploadState.file && len) {
-                if (g_uploadState.file.write(data, len) != len) {
+                size_t written = g_uploadState.file.write(data, len);
+                if (written != len) {
+                    Serial.printf(
+                        "[HTTP] Upload ERROR: Write failure at offset %u (attempted %u, wrote %u bytes)\n",
+                        (unsigned)index, (unsigned)len, (unsigned)written);
                     g_uploadState.file.close();
                     EbookFS.remove(g_uploadState.tempPath);
                     g_uploadState.status = UploadStatus::WriteFailed;
@@ -514,6 +559,8 @@ void setupBookEndpoints(AsyncWebServer* server) {
             if (final && g_uploadState.file) {
                 g_uploadState.file.close();
                 if (!EbookFS.rename(g_uploadState.tempPath, g_uploadState.path)) {
+                    Serial.printf("[HTTP] Upload ERROR: Failed to rename '%s' to '%s'\n",
+                                  g_uploadState.tempPath.c_str(), g_uploadState.path.c_str());
                     EbookFS.remove(g_uploadState.tempPath);
                     g_uploadState.status = UploadStatus::WriteFailed;
                     return;
@@ -557,11 +604,15 @@ void setupBookEndpoints(AsyncWebServer* server) {
                 } else {
                     failed++;
                 }
+                vTaskDelay(pdMS_TO_TICKS(2));
+                yield();
             }
 
             if (deleted > 0 && EbookFS.exists("/page_totals.json")) {
                 EbookFS.remove("/page_totals.json");
             }
+
+            Serial.printf("[HTTP] Bulk delete: %d deleted, %d failed\n", deleted, failed);
 
             AsyncResponseStream* response = request->beginResponseStream("application/json");
             response->printf("{\"status\":\"ok\",\"deleted\":%d,\"failed\":%d}", deleted, failed);

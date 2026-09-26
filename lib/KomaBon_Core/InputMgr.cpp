@@ -55,7 +55,6 @@ void InputMgr::update() {
             if (current) current->forceRedraw();
             continue;
         }
-        Serial.printf("InputMgr::update() - dispatching action %d to callback\n", action);
         if (callback) callback(action);
     }
 }
@@ -85,6 +84,7 @@ void InputMgr::inputTask(void* parameter) {
 
         self->_isInteracting = (key1Pressed || key2Pressed || joyActive);
 
+#if KOMABON_PIN_DIAG
         {
             uint8_t snapshot =
                 (uint8_t)((key1Pressed ? 0 : 0x01) | (key2Pressed ? 0 : 0x02) | (key3Pressed ? 0 : 0x04));
@@ -95,6 +95,7 @@ void InputMgr::inputTask(void* parameter) {
                               JOY_ADC_PIN, (snapshot & 0x04) ? 1 : 0);
             }
         }
+#endif
 
         if ((key1Pressed || key2Pressed || joyActive) &&
             (self->_lastIdleResetTime == 0 || (now - self->_lastIdleResetTime) >= IDLE_RESET_THROTTLE_MS)) {

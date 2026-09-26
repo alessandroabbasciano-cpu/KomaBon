@@ -61,6 +61,7 @@
 // Set to 1 when debugging partition/filesystem issues. Keeping this off makes
 // normal startup quieter and avoids walking the ebook filesystem every boot.
 #define KOMABON_VERBOSE_BOOT_LOG 0
+#define KOMABON_PIN_DIAG 0
 
 // Manual standby (KEY2 long press, ~1.5s — see StandbyGuard.h). At 0, only
 // the automatic idle sleep stays active (BatteryMgr's inactivity timeout,

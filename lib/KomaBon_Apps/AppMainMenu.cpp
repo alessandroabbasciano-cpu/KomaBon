@@ -255,15 +255,22 @@ void AppMainMenu::draw() {
             if (realFilename.length() == 0) realFilename = _lastBookTitle;
 
             String baseName = realFilename;
+            int slash = baseName.lastIndexOf('/');
+            if (slash >= 0) baseName = baseName.substring(slash + 1);
             int dot = baseName.lastIndexOf('.');
             if (dot > 0) baseName = baseName.substring(0, dot);
             String coverPath = "/covers/" + baseName + ".cover";
 
             if (!SystemFS.exists(coverPath)) {
                 if (!SystemFS.exists("/covers")) SystemFS.mkdir("/covers");
-                if (realFilename.endsWith(".kmb")) {
+                String cleanName = realFilename;
+                if (cleanName.startsWith("/")) cleanName = cleanName.substring(1);
+                String kbPath = "/" + cleanName;
+                String epubPath = "/ebooks/" + cleanName;
+
+                if (cleanName.endsWith(".kmb")) {
                     KBReader* kb = new KBReader();
-                    if (kb->open(("/ebooks/" + realFilename).c_str()) || kb->open(realFilename.c_str())) {
+                    if (kb->open(kbPath.c_str())) {
                         uint16_t w = kb->getWidth();
                         uint16_t h = kb->getHeight();
                         size_t bufSize = static_cast<size_t>(w + 7) / 8 * h;
@@ -292,7 +299,7 @@ void AppMainMenu::draw() {
                     delete kb;
                 } else {
                     EpubLoader* epub = new EpubLoader();
-                    if (epub->open(("/ebooks/" + realFilename).c_str()) || epub->open(realFilename.c_str())) {
+                    if (epub->open(epubPath.c_str()) || epub->open(kbPath.c_str())) {
                         size_t coverSize = 0;
                         uint8_t* coverData = epub->getRawZipData("cover_main.raw", &coverSize);
                         if (coverData && coverSize == 2400) {
