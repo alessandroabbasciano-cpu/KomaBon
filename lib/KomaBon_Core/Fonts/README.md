@@ -30,14 +30,14 @@ the split guarantees a single copy.
 They were chosen as freely-licensed substitutes for two proprietary,
 non-redistributable typefaces:
 
-| Header             | Font (as embedded)      | Substitute for   | License                  |
-|---------------------|--------------------------|------------------|---------------------------|
-| `Merriweather.h/.cpp` | Merriweather            | Bookerly (Amazon, proprietary) | SIL Open Font License 1.1 |
-| `Literata.h/.cpp`   | Literata                  | (requested directly) | SIL Open Font License 1.1 |
-| `SourceSerif4.h/.cpp` | Source Serif 4          | Source Serif Pro (renamed by Adobe) | SIL Open Font License 1.1 |
-| `Gelasio.h/.cpp`    | Gelasio                   | Georgia (Microsoft, proprietary) | SIL Open Font License 1.1 |
-| `FreeSans.h/.cpp`   | GNU FreeFont FreeSans     | Adafruit FreeSans (ASCII-only) | GPLv3 with font exception |
-| `OpenSans.h/.cpp`   | Open Sans                 | (extra sans-serif option, not a substitute) | SIL Open Font License 1.1 |
+| Header | Font (as embedded) | Substitute for | License |
+| --------------------- | -------------------------- | ------------------ | --------------------------- |
+| `Merriweather.h/.cpp` | Merriweather | Bookerly (Amazon, proprietary) | SIL Open Font License 1.1 |
+| `Literata.h/.cpp` | Literata | (requested directly) | SIL Open Font License 1.1 |
+| `SourceSerif4.h/.cpp` | Source Serif 4 | Source Serif Pro (renamed by Adobe) | SIL Open Font License 1.1 |
+| `Gelasio.h/.cpp` | Gelasio | Georgia (Microsoft, proprietary) | SIL Open Font License 1.1 |
+| `FreeSans.h/.cpp` | GNU FreeFont FreeSans | Adafruit FreeSans (ASCII-only) | GPLv3 with font exception |
+| `OpenSans.h/.cpp` | Open Sans | (extra sans-serif option, not a substitute) | SIL Open Font License 1.1 |
 
 Source TTFs: [google/fonts](https://github.com/google/fonts) (`ofl/` directory).
 Variable font instances were pinned to static Regular (wght=400) and Bold
@@ -48,4 +48,4 @@ step, and its generated yAdvance (24/32/48/64 for 9/12/18/24pt) came out
 cleanly proportional with this project's FreeType/DPI settings, so it needed
 no manual patch.
 
-Full OFL 1.1 license text: see [OFL.txt](OFL.txt) (also available at https://openfontlicense.org).
+Full OFL 1.1 license text: see [OFL.txt](OFL.txt) (also available at <https://openfontlicense.org>).

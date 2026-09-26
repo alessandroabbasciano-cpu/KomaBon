@@ -222,10 +222,8 @@ void SDMgr::checkFatClusterAlignment() {
             Serial.println("SDMgr: Partition 1 entry is empty.");
             return;
         }
-        vbrLba = (uint32_t)sectorBuf[446 + 8] |
-                 ((uint32_t)sectorBuf[446 + 9] << 8) |
-                 ((uint32_t)sectorBuf[446 + 10] << 16) |
-                 ((uint32_t)sectorBuf[446 + 11] << 24);
+        vbrLba = (uint32_t)sectorBuf[446 + 8] | ((uint32_t)sectorBuf[446 + 9] << 8) |
+                 ((uint32_t)sectorBuf[446 + 10] << 16) | ((uint32_t)sectorBuf[446 + 11] << 24);
 
         if (!SD.readRAW(sectorBuf, vbrLba)) {
             Serial.printf("SDMgr: Unable to read VBR at LBA %u.\n", vbrLba);
@@ -258,4 +256,4 @@ void SDMgr::checkFatClusterAlignment() {
                       "to minimize SPI FAT overhead and improve manga reading latency.\n",
                       clusterKb);
     }
-}
+}
