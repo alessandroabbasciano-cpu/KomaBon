@@ -67,8 +67,11 @@ jobs:
         with:
           node-version: '22'
 
-      - name: Check script.js
-        run: node --check data/script.js
+      - name: Check JavaScript syntax
+        run: |
+          node --check data/script.js
+          node --check data/library.js
+          node --check data/converter.js
 
   format:
     name: Formatting (clang-format)

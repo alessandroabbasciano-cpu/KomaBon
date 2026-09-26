@@ -118,16 +118,23 @@ jobs:
       - name: Write release notes
         run: |
           cat > notes.md <<EOF
-          ## KomaBon ${GITHUB_REF_NAME}
+          ## 📖 KomaBon ${GITHUB_REF_NAME}
 
-          🚀 **Browser Installation available!**
-          You can easily set up new hardware or update KomaBon directly from your browser (Chrome/Edge) without using the command line. 
+          🚀 **Browser Web Installation:**
+          You can easily set up new hardware or update KomaBon directly from your browser (Chrome/Edge) over USB without using the command line:
           👉 **[Launch the Web Installer](https://${{ github.repository_owner }}.github.io/KomaBon/)**
 
-          Alternatively, install over the air from the device web interface, or flash by USB via terminal:
-          \`pio run --target upload\` and \`pio run --target uploadfs\`
+          📖 **Documentation & Hardware Guide:**
+          Explore the complete technical manual, pinouts, eFuse instructions, and Web UI guide:
+          👉 **[KomaBon Official Wiki](https://${{ github.repository_owner }}.github.io/KomaBon/wiki.html)**
+          👉 **[Hardware Modding & eFuse Guide](https://${{ github.repository_owner }}.github.io/KomaBon/wiki.html#hardware-guide)**
 
-          ### Security & Checksums
+          ### 📦 Installation Options
+          - **Browser USB Flasher:** [Web Installer](https://${{ github.repository_owner }}.github.io/KomaBon/)
+          - **Over-The-Air (OTA):** Settings menu on device (verified via cryptographic Ed25519 signature)
+          - **Local PlatformIO:** \`pio run --target upload\` and \`pio run --target uploadfs\`
+
+          ### 🔒 Security & Checksums
           The device verifies these digests before flashing and refuses to install an asset whose signature is missing or tampered with.
 
           \`\`\`text
