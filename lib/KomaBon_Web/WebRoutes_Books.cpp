@@ -11,6 +11,7 @@
 #include "../KomaBon_Core/ProgressStore.h"
 #include "../KomaBon_Core/PageCountStore.h"
 #include <SD.h>
+#include "../KomaBon_Core/SDMgr.h"
 
 // --- Helper Functions & State ---
 
@@ -273,6 +274,8 @@ static bool deleteSingleBookInternal(const String& filename) {
 
 void setupBookEndpoints(AsyncWebServer* server) {
     server->on("/api/books", HTTP_GET, [](AsyncWebServerRequest* request) {
+        KomaBonStorage::ensureReady();
+
         // Safe download routing without duplicate disposition headers
         if (request->hasParam("name")) {
             String filename = request->getParam("name")->value();
@@ -471,7 +474,22 @@ void setupBookEndpoints(AsyncWebServer* server) {
                     safeName = safeName.substring(0, 28 - ext.length()) + ext;
                 }
 
-                size_t freeBytes = KomaBonStorage::getTotalBytes() - KomaBonStorage::getUsedBytes();
+                KomaBonStorage::ensureReady();
+                size_t totalBytes = KomaBonStorage::getTotalBytes();
+                size_t usedBytes = KomaBonStorage::getUsedBytes();
+                if (totalBytes == 0 && EbookFSPtr == &SD) {
+                    SDMgr::getInstance().recover();
+                    totalBytes = KomaBonStorage::getTotalBytes();
+                    usedBytes = KomaBonStorage::getUsedBytes();
+                }
+
+                if (totalBytes == 0) {
+                    Serial.println("[HTTP] Upload ERROR: Storage unmounted or unavailable");
+                    g_uploadState.status = UploadStatus::WriteFailed;
+                    return;
+                }
+
+                size_t freeBytes = (totalBytes > usedBytes) ? (totalBytes - usedBytes) : 0;
                 bool isKmb = hasExtensionCI(safeName, ".kmb");
                 UploadVerdict verdict = UploadVerdict::Ok;
 
@@ -542,11 +560,33 @@ void setupBookEndpoints(AsyncWebServer* server) {
             if (g_uploadState.owner != request || g_uploadState.status != UploadStatus::Ok) return;
 
             if (g_uploadState.file && len) {
-                size_t written = g_uploadState.file.write(data, len);
-                if (written != len) {
+                size_t toWrite = len;
+                const uint8_t* ptr = data;
+                int retries = 0;
+                while (toWrite > 0) {
+                    size_t w = g_uploadState.file.write(ptr, toWrite);
+                    if (w > 0) {
+                        ptr += w;
+                        toWrite -= w;
+                        retries = 0;
+                    } else {
+                        retries++;
+                        if (retries > 3) {
+                            break;
+                        }
+                        vTaskDelay(pdMS_TO_TICKS(25));
+                        yield();
+                    }
+                    if (toWrite > 0 && w > 0) {
+                        vTaskDelay(pdMS_TO_TICKS(10));
+                        yield();
+                    }
+                }
+
+                if (toWrite > 0) {
                     Serial.printf(
                         "[HTTP] Upload ERROR: Write failure at offset %u (attempted %u, wrote %u bytes)\n",
-                        (unsigned)index, (unsigned)len, (unsigned)written);
+                        (unsigned)index, (unsigned)len, (unsigned)(len - toWrite));
                     g_uploadState.file.close();
                     EbookFS.remove(g_uploadState.tempPath);
                     g_uploadState.status = UploadStatus::WriteFailed;
