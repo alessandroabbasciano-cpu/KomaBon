@@ -48,4 +48,4 @@ step, and its generated yAdvance (24/32/48/64 for 9/12/18/24pt) came out
 cleanly proportional with this project's FreeType/DPI settings, so it needed
 no manual patch.
 
-Full OFL 1.1 license text: https://openfontlicense.org
+Full OFL 1.1 license text: see [OFL.txt](OFL.txt) (also available at https://openfontlicense.org).
