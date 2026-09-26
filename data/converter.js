@@ -58,8 +58,8 @@ function resetTerminalState() {
         terminal.style.borderColor = "var(--line)";
     }
 
-    const existingRetry = document.getElementById('retry-upload-btn');
-    if (existingRetry) existingRetry.remove();
+    const retryContainer = document.getElementById('comic-retry-container');
+    if (retryContainer) retryContainer.classList.add('hidden');
 }
 
 // --- Image Processing Core ---
@@ -963,8 +963,8 @@ function uploadKMB(blob, filename, bar) {
 
         logMessage(`Standard transmission of ${filename} to KomaBon...`);
 
-        const existingRetry = document.getElementById('retry-upload-btn');
-        if (existingRetry) existingRetry.remove();
+        const retryContainer = document.getElementById('comic-retry-container');
+        if (retryContainer) retryContainer.classList.add('hidden');
 
         xhr.upload.onprogress = e => {
             if (e.lengthComputable) {
@@ -977,19 +977,22 @@ function uploadKMB(blob, filename, bar) {
             if (xhr.status === 200) {
                 bar.style.width = '100%';
                 logMessage(`Upload completed successfully!`);
+                lastFailedUpload = null;
+                const retryContainer = document.getElementById('comic-retry-container');
+                if (retryContainer) retryContainer.classList.add('hidden');
                 if (typeof fetchBooks === "function") fetchBooks();
                 resolve();
             } else {
                 logMessage(`Upload failed. Server status: ${xhr.status}`, true);
                 setupRetryMechanism(blob, filename, bar);
-                reject(new Error("Upload failed"));
+                resolve();
             }
         };
 
         xhr.onerror = () => {
             logMessage(`Network error: KomaBon unreachable.`, true);
             setupRetryMechanism(blob, filename, bar);
-            reject(new Error("Network error"));
+            resolve();
         };
 
         xhr.open('POST', '/api/books/upload');
@@ -999,25 +1002,25 @@ function uploadKMB(blob, filename, bar) {
 
 function setupRetryMechanism(blob, filename, bar) {
     lastFailedUpload = { blob, filename, bar };
+    const retryContainer = document.getElementById('comic-retry-container');
+    if (retryContainer) {
+        retryContainer.classList.remove('hidden');
+    }
+}
+
+function retryFailedUpload() {
+    if (!lastFailedUpload) return;
+    const retryContainer = document.getElementById('comic-retry-container');
+    if (retryContainer) retryContainer.classList.add('hidden');
+
+    uploadHasError = false;
+    const terminal = document.getElementById('terminal-log');
+    if (terminal) terminal.style.borderColor = "var(--line)";
     const status = document.getElementById('comic-status');
+    if (status) {
+        status.style.color = "var(--accent)";
+        status.innerText = "Retrying transfer...";
+    }
 
-    const retryBtn = document.createElement('button');
-    retryBtn.id = 'retry-upload-btn';
-    retryBtn.className = 'btn secondary btn-micro';
-    retryBtn.style.marginLeft = '12px';
-    retryBtn.innerText = 'Retry Transfer';
-
-    retryBtn.onclick = () => {
-        retryBtn.remove();
-        if (lastFailedUpload) {
-            uploadHasError = false;
-            const terminal = document.getElementById('terminal-log');
-            if (terminal) terminal.style.borderColor = "var(--line)";
-            status.style.color = "var(--accent)";
-
-            uploadKMB(lastFailedUpload.blob, lastFailedUpload.filename, lastFailedUpload.bar)
-                .catch(() => { });
-        }
-    };
-    status.appendChild(retryBtn);
+    uploadKMB(lastFailedUpload.blob, lastFailedUpload.filename, lastFailedUpload.bar);
 }

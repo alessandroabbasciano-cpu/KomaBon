@@ -405,6 +405,23 @@ function uploadBook() {
         return;
     }
 
+    executeDirectUpload(file);
+}
+
+let lastFailedLibraryFile = null;
+
+function retryLibraryUpload() {
+    if (!lastFailedLibraryFile) return;
+    executeDirectUpload(lastFailedLibraryFile);
+}
+
+function executeDirectUpload(file) {
+    const fileInput = document.getElementById('book-file');
+    const status = document.getElementById('upload-status');
+    const progressContainer = document.getElementById('upload-progress');
+    const progressBar = document.getElementById('upload-progress-bar');
+    const dropzoneBox = document.getElementById('font-dropzone');
+
     if (dropzoneBox) dropzoneBox.style.borderColor = "";
     progressContainer.classList.remove('hidden');
     progressBar.style.width = '0%';
@@ -427,11 +444,12 @@ function uploadBook() {
 
     xhr.addEventListener('load', () => {
         if (xhr.status === 200) {
+            lastFailedLibraryFile = null;
             progressBar.style.width = '100%';
             progressBar.style.backgroundColor = "var(--success)";
             status.innerText = "Upload complete!";
             status.style.color = "var(--success)";
-            fileInput.value = '';
+            if (fileInput) fileInput.value = '';
 
             setTimeout(() => {
                 progressContainer.classList.add('hidden');
@@ -440,16 +458,18 @@ function uploadBook() {
 
             fetchBooks();
         } else {
+            lastFailedLibraryFile = file;
             progressBar.style.backgroundColor = "var(--danger-line)";
-            status.innerText = "Upload failed: " + xhr.responseText;
+            status.innerHTML = `<span>Upload failed: ${xhr.responseText || 'Error'}</span> <button type="button" class="btn secondary btn-micro" style="margin-left:8px;" onclick="retryLibraryUpload()">Retry</button>`;
             status.style.color = "var(--danger)";
             if (dropzoneBox) dropzoneBox.style.borderColor = "var(--danger-line)";
         }
     });
 
     xhr.addEventListener('error', () => {
+        lastFailedLibraryFile = file;
         progressBar.style.backgroundColor = "var(--danger-line)";
-        status.innerText = "Upload error (Network failure).";
+        status.innerHTML = `<span>Upload error (Network failure).</span> <button type="button" class="btn secondary btn-micro" style="margin-left:8px;" onclick="retryLibraryUpload()">Retry</button>`;
         status.style.color = "var(--danger)";
         if (dropzoneBox) dropzoneBox.style.borderColor = "var(--danger-line)";
         console.error("Upload failed");
