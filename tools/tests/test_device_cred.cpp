@@ -1,5 +1,5 @@
 // Book32 v1.5.0 — host test for device credential derivation.
-// Build: g++ -std=c++17 -I lib/Book32_Core tools/tests/test_device_cred.cpp
+// Build: g++ -std=c++17 -I lib/KomaBon_Core tools/tests/test_device_cred.cpp
 #include <cassert>
 #include <cstdio>
 #include <cstring>
@@ -9,14 +9,14 @@
 int main() {
     // Known MAC -> known password. Uses the last three bytes, uppercase hex.
     const uint8_t mac[6] = {0x24, 0x6F, 0x28, 0x4F, 0x2A, 0x91};
-    char buf[BOOK32_CRED_LEN];
+    char buf[KOMABON_CRED_LEN];
 
     deriveDevicePassword(mac, buf, sizeof(buf));
     assert(std::string(buf) == "book4F2A91");
 
     // Deterministic: same MAC always yields the same password, so the value
     // shown on the e-ink screen stays valid across reboots.
-    char buf2[BOOK32_CRED_LEN];
+    char buf2[KOMABON_CRED_LEN];
     deriveDevicePassword(mac, buf2, sizeof(buf2));
     assert(std::string(buf) == std::string(buf2));
 
@@ -33,7 +33,7 @@ int main() {
 
     // WPA2 requires at least 8 characters; ours is always 10.
     assert(strlen(buf) >= 8);
-    assert(strlen(buf) == BOOK32_CRED_LEN - 1);
+    assert(strlen(buf) == KOMABON_CRED_LEN - 1);
 
     printf("test_device_cred: all tests passed.\n");
     return 0;
