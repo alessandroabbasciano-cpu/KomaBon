@@ -3,7 +3,7 @@
 #include "KomaBonFS.h"
 #include "driver/gpio.h"
 
-SDMgr::SDMgr() : _spi(nullptr), _mounted(false) {}
+SDMgr::SDMgr() : _spi(nullptr), _mounted(false), _clusterSize(0), _clusterAligned(false) {}
 
 bool SDMgr::init() {
     delay(100);
@@ -74,6 +74,7 @@ bool SDMgr::init() {
     Serial.println("SDMgr: SD Card mounted successfully at /ebooks.");
     EbookFSPtr = &SD;
     _mounted = true;
+    checkFatClusterAlignment();
     return true;
 }
 
@@ -177,6 +178,7 @@ bool SDMgr::remountManual() {
     // 7. Route the abstraction layer (EbookFSPtr)
     if (success) {
         EbookFSPtr = &SD;
+        checkFatClusterAlignment();
         Serial.println("SDMgr: Manual remount SUCCESS. EbookFS mapped to MicroSD.");
     } else {
         EbookFSPtr = &InternalEbookFS;
@@ -190,3 +192,70 @@ bool SDMgr::remountManual() {
 bool SDMgr::remount() {
     return remountManual();
 }
+
+void SDMgr::checkFatClusterAlignment() {
+    _clusterSize = 0;
+    _clusterAligned = false;
+
+    uint8_t sectorBuf[512];
+    if (!SD.readRAW(sectorBuf, 0)) {
+        Serial.println("SDMgr: Unable to read sector 0 for cluster alignment check.");
+        return;
+    }
+
+    // Check standard boot/partition signature
+    if (sectorBuf[510] != 0x55 || sectorBuf[511] != 0xAA) {
+        Serial.println("SDMgr: Invalid sector 0 signature (missing 0x55AA).");
+        return;
+    }
+
+    uint32_t vbrLba = 0;
+    bool isVbrDirect = (sectorBuf[0] == 0xEB || sectorBuf[0] == 0xE9);
+
+    if (isVbrDirect) {
+        // Sector 0 is directly the Volume Boot Record
+        vbrLba = 0;
+    } else {
+        // Sector 0 is MBR: check partition 1 entry at offset 446 (0x1BE)
+        uint8_t partType = sectorBuf[446 + 4];
+        if (partType == 0x00) {
+            Serial.println("SDMgr: Partition 1 entry is empty.");
+            return;
+        }
+        vbrLba = (uint32_t)sectorBuf[446 + 8] |
+                 ((uint32_t)sectorBuf[446 + 9] << 8) |
+                 ((uint32_t)sectorBuf[446 + 10] << 16) |
+                 ((uint32_t)sectorBuf[446 + 11] << 24);
+
+        if (!SD.readRAW(sectorBuf, vbrLba)) {
+            Serial.printf("SDMgr: Unable to read VBR at LBA %u.\n", vbrLba);
+            return;
+        }
+        if (sectorBuf[510] != 0x55 || sectorBuf[511] != 0xAA) {
+            Serial.println("SDMgr: Invalid VBR sector signature.");
+            return;
+        }
+    }
+
+    uint16_t bytesPerSec = (uint16_t)sectorBuf[11] | ((uint16_t)sectorBuf[12] << 8);
+    uint8_t secPerClus = sectorBuf[13];
+
+    if (bytesPerSec == 0 || secPerClus == 0) {
+        Serial.println("SDMgr: Corrupted or non-FAT BPB parameters.");
+        return;
+    }
+
+    _clusterSize = (uint32_t)bytesPerSec * secPerClus;
+    _clusterAligned = (vbrLba % secPerClus == 0);
+
+    uint32_t clusterKb = _clusterSize / 1024;
+    if (_clusterSize >= 32768) {
+        Serial.printf("SDMgr: FAT32 cluster size: %u KB (sectors: %u, %s). Optimal for 4 MHz SPI bus.\n",
+                      clusterKb, secPerClus, _clusterAligned ? "aligned" : "unaligned");
+    } else {
+        Serial.printf("SDMgr: WARNING: FAT32 cluster size is %u KB (< 32 KB). "
+                      "Formatting with 32 KB or 64 KB clusters is strongly recommended "
+                      "to minimize SPI FAT overhead and improve manga reading latency.\n",
+                      clusterKb);
+    }
+}

@@ -8,6 +8,7 @@
 #include "../KomaBon_Core/BatteryMgr.h"
 #include "../KomaBon_OTA/GitHubMgr.h"
 #include "../KomaBon_Core/SDMgr.h"
+#include "../KomaBon_Core/CrashHandler.h"
 #include <SD.h>
 
 // Helper function to stream entire FS tree dynamically
@@ -82,6 +83,13 @@ void setupSystemEndpoints(AsyncWebServer* server) {
         doc["totalSpace"] = KomaBonStorage::getTotalBytes();
         doc["usedSpace"] = KomaBonStorage::getUsedBytes();
         doc["systemFree"] = SystemFS.totalBytes() - SystemFS.usedBytes();
+
+        doc["lastResetReason"] = CrashHandler::getInstance().getResetReasonString();
+        doc["bootCount"] = CrashHandler::getInstance().getBootCount();
+        doc["hasCrashLog"] = CrashHandler::getInstance().hasCrashLog();
+        doc["sdClusterSize"] = SDMgr::getInstance().getClusterSize();
+        doc["sdClusterOptimal"] = SDMgr::getInstance().isClusterOptimal();
+        doc["sdClusterAligned"] = SDMgr::getInstance().isClusterAligned();
 
         serializeJson(doc, *response);
         request->send(response);
@@ -185,6 +193,28 @@ void setupSystemEndpoints(AsyncWebServer* server) {
 
         serializeJson(doc, *response);
         request->send(response);
+    });
+
+    server->on("/api/system/crash_log", HTTP_GET, [](AsyncWebServerRequest* request) {
+        AsyncResponseStream* response = request->beginResponseStream("application/json");
+        DynamicJsonDocument doc(2048);
+
+        doc["hasCrash"] = CrashHandler::getInstance().hasCrashLog();
+        doc["bootCount"] = CrashHandler::getInstance().getBootCount();
+        doc["lastResetReason"] = CrashHandler::getInstance().getResetReasonString();
+        doc["log"] = CrashHandler::getInstance().getCrashLog();
+
+        serializeJson(doc, *response);
+        request->send(response);
+    });
+
+    server->on("/api/system/crash_log/clear", HTTP_POST, [](AsyncWebServerRequest* request) {
+        bool ok = CrashHandler::getInstance().clearCrashLog();
+        if (ok) {
+            request->send(200, "application/json", "{\"status\":\"ok\"}");
+        } else {
+            request->send(500, "application/json", "{\"error\":\"Failed to clear crash log\"}");
+        }
     });
 
     server->on("/api/wifi/status", HTTP_GET, [](AsyncWebServerRequest* request) {

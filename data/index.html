@@ -132,6 +132,7 @@
                             <h3>Storage Recovery</h3>
                             <p class="hint">Use this if the MicroSD disconnects during high Wi-Fi activity.</p>
                             <div id="sd-remount-status" class="status-msg"></div>
+                            <div id="sd-cluster-warning" class="status-msg hidden" style="font-size:0.85rem;margin-top:6px;color:#f59e0b;"></div>
                         </div>
                         <div class="card-action">
                             <button id="btn-remount-sd" class="btn btn-action-large warning"
@@ -287,6 +288,16 @@
                                 <button id="update-btn" class="btn btn-action-large primary hidden"
                                     onclick="performUpdate()">Install</button>
                             </div>
+                        </div>
+                    </div>
+
+                    <!-- 4. System Diagnostics & Crash Log -->
+                    <div id="crash-log-card" class="card hidden">
+                        <div class="card-info">
+                            <h3>⚠️ Crash Diagnostics</h3>
+                            <p class="hint" id="crash-reset-reason">Abnormal restart recorded on boot.</p>
+                            <pre id="crash-log-content" style="background:#09090b;padding:10px;border-radius:6px;overflow-x:auto;font-size:0.8rem;color:#38bdf8;max-height:160px;margin:8px 0;white-space:pre-wrap;"></pre>
+                            <button type="button" class="btn btn-micro danger" onclick="clearCrashLog()">Clear Crash Log</button>
                         </div>
                     </div>
                 </div>

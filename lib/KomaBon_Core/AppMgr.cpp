@@ -1,4 +1,5 @@
 #include "AppMgr.h"
+#include "CrashHandler.h"
 #include "../../include/Config.h"
 
 AppMgr::AppMgr() : currentApp(nullptr) {}
@@ -31,6 +32,7 @@ void AppMgr::switchTo(int index) {
         // Mirror application transition to Hardware Serial
         const char* appName = currentApp->getName() ? currentApp->getName() : "Unknown";
         Serial.printf("AppMgr: Switched to application '%s'\n", appName);
+        CrashHandler::getInstance().setBreadcrumb(appName, "active");
 
         currentApp->start(); // Launch application lifecycle
         currentApp->draw();  // Render initial application frame

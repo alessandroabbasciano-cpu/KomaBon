@@ -97,8 +97,60 @@ async function fetchStatus() {
         } else {
             batIcon.classList.remove('charging');
         }
+
+        // Check FAT32 cluster alignment diagnostics
+        const clusterWarn = document.getElementById('sd-cluster-warning');
+        if (clusterWarn) {
+            if (data.sdClusterSize && !data.sdClusterOptimal) {
+                const kb = Math.round(data.sdClusterSize / 1024);
+                clusterWarn.textContent = `⚡ Note: MicroSD cluster size is ${kb} KB. Formatting with 32 KB clusters is recommended to improve manga reading speed.`;
+                clusterWarn.classList.remove('hidden');
+            } else {
+                clusterWarn.classList.add('hidden');
+            }
+        }
+
+        // Check crash log diagnostics
+        const crashCard = document.getElementById('crash-log-card');
+        if (crashCard) {
+            if (data.hasCrashLog) {
+                crashCard.classList.remove('hidden');
+                fetchCrashLog();
+            } else {
+                crashCard.classList.add('hidden');
+            }
+        }
     } catch (e) {
         console.error("Failed to fetch status", e);
+    }
+}
+
+async function fetchCrashLog() {
+    try {
+        const res = await fetch('/api/system/crash_log');
+        const data = await res.json();
+        const content = document.getElementById('crash-log-content');
+        const reason = document.getElementById('crash-reset-reason');
+        if (content && data.log) {
+            content.textContent = data.log;
+        }
+        if (reason && data.lastResetReason) {
+            reason.textContent = `Last Reset Reason: ${data.lastResetReason} (Boot #${data.bootCount})`;
+        }
+    } catch (e) {
+        console.error("Failed to fetch crash log", e);
+    }
+}
+
+async function clearCrashLog() {
+    try {
+        const res = await fetch('/api/system/crash_log/clear', { method: 'POST' });
+        if (res.ok) {
+            const crashCard = document.getElementById('crash-log-card');
+            if (crashCard) crashCard.classList.add('hidden');
+        }
+    } catch (e) {
+        console.error("Failed to clear crash log", e);
     }
 }
 

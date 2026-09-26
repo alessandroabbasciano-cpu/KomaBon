@@ -666,6 +666,22 @@ python -m espefuse --port &lt;YOUR_COM_PORT&gt; burn_efuse DIS_PAD_JTAG
         <p>
           Run the on-screen <strong>Calibration Wizard</strong> from the Settings menu. With the <strong>v0.6.0</strong> update, rapid inputs now benefit from 80 ms deadzones and 250 ms quiet-period rendering, eliminating intermediate freezes.
         </p>
+
+        <h3>Emergency Hardware Recovery (Safe-Boot)</h3>
+        <p>
+          If a corrupted configuration file, invalid joystick calibration, or damaged filesystem causes a bootloop or prevents normal navigation:
+        </p>
+        <ol>
+          <li>Power off or reset the device.</li>
+          <li>Hold down the <strong>KEY3 button (Back)</strong> or <strong>Joystick Center</strong> continuously during power-on for at least 1.5 seconds.</li>
+          <li>The screen displays <strong>RESCUE MODE ACTIVE</strong>. The device starts an emergency SoftAP named <code>KomaBon-Rescue</code> at <code>192.168.4.1</code>.</li>
+          <li>Connect with your smartphone or laptop to access the <strong>Recovery Console</strong>, where you can wipe corrupted JSON configurations, inspect crash logs, format internal storage, or reflash firmware via OTA without connecting a serial cable.</li>
+        </ol>
+
+        <h3>MicroSD FAT32 Cluster Optimization</h3>
+        <p>
+          Because the SPI2 bus is clocked at 4 MHz for electrical noise immunity, small 4 KB clusters increase File Allocation Table (FAT) seek operations when reading 48 KB manga frames. Formatting your MicroSD card with <strong>32 KB or 64 KB clusters</strong> (using the official SD Association Card Formatter) cuts seek latency and significantly accelerates page-turn loading.
+        </p>
       </section>
 
       <!-- SECTION 11: LICENSE & ACKNOWLEDGEMENTS -->
