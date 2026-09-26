@@ -3,7 +3,12 @@ const isEpub = f => f.toLowerCase().endsWith('.epub');
 const isFont = f => f.toLowerCase().endsWith('.ttf');
 const isKmb = f => f.toLowerCase().endsWith('.kmb');
 
+const STORAGE_KEY_BOOKS = 'komaBonLibrary';
+const CHUNK_SIZE = 30;
 let currentBooks = [];
+let activeRenderedItems = [];
+let renderedChunkCount = 0;
+let scrollObserver = null;
 let saveOrderTimer = null;
 let bookListBound = false;
 let selectedBooks = new Set();
@@ -79,21 +84,55 @@ async function executeBulkDelete() {
     }
 }
 
-// Fetch library from ESP32
+// Fetch library from ESP32 with Stale-While-Revalidate caching
 async function fetchBooks() {
     const bookList = document.getElementById('book-list');
     if (!bookList) return;
-    bookList.innerHTML = '<p>Loading...</p>';
+
+    // 1. Instant cache hydration from sessionStorage or memory
+    if (!currentBooks.length) {
+        try {
+            const cached = sessionStorage.getItem(STORAGE_KEY_BOOKS);
+            if (cached) {
+                currentBooks = JSON.parse(cached);
+                renderBooks();
+            }
+        } catch (e) {
+            console.warn('Failed to parse cached library', e);
+        }
+    }
+
+    // Only show "Loading..." if there is no cached data to display yet
+    if (!currentBooks.length) {
+        bookList.innerHTML = '<p>Loading...</p>';
+    }
+
     selectedBooks.clear();
     updateBulkBar();
 
+    // 2. Background revalidation with ESP32
     try {
         const res = await fetch('/api/books');
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
         const data = await res.json();
-        currentBooks = (data.books || []);
-        renderBooks();
+        const freshBooks = data.books || [];
+
+        const freshJson = JSON.stringify(freshBooks);
+        const currentJson = JSON.stringify(currentBooks);
+
+        if (freshJson !== currentJson) {
+            currentBooks = freshBooks;
+            try {
+                sessionStorage.setItem(STORAGE_KEY_BOOKS, freshJson);
+            } catch (err) {
+                console.warn('Failed to save books to sessionStorage', err);
+            }
+            renderBooks();
+        }
     } catch (e) {
-        bookList.innerHTML = '<p class="error">Error loading books.</p>';
+        if (!currentBooks.length) {
+            bookList.innerHTML = '<p class="error">Error loading books.</p>';
+        }
         console.error("Failed to fetch books", e);
     }
 }
@@ -179,23 +218,11 @@ function renderBookItem(book, epubs) {
     </div>`;
 }
 
-// Render book list items
-function renderBooks() {
-    const bookList = document.getElementById('book-list');
-    if (!bookList) return;
-
-    if (!currentBooks.length) {
-        bookList.innerHTML = '<p class="hint">No books uploaded yet.</p>';
-        return;
-    }
-
-    const epubs = currentBooks.filter(b => isEpub(b.filename));
-
-    // 1. Detect series for manga/comics (.kmb)
+function buildGroupedStructure(books) {
     const seriesCounts = {};
     const bookSeriesMap = new Map();
 
-    currentBooks.forEach(b => {
+    books.forEach(b => {
         if (isKmb(b.filename)) {
             const info = parseSeriesInfo(b.filename);
             if (info) {
@@ -205,16 +232,15 @@ function renderBooks() {
         }
     });
 
-    // 2. Build grouped data structure
     const renderedItems = [];
     const processedSeries = new Set();
 
-    currentBooks.forEach(book => {
+    books.forEach(book => {
         const info = bookSeriesMap.get(book.filename);
         if (info && seriesCounts[info.series] >= 2) {
             if (!processedSeries.has(info.series)) {
                 processedSeries.add(info.series);
-                const seriesBooks = currentBooks.filter(b => {
+                const seriesBooks = books.filter(b => {
                     const s = bookSeriesMap.get(b.filename);
                     return s && s.series === info.series;
                 });
@@ -239,70 +265,178 @@ function renderBooks() {
         }
     });
 
-    // 3. Render HTML
-    bookList.innerHTML = renderedItems.map(item => {
-        if (item.type === 'single') {
-            return renderBookItem(item.book, epubs);
-        } else {
-            const seriesNameAttr = escapeAttr(item.name);
-            const totalMb = (item.totalSize / (1024 * 1024)).toFixed(1);
-            const sizeStr = item.totalSize >= 1024 * 1024 ? `${totalMb} MB` : `${Math.round(item.totalSize / 1024)} KB`;
+    return renderedItems;
+}
 
-            const completedCount = item.books.filter(b => b.percent >= 100).length;
-            const ongoingCount = item.books.filter(b => b.percent > 0 && b.percent < 100).length;
-            const missingCount = item.books.filter(b => b.missing).length;
-            let seriesProgressBadge = '';
-            if (completedCount === item.books.length && item.books.length > 0) {
-                seriesProgressBadge = `<span class="series-progress-badge completed">✓ Completed (${completedCount}/${item.books.length})</span>`;
-            } else if (completedCount > 0 || ongoingCount > 0) {
-                seriesProgressBadge = `<span class="series-progress-badge ongoing">${completedCount}/${item.books.length} read</span>`;
-            }
-            let missingBadge = '';
-            if (missingCount > 0) {
-                missingBadge = `<span class="ghost-badge">${missingCount} missing</span>`;
-            }
+function renderItemHtml(item, epubs, isSearchActive = false) {
+    if (item.type === 'single') {
+        return renderBookItem(item.book, epubs);
+    } else {
+        const seriesNameAttr = escapeAttr(item.name);
+        const totalMb = (item.totalSize / (1024 * 1024)).toFixed(1);
+        const sizeStr = item.totalSize >= 1024 * 1024 ? `${totalMb} MB` : `${Math.round(item.totalSize / 1024)} KB`;
 
-            const nestedHtml = item.books.map(b => {
-                const nameAttr = escapeAttr(b.filename);
-                const progressHtml = renderProgressBar(b);
-                const isChecked = selectedBooks.has(b.filename) ? 'checked' : '';
-                const isGhost = !!b.missing;
-                const ghostBadge = isGhost ? '<span class="ghost-badge">File missing</span>' : '';
-                const sizeHtml = isGhost ? '<span class="book-size ghost-size">Missing</span>' : `<span class="book-size">${Math.round(b.size / 1024)} KB</span>`;
-                const dlBtn = isGhost ? `<button class="btn-order" disabled title="File missing from storage">DL</button>` : `<button class="btn-order" data-action="download" data-filename="${nameAttr}" title="Download File">DL</button>`;
+        const completedCount = item.books.filter(b => b.percent >= 100).length;
+        const ongoingCount = item.books.filter(b => b.percent > 0 && b.percent < 100).length;
+        const missingCount = item.books.filter(b => b.missing).length;
+        let seriesProgressBadge = '';
+        if (completedCount === item.books.length && item.books.length > 0) {
+            seriesProgressBadge = `<span class="series-progress-badge completed">✓ Completed (${completedCount}/${item.books.length})</span>`;
+        } else if (completedCount > 0 || ongoingCount > 0) {
+            seriesProgressBadge = `<span class="series-progress-badge ongoing">${completedCount}/${item.books.length} read</span>`;
+        }
+        let missingBadge = '';
+        if (missingCount > 0) {
+            missingBadge = `<span class="ghost-badge">${missingCount} missing</span>`;
+        }
 
-                return `
-                <div class="book-item series-nested-item ${isGhost ? 'ghost-node' : ''}" data-filename="${nameAttr}">
-                    <input type="checkbox" class="book-select-check" data-filename="${nameAttr}" ${isChecked} onchange="onBookCheckChange(this)" title="Select">
-                    <div class="book-info-col">
-                        <span class="book-title">🖼️ ${escapeHtml(b.name)}${ghostBadge}</span>
-                        ${progressHtml}
-                    </div>
-                    ${sizeHtml}
-                    ${dlBtn}
-                    <button class="btn-delete" data-action="delete" data-filename="${nameAttr}" data-name="${escapeAttr(b.name)}">Delete</button>
-                </div>`;
-            }).join('');
-
-            const allChecked = item.books.length > 0 && item.books.every(b => selectedBooks.has(b.filename));
+        const nestedHtml = item.books.map(b => {
+            const nameAttr = escapeAttr(b.filename);
+            const progressHtml = renderProgressBar(b);
+            const isChecked = selectedBooks.has(b.filename) ? 'checked' : '';
+            const isGhost = !!b.missing;
+            const ghostBadge = isGhost ? '<span class="ghost-badge">File missing</span>' : '';
+            const sizeHtml = isGhost ? '<span class="book-size ghost-size">Missing</span>' : `<span class="book-size">${Math.round(b.size / 1024)} KB</span>`;
+            const dlBtn = isGhost ? `<button class="btn-order" disabled title="File missing from storage">DL</button>` : `<button class="btn-order" data-action="download" data-filename="${nameAttr}" title="Download File">DL</button>`;
 
             return `
-            <details class="series-group" data-series="${seriesNameAttr}">
-                <summary class="series-header">
-                    <input type="checkbox" class="series-select-check" data-series="${seriesNameAttr}" ${allChecked ? 'checked' : ''} title="Select all in series" onclick="event.stopPropagation()" onchange="onSeriesCheckChange(this, '${seriesNameAttr}')">
-                    <span class="series-title">📚 <strong>${escapeHtml(item.name)}</strong></span>
-                    <span class="series-badge">${item.books.length} volumes</span>
-                    ${seriesProgressBadge}
-                    ${missingBadge}
-                    <span class="book-size">${sizeStr}</span>
-                </summary>
-                <div class="series-items">
-                    ${nestedHtml}
+            <div class="book-item series-nested-item ${isGhost ? 'ghost-node' : ''}" data-filename="${nameAttr}">
+                <input type="checkbox" class="book-select-check" data-filename="${nameAttr}" ${isChecked} onchange="onBookCheckChange(this)" title="Select">
+                <div class="book-info-col">
+                    <span class="book-title">🖼️ ${escapeHtml(b.name)}${ghostBadge}</span>
+                    ${progressHtml}
                 </div>
-            </details>`;
-        }
-    }).join('');
+                ${sizeHtml}
+                ${dlBtn}
+                <button class="btn-delete" data-action="delete" data-filename="${nameAttr}" data-name="${escapeAttr(b.name)}">Delete</button>
+            </div>`;
+        }).join('');
 
+        const allChecked = item.books.length > 0 && item.books.every(b => selectedBooks.has(b.filename));
+        const isOpen = isSearchActive ? 'open' : '';
+
+        return `
+        <details class="series-group" data-series="${seriesNameAttr}" ${isOpen}>
+            <summary class="series-header">
+                <input type="checkbox" class="series-select-check" data-series="${seriesNameAttr}" ${allChecked ? 'checked' : ''} title="Select all in series" onclick="event.stopPropagation()" onchange="onSeriesCheckChange(this, '${seriesNameAttr}')">
+                <span class="series-title">📚 <strong>${escapeHtml(item.name)}</strong></span>
+                <span class="series-badge">${item.books.length} volumes</span>
+                ${seriesProgressBadge}
+                ${missingBadge}
+                <span class="book-size">${sizeStr}</span>
+            </summary>
+            <div class="series-items">
+                ${nestedHtml}
+            </div>
+        </details>`;
+    }
+}
+
+function appendNextChunk() {
+    const bookList = document.getElementById('book-list');
+    if (!bookList || renderedChunkCount >= activeRenderedItems.length) {
+        removeScrollSentinel();
+        return;
+    }
+
+    const start = renderedChunkCount;
+    const end = Math.min(start + CHUNK_SIZE, activeRenderedItems.length);
+    const chunk = activeRenderedItems.slice(start, end);
+    renderedChunkCount = end;
+
+    const searchInput = document.getElementById('book-search');
+    const isSearchActive = !!(searchInput && searchInput.value.trim());
+    const epubs = currentBooks.filter(b => isEpub(b.filename));
+
+    const chunkHtml = chunk.map(item => renderItemHtml(item, epubs, isSearchActive)).join('');
+
+    const sentinel = document.getElementById('scroll-sentinel');
+    if (sentinel) {
+        sentinel.insertAdjacentHTML('beforebegin', chunkHtml);
+    } else {
+        bookList.insertAdjacentHTML('beforeend', chunkHtml);
+    }
+
+    if (renderedChunkCount < activeRenderedItems.length) {
+        ensureScrollSentinel();
+    } else {
+        removeScrollSentinel();
+    }
+}
+
+function ensureScrollSentinel() {
+    const bookList = document.getElementById('book-list');
+    if (!bookList) return;
+
+    let sentinel = document.getElementById('scroll-sentinel');
+    if (!sentinel) {
+        sentinel = document.createElement('div');
+        sentinel.id = 'scroll-sentinel';
+        sentinel.style.height = '10px';
+        bookList.appendChild(sentinel);
+    } else {
+        bookList.appendChild(sentinel);
+    }
+
+    if (!scrollObserver) {
+        scrollObserver = new IntersectionObserver((entries) => {
+            entries.forEach(entry => {
+                if (entry.isIntersecting) {
+                    appendNextChunk();
+                }
+            });
+        }, { rootMargin: '200px' });
+    }
+
+    scrollObserver.disconnect();
+    scrollObserver.observe(sentinel);
+}
+
+function removeScrollSentinel() {
+    if (scrollObserver) {
+        scrollObserver.disconnect();
+    }
+    const sentinel = document.getElementById('scroll-sentinel');
+    if (sentinel) {
+        sentinel.remove();
+    }
+}
+
+// Render book list items
+function renderBooks() {
+    const bookList = document.getElementById('book-list');
+    if (!bookList) return;
+
+    if (!currentBooks.length) {
+        removeScrollSentinel();
+        bookList.innerHTML = '<p class="hint">No books uploaded yet.</p>';
+        return;
+    }
+
+    const searchInput = document.getElementById('book-search');
+    const query = searchInput ? searchInput.value.toLowerCase().trim() : '';
+
+    let filteredBooks = currentBooks;
+    if (query) {
+        filteredBooks = currentBooks.filter(b => {
+            const name = (b.name || '').toLowerCase();
+            const file = (b.filename || '').toLowerCase();
+            return name.includes(query) || file.includes(query);
+        });
+    }
+
+    if (!filteredBooks.length) {
+        removeScrollSentinel();
+        bookList.innerHTML = '<p class="hint">No books found matching search.</p>';
+        return;
+    }
+
+    activeRenderedItems = buildGroupedStructure(filteredBooks);
+    renderedChunkCount = 0;
+    removeScrollSentinel();
+    bookList.innerHTML = '';
+
+    appendNextChunk();
     bindBookListActions();
 }
 
@@ -353,6 +487,9 @@ function moveBook(filename, dir) {
     const a = epubIdxs[pos], b = epubIdxs[target];
     const targetFilename = currentBooks[b].filename;
     [currentBooks[a], currentBooks[b]] = [currentBooks[b], currentBooks[a]];
+    try {
+        sessionStorage.setItem(STORAGE_KEY_BOOKS, JSON.stringify(currentBooks));
+    } catch (e) {}
 
     const bookList = document.getElementById('book-list');
     if (bookList) {
@@ -589,43 +726,7 @@ function importLibraryState(input) {
             status.style.color = 'red';
         });
 }
-// Filter books based on search input
+// Filter books based on search input (reactive in-memory search with chunked rendering)
 function filterBooks() {
-    const searchInput = document.getElementById('book-search');
-    if (!searchInput) return;
-    const query = searchInput.value.toLowerCase().trim();
-
-    // 1. Standalone books (not inside a series group)
-    const standaloneItems = document.querySelectorAll('#book-list > .book-item');
-    standaloneItems.forEach(item => {
-        const titleEl = item.querySelector('.book-title');
-        const title = titleEl ? titleEl.textContent.toLowerCase() : '';
-        item.style.display = (!query || title.includes(query)) ? 'flex' : 'none';
-    });
-
-    // 2. Series groups
-    const seriesGroups = document.querySelectorAll('.series-group');
-    seriesGroups.forEach(group => {
-        const seriesTitle = (group.dataset.series || '').toLowerCase();
-        const nestedItems = group.querySelectorAll('.series-nested-item');
-        let anyChildMatches = false;
-
-        nestedItems.forEach(item => {
-            const titleEl = item.querySelector('.book-title');
-            const title = titleEl ? titleEl.textContent.toLowerCase() : '';
-            const matches = !query || title.includes(query) || seriesTitle.includes(query);
-            item.style.display = matches ? 'flex' : 'none';
-            if (matches && query) anyChildMatches = true;
-        });
-
-        if (!query) {
-            group.style.display = 'block';
-            group.open = false;
-        } else if (seriesTitle.includes(query) || anyChildMatches) {
-            group.style.display = 'block';
-            group.open = true;
-        } else {
-            group.style.display = 'none';
-        }
-    });
+    renderBooks();
 }
