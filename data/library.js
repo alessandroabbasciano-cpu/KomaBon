@@ -142,6 +142,7 @@ function renderProgressBar(book) {
 function renderBookItem(book, epubs) {
     const bookIsFont = isFont(book.filename);
     const bookIsKmb = isKmb(book.filename);
+    const isGhost = !!book.missing;
     const nameAttr = escapeAttr(book.filename);
 
     let orderBtns = '';
@@ -160,17 +161,20 @@ function renderBookItem(book, epubs) {
 
     const progressHtml = renderProgressBar(book);
     const isChecked = selectedBooks.has(book.filename) ? 'checked' : '';
+    const ghostBadge = isGhost ? '<span class="ghost-badge">File missing</span>' : '';
+    const sizeHtml = isGhost ? '<span class="book-size ghost-size">Missing</span>' : `<span class="book-size">${Math.round(book.size / 1024)} KB</span>`;
+    const dlBtn = isGhost ? `<button class="btn-order" disabled title="File missing from storage">DL</button>` : `<button class="btn-order" data-action="download" data-filename="${nameAttr}" title="Download File">DL</button>`;
 
     return `
-    <div class="book-item" data-filename="${nameAttr}">
+    <div class="book-item ${isGhost ? 'ghost-node' : ''}" data-filename="${nameAttr}">
         <input type="checkbox" class="book-select-check" data-filename="${nameAttr}" ${isChecked} onchange="onBookCheckChange(this)" title="Select">
         ${orderBtns}
         <div class="book-info-col">
-            <span class="book-title">${displayIcon}${escapeHtml(book.name)}</span>
+            <span class="book-title">${displayIcon}${escapeHtml(book.name)}${ghostBadge}</span>
             ${progressHtml}
         </div>
-        <span class="book-size">${Math.round(book.size / 1024)} KB</span>
-        <button class="btn-order" data-action="download" data-filename="${nameAttr}" title="Download File">DL</button>
+        ${sizeHtml}
+        ${dlBtn}
         <button class="btn-delete" data-action="delete" data-filename="${nameAttr}" data-name="${escapeAttr(book.name)}">Delete</button>
     </div>`;
 }
@@ -246,26 +250,36 @@ function renderBooks() {
 
             const completedCount = item.books.filter(b => b.percent >= 100).length;
             const ongoingCount = item.books.filter(b => b.percent > 0 && b.percent < 100).length;
+            const missingCount = item.books.filter(b => b.missing).length;
             let seriesProgressBadge = '';
             if (completedCount === item.books.length && item.books.length > 0) {
                 seriesProgressBadge = `<span class="series-progress-badge completed">✓ Completed (${completedCount}/${item.books.length})</span>`;
             } else if (completedCount > 0 || ongoingCount > 0) {
                 seriesProgressBadge = `<span class="series-progress-badge ongoing">${completedCount}/${item.books.length} read</span>`;
             }
+            let missingBadge = '';
+            if (missingCount > 0) {
+                missingBadge = `<span class="ghost-badge">${missingCount} missing</span>`;
+            }
 
             const nestedHtml = item.books.map(b => {
                 const nameAttr = escapeAttr(b.filename);
                 const progressHtml = renderProgressBar(b);
                 const isChecked = selectedBooks.has(b.filename) ? 'checked' : '';
+                const isGhost = !!b.missing;
+                const ghostBadge = isGhost ? '<span class="ghost-badge">File missing</span>' : '';
+                const sizeHtml = isGhost ? '<span class="book-size ghost-size">Missing</span>' : `<span class="book-size">${Math.round(b.size / 1024)} KB</span>`;
+                const dlBtn = isGhost ? `<button class="btn-order" disabled title="File missing from storage">DL</button>` : `<button class="btn-order" data-action="download" data-filename="${nameAttr}" title="Download File">DL</button>`;
+
                 return `
-                <div class="book-item series-nested-item" data-filename="${nameAttr}">
+                <div class="book-item series-nested-item ${isGhost ? 'ghost-node' : ''}" data-filename="${nameAttr}">
                     <input type="checkbox" class="book-select-check" data-filename="${nameAttr}" ${isChecked} onchange="onBookCheckChange(this)" title="Select">
                     <div class="book-info-col">
-                        <span class="book-title">🖼️ ${escapeHtml(b.name)}</span>
+                        <span class="book-title">🖼️ ${escapeHtml(b.name)}${ghostBadge}</span>
                         ${progressHtml}
                     </div>
-                    <span class="book-size">${Math.round(b.size / 1024)} KB</span>
-                    <button class="btn-order" data-action="download" data-filename="${nameAttr}" title="Download File">DL</button>
+                    ${sizeHtml}
+                    ${dlBtn}
                     <button class="btn-delete" data-action="delete" data-filename="${nameAttr}" data-name="${escapeAttr(b.name)}">Delete</button>
                 </div>`;
             }).join('');
@@ -279,6 +293,7 @@ function renderBooks() {
                     <span class="series-title">📚 <strong>${escapeHtml(item.name)}</strong></span>
                     <span class="series-badge">${item.books.length} volumes</span>
                     ${seriesProgressBadge}
+                    ${missingBadge}
                     <span class="book-size">${sizeStr}</span>
                 </summary>
                 <div class="series-items">

@@ -23,7 +23,7 @@
 // truncates to 28 characters plus a possible "_NN" dedup suffix. 63 leaves
 // headroom without permitting absurd names.
 #ifndef KOMABON_MAX_NAME_LEN
-#define KOMABON_MAX_NAME_LEN 63
+#define KOMABON_MAX_NAME_LEN 128
 #endif
 
 template <typename S> bool isSafeBookName(const S& name) {

@@ -98,6 +98,21 @@
                     </div>
                     <div id="terminal-log" class="terminal-log hidden"></div>
                 </div>
+
+                <!-- Storage Recovery Card -->
+                <div class="card">
+                    <div class="card-main-row">
+                        <div class="card-info">
+                            <h3>Storage Recovery</h3>
+                            <p class="hint">Use this if the MicroSD disconnects during high Wi-Fi activity.</p>
+                            <div id="sd-remount-status" class="status-msg"></div>
+                        </div>
+                        <div class="card-action">
+                            <button id="btn-remount-sd" class="btn btn-action-large warning"
+                                onclick="remountSD()">Remount SD Bus</button>
+                        </div>
+                    </div>
+                </div>
             </section>
 
             <!-- Settings Tab -->
@@ -181,21 +196,6 @@
                         <button class="btn primary" onclick="connectWifi()">Connect</button>
                     </div>
                     <div id="wifi-connect-status" class="status-msg"></div>
-                </div>
-
-                <!-- Storage Recovery Card (New Section for SD Remount) -->
-                <div class="card">
-                    <div class="card-main-row">
-                        <div class="card-info">
-                            <h3>Storage Recovery</h3>
-                            <p class="hint">Use this if the MicroSD disconnects during high Wi-Fi activity.</p>
-                            <div id="sd-remount-status" class="status-msg"></div>
-                        </div>
-                        <div class="card-action">
-                            <button id="btn-remount-sd" class="btn btn-action-large warning"
-                                onclick="remountSD()">Remount SD Bus</button>
-                        </div>
-                    </div>
                 </div>
 
                 <!-- 3-Column Balanced Settings Grid -->

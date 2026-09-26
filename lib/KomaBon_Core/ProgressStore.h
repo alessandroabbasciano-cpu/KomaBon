@@ -44,6 +44,7 @@ class ProgressStore {
     void begin();
 
     bool get(const String& originalName, BookProgress& out);
+    void getAll(std::map<String, BookProgress>& out);
     // Bumps `seq`, stores and persists.
     void set(const String& originalName, const BookProgress& progress);
     void remove(const String& originalName);

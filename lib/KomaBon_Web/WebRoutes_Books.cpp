@@ -12,6 +12,7 @@
 #include "../KomaBon_Core/PageCountStore.h"
 #include <SD.h>
 #include "../KomaBon_Core/SDMgr.h"
+#include <set>
 
 // --- Helper Functions & State ---
 
@@ -251,12 +252,15 @@ static bool deleteSingleBookInternal(const String& filename) {
     if (!isSafeBookName(filename)) return false;
 
     String path = "/" + filename;
-    if (!EbookFS.exists(path)) return false;
-    if (!EbookFS.remove(path)) {
-        Serial.printf("[HTTP] DELETE ERROR: Could not remove '%s' from storage\n", path.c_str());
-        return false;
+    if (EbookFS.exists(path)) {
+        if (!EbookFS.remove(path)) {
+            Serial.printf("[HTTP] DELETE ERROR: Could not remove '%s' from storage\n", path.c_str());
+            return false;
+        }
+        Serial.printf("[HTTP] Book deleted: '%s'\n", filename.c_str());
+    } else {
+        Serial.printf("[HTTP] Ghost book record deleted: '%s'\n", filename.c_str());
     }
-    Serial.printf("[HTTP] Book deleted: '%s'\n", filename.c_str());
 
     removeBookProgress(filename);
     removeFromBookOrder(filename);
@@ -293,6 +297,7 @@ void setupBookEndpoints(AsyncWebServer* server) {
         struct BookListItem {
             String name;
             size_t size;
+            bool missing = false;
         };
 
         std::vector<BookListItem> epubs, fonts;
@@ -304,26 +309,60 @@ void setupBookEndpoints(AsyncWebServer* server) {
                 int slash = name.lastIndexOf('/');
                 if (slash >= 0) name = name.substring(slash + 1);
                 if (hasExtensionCI(name, ".epub") || hasExtensionCI(name, ".kmb"))
-                    epubs.push_back({name, file.size()});
+                    epubs.push_back({name, file.size(), false});
                 else if (hasExtensionCI(name, ".ttf"))
-                    fonts.push_back({name, file.size()});
+                    fonts.push_back({name, file.size(), false});
                 file.close();
                 file = root.openNextFile();
             }
             root.close();
         }
 
-        Serial.printf("[HTTP] GET /api/books: %u books loaded\n", (unsigned)epubs.size());
+        std::map<String, String> metaMap;
+        loadBookMetadata(metaMap);
+
+        std::set<String> presentOriginals;
+        for (const auto& item : epubs) {
+            auto itMeta = metaMap.find(item.name);
+            String orig = (itMeta != metaMap.end()) ? itMeta->second : item.name;
+            presentOriginals.insert(orig);
+            presentOriginals.insert(item.name);
+        }
+
+        std::map<String, BookProgress> allProgress;
+        ProgressStore::getInstance().getAll(allProgress);
+        for (const auto& kv : allProgress) {
+            const String& orig = kv.first;
+            if (presentOriginals.find(orig) == presentOriginals.end()) {
+                if (hasExtensionCI(orig, ".epub") || hasExtensionCI(orig, ".kmb")) {
+                    presentOriginals.insert(orig);
+                    epubs.push_back({orig, 0, true});
+                }
+            }
+        }
 
         std::vector<String> order;
         loadBookOrder(order);
+        for (const String& ord : order) {
+            if (presentOriginals.find(ord) == presentOriginals.end()) {
+                if (hasExtensionCI(ord, ".epub") || hasExtensionCI(ord, ".kmb")) {
+                    presentOriginals.insert(ord);
+                    epubs.push_back({ord, 0, true});
+                }
+            }
+        }
+
+        size_t ghostCount = 0;
+        for (const auto& item : epubs) {
+            if (item.missing) ghostCount++;
+        }
+        Serial.printf("[HTTP] GET /api/books: %u books loaded (%u present, %u missing/ghost)\n",
+                      (unsigned)epubs.size(), (unsigned)(epubs.size() - ghostCount), (unsigned)ghostCount);
+
         applyBookOrderT(order, epubs,
                         [](const BookListItem& item, const String& key) { return item.name == key; });
         for (const auto& f : fonts)
             epubs.push_back(f);
-
-        std::map<String, String> metaMap;
-        loadBookMetadata(metaMap);
 
         AsyncResponseStream* response = request->beginResponseStream("application/json");
         response->print("{\"books\":[");
@@ -331,6 +370,7 @@ void setupBookEndpoints(AsyncWebServer* server) {
         for (const auto& item : epubs) {
             const String& name = item.name;
             size_t sz = item.size;
+            bool isMissing = item.missing;
 
             auto itMeta = metaMap.find(name);
             String origName = (itMeta != metaMap.end()) ? itMeta->second : name;
@@ -339,7 +379,7 @@ void setupBookEndpoints(AsyncWebServer* server) {
             bool isKmb = hasExtensionCI(name, ".kmb");
             if (isKmb) {
                 totalPages = PageCountStore::getInstance().getTotal(origName);
-                if (totalPages == 0 && sz > 12) {
+                if (!isMissing && totalPages == 0 && sz > 12) {
                     File f = EbookFS.open("/" + name, FILE_READ);
                     if (f) {
                         char magic[5] = {0};
@@ -372,9 +412,9 @@ void setupBookEndpoints(AsyncWebServer* server) {
             if (!first) response->print(",");
             first = false;
             response->printf("{\"name\":\"%s\",\"filename\":\"%s\",\"size\":%u,\"page\":%d,\"totalPages\":%d,"
-                             "\"percent\":%d}",
+                             "\"percent\":%d,\"missing\":%s}",
                              jsonEscape(origName).c_str(), jsonEscape(name).c_str(), (unsigned)sz,
-                             currentPage, totalPages, percent);
+                             currentPage, totalPages, percent, isMissing ? "true" : "false");
 
             vTaskDelay(pdMS_TO_TICKS(1));
             yield();

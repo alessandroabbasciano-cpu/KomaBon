@@ -153,6 +153,12 @@ bool ProgressStore::get(const String& originalName, BookProgress& out) {
     return true;
 }
 
+void ProgressStore::getAll(std::map<String, BookProgress>& out) {
+    KomaBonGuard guard(_mutex);
+    begin();
+    out = _books;
+}
+
 void ProgressStore::set(const String& originalName, const BookProgress& progress) {
     KomaBonGuard guard(_mutex);
     begin();
