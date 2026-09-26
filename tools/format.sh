@@ -24,5 +24,14 @@ while IFS= read -r -d '' f; do
     is_ignored "$f" || files+=("$f")
 done < <(find lib src include -type f \( -name '*.cpp' -o -name '*.h' \) -print0)
 
+CLANG_FORMAT="clang-format"
+if ! command -v "$CLANG_FORMAT" &> /dev/null; then
+    if [[ -f "$HOME/.platformio/penv/Scripts/clang-format.exe" ]]; then
+        CLANG_FORMAT="$HOME/.platformio/penv/Scripts/clang-format.exe"
+    elif [[ -f "/c/Users/$USER/.platformio/penv/Scripts/clang-format.exe" ]]; then
+        CLANG_FORMAT="/c/Users/$USER/.platformio/penv/Scripts/clang-format.exe"
+    fi
+fi
+
 echo "Formatting ${#files[@]} file(s)..."
-clang-format -i "${files[@]}"
+"$CLANG_FORMAT" -i "${files[@]}"
