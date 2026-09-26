@@ -27,10 +27,26 @@ class SDMgr {
         return _mounted;
     }
 
+    uint32_t getClusterSize() const {
+        return _clusterSize;
+    }
+
+    bool isClusterOptimal() const {
+        return _clusterSize >= 32768 && _clusterAligned;
+    }
+
+    bool isClusterAligned() const {
+        return _clusterAligned;
+    }
+
   private:
     SDMgr();
+    void checkFatClusterAlignment();
+
     SPIClass* _spi;
     bool _mounted;
+    uint32_t _clusterSize;
+    bool _clusterAligned;
 };
 
 #endif // SD_MGR_H
