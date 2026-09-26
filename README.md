@@ -123,3 +123,13 @@ For the complete technical manual, circuit schematics, eFuse burning instruction
 ## 📦 Partition Notes
 
 KomaBon uses a custom partition table (`partitions_16MB.csv`). The ebook partition is mounted separately from the firmware and web UI filesystem, so normal firmware and `uploadfs` updates do not overwrite user ebook storage.
+
+## ⚖️ License & Acknowledgements
+
+KomaBon is licensed under the **GNU Lesser General Public License v2.1** (LGPL-2.1). See the [LICENSE](LICENSE) file for the full license text.
+
+### Upstream & Community Credits
+* **[Book32](https://github.com/rolohaun/Book32)** (by rolohaun) — Foundational firmware architecture, memory management, and EbookFS design upon which KomaBon was originally branched and evolved.
+* **[Matcha Reader](https://github.com/eszter007/matcha-reader)** (by eszter007, MIT License) — Algorithmic and conceptual inspiration for the panel focus pipeline, speech balloon expansion heuristics, and topological manga reading-order DAG sorting.
+* **Typography:** Embedded reader fonts (Merriweather, Literata, Source Serif 4, Gelasio, Open Sans) are licensed under the **SIL Open Font License 1.1** (see [Fonts/OFL.txt](lib/KomaBon_Core/Fonts/OFL.txt)); FreeSans is licensed under **GNU GPLv3 with Font Exception**.
+
