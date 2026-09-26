@@ -40,17 +40,24 @@ class FontMgr {
     // Draw text at position using Adafruit GFX fonts
     void drawText(KomaBonDisplay& display, const char* text, int x, int y, int fontSize,
                   uint16_t color = GxEPD_BLACK);
+    void drawTextBold(KomaBonDisplay& display, const char* text, int x, int y, int fontSize,
+                      uint16_t color = GxEPD_BLACK);
 
     // Draw text centered horizontally
     void drawTextCentered(KomaBonDisplay& display, const char* text, int y, int fontSize,
                           uint16_t color = GxEPD_BLACK);
+    void drawTextCenteredBold(KomaBonDisplay& display, const char* text, int y, int fontSize,
+                              uint16_t color = GxEPD_BLACK);
 
     // Draw text right-aligned
     void drawTextRight(KomaBonDisplay& display, const char* text, int x, int y, int fontSize,
                        uint16_t color = GxEPD_BLACK);
+    void drawTextRightBold(KomaBonDisplay& display, const char* text, int x, int y, int fontSize,
+                           uint16_t color = GxEPD_BLACK);
 
     // Get text width for layout calculations
     int getTextWidth(const char* text, int fontSize);
+    int getTextWidthBold(const char* text, int fontSize);
 
     // Get text height
     int getTextHeight(int fontSize);

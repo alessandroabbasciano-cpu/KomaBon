@@ -31,12 +31,8 @@ class AppMainMenu : public App {
     bool _footerOnlyRedraw = false;
     int _previousSelectedIndex = 1;
 
-    bool _lastWifiConnected = false;
     bool _wifiStarting = false;
-    String _lastIp = "";
-    String _lastWifiFooterText = "";
     bool _hotspotActive = false;
-    unsigned long _lastNetworkPoll = 0;
     unsigned long _lastBatteryPoll = 0;
     BatteryStatus _lastBatteryStatus = {0.0f, -1, false};
 
@@ -49,5 +45,4 @@ class AppMainMenu : public App {
     KomaBonMutex _updateMutex;
     bool _updateAvailable = false;
     String _updateVersion = "";
-    String getWifiFooterText() const;
 };

@@ -76,6 +76,7 @@ void setup() {
 
     // Single full-screen update only after all buses are safely stabilized
     displayMgr.showBootScreen(100, bootReport);
+    delay(2000); // Give user time to read boot report
 
     if (!SystemFS.exists("/joy_cal.json") && !EbookFS.exists("/joy_cal.json")) {
         Serial.println("[BOOT] Missing calibration. Starting wizard.");

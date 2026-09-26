@@ -48,24 +48,6 @@ static MenuDirtyRect unionRect(MenuDirtyRect a, MenuDirtyRect b) {
     return {x1, y1, x2 - x1, y2 - y1};
 }
 
-static int textWidthForFont(KomaBonDisplay& display, const char* text, const GFXfont* font) {
-    int16_t x1, y1;
-    uint16_t w, h;
-    display.setFont(font);
-    display.setTextSize(1);
-    display.getTextBounds(text, 0, 0, &x1, &y1, &w, &h);
-    return w;
-}
-
-static void drawTextWithFont(KomaBonDisplay& display, const char* text, int x, int y, const GFXfont* font,
-                             uint16_t color) {
-    display.setFont(font);
-    display.setTextColor(color);
-    display.setTextSize(1);
-    display.setCursor(x, y);
-    display.print(text);
-}
-
 static bool isReaderActive() {
     App* current = AppMgr::getInstance().getCurrentApp();
     return current && strcmp(current->getName(), "eReader") == 0;
@@ -84,19 +66,6 @@ void AppMainMenu::loadResumeData() {
     } else {
         _hasResume = false;
     }
-}
-
-String AppMainMenu::getWifiFooterText() const {
-    if (WiFi.status() == WL_CONNECTED) {
-        IPAddress ip = WiFi.localIP();
-        if (ip != INADDR_NONE) {
-            return String("IP: ") + ip.toString() + " | Web UI Ready";
-        }
-    }
-    if (_hotspotActive) {
-        return String("AP: ") + AP_SSID + " | Pwd: " + WebMgr::devicePassword() + " | 192.168.4.1";
-    }
-    return "Wi-Fi Offline";
 }
 
 void AppMainMenu::startHotspot() {
@@ -137,9 +106,6 @@ void AppMainMenu::start() {
     _batteryOnlyRedraw = false;
     _previousSelectedIndex = selectedIndex;
 
-    _lastWifiConnected = WiFi.status() == WL_CONNECTED;
-    _lastIp = _lastWifiConnected ? WiFi.localIP().toString() : "";
-    _lastWifiFooterText = "";
     _lastBatteryPoll = millis();
     _lastBatteryStatus = BatteryMgr::getInstance().refreshNow();
 
@@ -194,21 +160,6 @@ void AppMainMenu::handleInput(InputAction action) {
 void AppMainMenu::update() {
     unsigned long now = millis();
 
-    if (now - _lastNetworkPoll >= 1000) {
-        _lastNetworkPoll = now;
-        bool connected = WiFi.status() == WL_CONNECTED;
-        String ip = connected ? WiFi.localIP().toString() : "";
-        String footerText = getWifiFooterText();
-        if (connected != _lastWifiConnected || ip != _lastIp || footerText != _lastWifiFooterText) {
-            _lastWifiConnected = connected;
-            _lastIp = ip;
-            _selectionOnlyRedraw = false;
-            _batteryOnlyRedraw = false;
-            _footerOnlyRedraw = !_firstDraw;
-            _needsRedraw = true;
-        }
-    }
-
     if (now - _lastBatteryPoll >= 10000) {
         _lastBatteryPoll = now;
         BatteryStatus status = BatteryMgr::getInstance().refreshNow();
@@ -239,7 +190,11 @@ void AppMainMenu::draw() {
     bool isPortrait = screenH > screenW;
 
     if (_firstDraw) {
-        display.setFullWindow();
+        if (millis() < 8000) {
+            display.setPartialWindow(0, 0, display.width(), display.height());
+        } else {
+            display.setFullWindow();
+        }
         _firstDraw = false;
     } else if (_selectionOnlyRedraw) {
         MenuDirtyRect dirty = unionRect(menuItemRect(_previousSelectedIndex, screenW, screenH, apps.size()),
@@ -292,7 +247,7 @@ void AppMainMenu::draw() {
             }
 
             int textLeftOffset = wx + 24;
-            drawTextWithFont(display, "Currently Reading", textLeftOffset, wy + 24, &FreeSans9pt8b,
+            fontMgr.drawText(display, "Currently Reading", textLeftOffset, wy + 24, FONT_SIZE_BODY,
                              GxEPD_BLACK);
             display.drawFastHLine(textLeftOffset, wy + 32, 120, GxEPD_BLACK);
 
@@ -373,7 +328,7 @@ void AppMainMenu::draw() {
 
             if (!coverDrawn) {
                 display.drawRect(coverX, coverY, coverW, coverH, GxEPD_BLACK);
-                drawTextWithFont(display, "No Cover", coverX + 22, coverY + 75, &FreeSans9pt8b, GxEPD_BLACK);
+                fontMgr.drawText(display, "No Cover", coverX + 22, coverY + 75, FONT_SIZE_BODY, GxEPD_BLACK);
             }
 
             int textX = coverX + coverW + 25;
@@ -398,10 +353,9 @@ void AppMainMenu::draw() {
 
             int authorY = coverY + 20;
             if (dashPos != -1) {
-                drawTextWithFont(display, author.c_str(), textX, authorY, &FreeSans9pt8b, GxEPD_BLACK);
+                fontMgr.drawText(display, author.c_str(), textX, authorY, FONT_SIZE_BODY, GxEPD_BLACK);
             }
 
-            const GFXfont* titleFont = &FreeSansBold12pt8b;
             int titleY = dashPos != -1 ? (authorY + 26) : (coverY + 34);
             int maxLines = 2;
             int lineCount = 0;
@@ -415,9 +369,10 @@ void AppMainMenu::draw() {
                 String word = bookName.substring(pos, nextSpace);
                 String testLine = currentLine.length() > 0 ? currentLine + " " + word : word;
 
-                if (textWidthForFont(display, testLine.c_str(), titleFont) > textMaxWidth &&
+                if (fontMgr.getTextWidthBold(testLine.c_str(), FONT_SIZE_MENU) > textMaxWidth &&
                     currentLine.length() > 0) {
-                    drawTextWithFont(display, currentLine.c_str(), textX, titleY, titleFont, GxEPD_BLACK);
+                    fontMgr.drawTextBold(display, currentLine.c_str(), textX, titleY, FONT_SIZE_MENU,
+                                         GxEPD_BLACK);
                     titleY += 26;
                     lineCount++;
                     currentLine = word;
@@ -433,13 +388,14 @@ void AppMainMenu::draw() {
                 if (pos < bookNameLen && currentLine.length() > 3) {
                     currentLine = currentLine.substring(0, currentLine.length() - 3) + "...";
                 }
-                drawTextWithFont(display, currentLine.c_str(), textX, titleY, titleFont, GxEPD_BLACK);
+                fontMgr.drawTextBold(display, currentLine.c_str(), textX, titleY, FONT_SIZE_MENU,
+                                     GxEPD_BLACK);
             }
 
             int pageY = coverY + 140;
             char pageInfo[32];
             snprintf(pageInfo, sizeof(pageInfo), "Page %d", _lastBookPage);
-            drawTextWithFont(display, pageInfo, textX, pageY, &FreeSans9pt8b, GxEPD_BLACK);
+            fontMgr.drawText(display, pageInfo, textX, pageY, FONT_SIZE_BODY, GxEPD_BLACK);
         }
 
         // --- 3. VERTICAL LIST APPS (Bottom Anchored) ---
@@ -488,11 +444,8 @@ void AppMainMenu::draw() {
         }
 
         // --- 4. FOOTER ---
-        fontMgr.drawTextCentered(display, "Up/Down: Move  |  Center: Select", screenH - 45, FONT_SIZE_SMALL,
+        fontMgr.drawTextCentered(display, "Joy: Move  |  Center: Select", screenH - 22, FONT_SIZE_SMALL,
                                  GxEPD_BLACK);
-        String ipStr = getWifiFooterText();
-        fontMgr.drawTextCentered(display, ipStr.c_str(), screenH - 20, FONT_SIZE_SMALL, GxEPD_BLACK);
-        _lastWifiFooterText = ipStr;
 
     } while (display.nextPage());
 }

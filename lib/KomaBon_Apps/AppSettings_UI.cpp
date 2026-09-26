@@ -69,7 +69,6 @@ void AppSettings::drawHeader(const char* title) {
     BatteryMgr::getInstance().drawStatusBar(display, 0, 0);
 
     font.drawText(display, title, 20, 45, FONT_SIZE_SUBTITLE, GxEPD_BLACK);
-    display.drawLine(20, 62, display.width() - 20, 62, GxEPD_BLACK);
 
     if (_dirty) {
         font.drawText(display, "* unsaved changes", 20, 90, FONT_SIZE_SMALL, GxEPD_BLACK);
@@ -119,7 +118,7 @@ void AppSettings::drawMainScreen() {
     }
 
     display.setTextColor(GxEPD_BLACK);
-    drawFooter("Up/Down: move  |  Center: ok  |  Hold Left: exit");
+    drawFooter("Joy: Move  |  Center: Select  |  Hold Left: exit");
 }
 
 void AppSettings::drawFontScreen() {
@@ -145,7 +144,7 @@ void AppSettings::drawFontScreen() {
     }
 
     display.setTextColor(GxEPD_BLACK);
-    drawFooter("Up/Down: move  |  Center: ok  |  Hold Left: back");
+    drawFooter("Joy: Move  |  Center: Select  |  Hold Left: back");
 }
 
 void AppSettings::drawNetworkScreen() {
@@ -235,7 +234,7 @@ void AppSettings::drawSystemScreen() {
     }
 
     display.setTextColor(GxEPD_BLACK);
-    drawFooter("Up/Down: move  |  Center: execute  |  Hold Left: back");
+    drawFooter("Joy: Move  |  Center: Select  |  Hold Left: back");
 }
 
 void AppSettings::drawConfirmScreen() {
@@ -263,7 +262,7 @@ void AppSettings::drawConfirmScreen() {
     }
 
     display.setTextColor(GxEPD_BLACK);
-    drawFooter("Up/Down: move  |  Center: confirm  |  Hold Left: back");
+    drawFooter("Joy: Move  |  Center: Select  |  Hold Left: back");
 }
 
 void AppSettings::drawConfirmForgetWifiScreen() {
@@ -293,7 +292,7 @@ void AppSettings::drawConfirmForgetWifiScreen() {
     }
 
     display.setTextColor(GxEPD_BLACK);
-    drawFooter("Up/Down: move  |  Center: confirm  |  Hold Left: back");
+    drawFooter("Joy: Move  |  Center: Select  |  Hold Left: back");
 }
 
 void AppSettings::drawJoyCalScreen() {

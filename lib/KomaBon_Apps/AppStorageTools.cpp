@@ -182,7 +182,6 @@ void AppStorageTools::drawHeader(const char* title) {
     BatteryMgr::getInstance().drawStatusBar(display, 0, 0);
 
     font.drawText(display, title, 20, 45, FONT_SIZE_SUBTITLE, GxEPD_BLACK);
-    display.drawLine(20, 62, display.width() - 20, 62, GxEPD_BLACK);
 }
 
 void AppStorageTools::drawFooter(const char* hint) {
@@ -261,7 +260,7 @@ void AppStorageTools::draw() {
             font.drawText(display, ACTIONS[i], 26, ay, FONT_SIZE_BODY, GxEPD_BLACK);
         }
 
-        drawFooter("Up/Down: move  |  Center: select  |  Hold Left: exit");
+        drawFooter("Joy: Move  |  Center: Select  |  Hold Left: exit");
 
     } while (display.nextPage());
 }

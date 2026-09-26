@@ -118,11 +118,29 @@ void FontMgr::drawText(KomaBonDisplay& display, const char* text, int x, int y, 
     display.print(latin1);
 }
 
+void FontMgr::drawTextBold(KomaBonDisplay& display, const char* text, int x, int y, int fontSize,
+                           uint16_t color) {
+    char latin1[512];
+    utf8ToLatin1(text, latin1, sizeof(latin1));
+    const GFXfont* font = getFontBold(fontSize);
+    display.setFont(font);
+    display.setTextColor(color);
+    display.setCursor(x, y);
+    display.print(latin1);
+}
+
 void FontMgr::drawTextCentered(KomaBonDisplay& display, const char* text, int y, int fontSize,
                                uint16_t color) {
     int width = getTextWidth(text, fontSize);
     int x = (display.width() - width) / 2;
     drawText(display, text, x, y, fontSize, color);
+}
+
+void FontMgr::drawTextCenteredBold(KomaBonDisplay& display, const char* text, int y, int fontSize,
+                                   uint16_t color) {
+    int width = getTextWidthBold(text, fontSize);
+    int x = (display.width() - width) / 2;
+    drawTextBold(display, text, x, y, fontSize, color);
 }
 
 void FontMgr::drawTextRight(KomaBonDisplay& display, const char* text, int x, int y, int fontSize,
@@ -131,8 +149,28 @@ void FontMgr::drawTextRight(KomaBonDisplay& display, const char* text, int x, in
     drawText(display, text, x - width, y, fontSize, color);
 }
 
+void FontMgr::drawTextRightBold(KomaBonDisplay& display, const char* text, int x, int y, int fontSize,
+                                uint16_t color) {
+    int width = getTextWidthBold(text, fontSize);
+    drawTextBold(display, text, x - width, y, fontSize, color);
+}
+
 int FontMgr::getTextWidth(const char* text, int fontSize) {
     const GFXfont* font = getFont(fontSize);
+    cacheCharWidths(font);
+
+    char latin1[512];
+    utf8ToLatin1(text, latin1, sizeof(latin1));
+
+    int width = 0;
+    for (const unsigned char* p = (const unsigned char*)latin1; *p; p++) {
+        width += _charWidths[*p];
+    }
+    return width;
+}
+
+int FontMgr::getTextWidthBold(const char* text, int fontSize) {
+    const GFXfont* font = getFontBold(fontSize);
     cacheCharWidths(font);
 
     char latin1[512];

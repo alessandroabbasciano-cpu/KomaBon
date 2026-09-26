@@ -6,31 +6,12 @@
 #include "BookMeta.h"
 #include "ProgressStore.h"
 #include "PageCountStore.h"
-#include "Fonts/FreeSans.h"
 #include "BatteryMgr.h"
 #include "SDMgr.h"
 #include <LittleFS.h>
 #include <ArduinoJson.h>
 #include <map>
 #include <vector>
-
-static int textWidthForFont(KomaBonDisplay& display, const char* text, const GFXfont* font) {
-    int16_t x1, y1;
-    uint16_t w, h;
-    display.setFont(font);
-    display.setTextSize(1);
-    display.getTextBounds(text, 0, 0, &x1, &y1, &w, &h);
-    return w;
-}
-
-static void drawTextWithFont(KomaBonDisplay& display, const char* text, int x, int y, const GFXfont* font,
-                             uint16_t color) {
-    display.setFont(font);
-    display.setTextColor(color);
-    display.setTextSize(1);
-    display.setCursor(x, y);
-    display.print(text);
-}
 
 static String titleFromFilename(String name) {
     name = normalizedBookName(name);
@@ -337,7 +318,7 @@ void AppReader::drawLibrary() {
         display.fillScreen(GxEPD_WHITE);
 
         // Header text re-aligned lower after removing the line
-        drawTextWithFont(display, "Library", 16, 36, &FreeSansBold12pt8b, GxEPD_BLACK);
+        fontMgr.drawTextBold(display, "Library", 16, 36, FONT_SIZE_SUBTITLE, GxEPD_BLACK);
 
         char countText[24];
         snprintf(countText, sizeof(countText), "%d books", (int)_books.size());
@@ -348,7 +329,7 @@ void AppReader::drawLibrary() {
         int y = HEADER_H;
 
         if (_books.empty()) {
-            drawTextWithFont(display, "No books found.", 20, y + 45, &FreeSansBold12pt8b, GxEPD_BLACK);
+            fontMgr.drawTextBold(display, "No books found.", 20, y + 45, FONT_SIZE_SUBTITLE, GxEPD_BLACK);
             fontMgr.drawText(display, "Upload books via web interface.", 20, y + 70, FONT_SIZE_BODY,
                              GxEPD_BLACK);
         } else {
@@ -391,10 +372,9 @@ void AppReader::drawLibrary() {
 
                 if (author.length() > 36) author = author.substring(0, 33) + "...";
                 if (dashPos != -1) {
-                    drawTextWithFont(display, author.c_str(), textX, y + 24, &FreeSans9pt8b, textColor);
+                    fontMgr.drawText(display, author.c_str(), textX, y + 24, FONT_SIZE_BODY, textColor);
                 }
 
-                const GFXfont* titleFont = &FreeSansBold12pt8b;
                 int currentLineY = dashPos != -1 ? (y + 50) : (y + 40);
                 int lineHeight = 22;
                 int maxLines = 2;
@@ -410,10 +390,10 @@ void AppReader::drawLibrary() {
                     String word = bookName.substring(pos, nextSpace);
                     String testLine = currentLine.length() > 0 ? currentLine + " " + word : word;
 
-                    if (textWidthForFont(display, testLine.c_str(), titleFont) > maxTextWidth &&
+                    if (fontMgr.getTextWidthBold(testLine.c_str(), FONT_SIZE_MENU) > maxTextWidth &&
                         currentLine.length() > 0) {
-                        drawTextWithFont(display, currentLine.c_str(), textX, currentLineY, titleFont,
-                                         textColor);
+                        fontMgr.drawTextBold(display, currentLine.c_str(), textX, currentLineY,
+                                             FONT_SIZE_MENU, textColor);
                         currentLineY += lineHeight;
                         lineCount++;
                         currentLine = word;
@@ -429,7 +409,8 @@ void AppReader::drawLibrary() {
                     if (pos < bookNameLen && currentLine.length() > 3) {
                         currentLine = currentLine.substring(0, currentLine.length() - 3) + "...";
                     }
-                    drawTextWithFont(display, currentLine.c_str(), textX, currentLineY, titleFont, textColor);
+                    fontMgr.drawTextBold(display, currentLine.c_str(), textX, currentLineY, FONT_SIZE_MENU,
+                                         textColor);
                 }
 
                 if (book.hasProgress) {
@@ -447,11 +428,11 @@ void AppReader::drawLibrary() {
                         }
                         char infoStr[24];
                         snprintf(infoStr, sizeof(infoStr), "%d / %d", book.globalPage, book.totalPages);
-                        drawTextWithFont(display, infoStr, barX, barY - 12, &FreeSans9pt8b, textColor);
+                        fontMgr.drawText(display, infoStr, barX, barY - 12, FONT_SIZE_BODY, textColor);
                     } else {
                         char pageStr[16];
                         snprintf(pageStr, sizeof(pageStr), "p. %d", book.globalPage);
-                        drawTextWithFont(display, pageStr, barX, barY - 12, &FreeSans9pt8b, textColor);
+                        fontMgr.drawText(display, pageStr, barX, barY - 12, FONT_SIZE_BODY, textColor);
                     }
                 }
 
@@ -482,8 +463,8 @@ void AppReader::drawLibrary() {
 
         // Line removed: display.drawFastHLine(12, display.height() - 40, display.width() - 24, GxEPD_BLACK);
 
-        fontMgr.drawText(display, "Joy: Move  |  Center: Open  |  Hold Left: Menu", 16, display.height() - 16,
-                         FONT_SIZE_SMALL, GxEPD_BLACK);
+        fontMgr.drawText(display, "Joy: Move  |  Center: Select  |  Hold Left: Menu", 16,
+                         display.height() - 16, FONT_SIZE_SMALL, GxEPD_BLACK);
 
         fontMgr.drawTextRight(display, pageStr, display.width() - 16, display.height() - 16, FONT_SIZE_SMALL,
                               GxEPD_BLACK);

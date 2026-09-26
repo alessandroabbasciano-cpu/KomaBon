@@ -3,7 +3,6 @@
 #include "FontMgr.h"
 #include "BatteryMgr.h"
 #include "icon_reader.h"
-#include "Fonts/FreeSans.h"
 
 const uint8_t* AppReader::getIconImage() {
     return icon_reader_160x160;
@@ -43,7 +42,11 @@ void AppReader::drawReading() {
     KomaBonDisplay& display = dispMgr.getDisplay();
 
     if (_readingFirstDraw || _pageTurnsSinceRefresh >= _refreshEveryNPages) {
-        display.setFullWindow();
+        if (_readingFirstDraw && millis() < 8000) {
+            display.setPartialWindow(0, 0, display.width(), display.height());
+        } else {
+            display.setFullWindow();
+        }
         _pageTurnsSinceRefresh = 0;
         _readingFirstDraw = false;
     } else {
@@ -137,11 +140,10 @@ void AppReader::drawOverlaySettings() {
 
         for (int i = 0; i < 4; i++) {
             int itemY = oy + 95 + (i * 32);
+            fontMgr.drawTextCentered(display, items[i], itemY, FONT_SIZE_BODY, GxEPD_BLACK);
             if (i == _overlaySelectedIndex) {
-                display.fillRect(ox + 20, itemY - 20, ow - 40, 28, GxEPD_BLACK);
-                fontMgr.drawTextCentered(display, items[i], itemY, FONT_SIZE_BODY, GxEPD_WHITE);
-            } else {
-                fontMgr.drawTextCentered(display, items[i], itemY, FONT_SIZE_BODY, GxEPD_BLACK);
+                display.drawRect(ox + 20, itemY - 20, ow - 40, 28, GxEPD_BLACK);
+                display.drawRect(ox + 21, itemY - 19, ow - 42, 26, GxEPD_BLACK);
             }
         }
     } while (display.nextPage());

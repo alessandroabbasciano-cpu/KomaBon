@@ -99,7 +99,6 @@ void AppWebTransfer::draw() {
         BatteryMgr::getInstance().drawStatusBar(display, 0, 0);
 
         fontMgr.drawTextCentered(display, "Web File Transfer", 60, FONT_SIZE_SUBTITLE, GxEPD_BLACK);
-        display.drawLine(40, 85, display.width() - 40, 85, GxEPD_BLACK);
 
         if (_state == WebTransferState::Init || _state == WebTransferState::WaitingForInitScreen ||
             _state == WebTransferState::StartingRadio) {
