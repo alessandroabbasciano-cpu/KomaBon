@@ -612,7 +612,7 @@ function executeDirectUpload(file) {
         } else {
             lastFailedLibraryFile = file;
             progressBar.style.backgroundColor = "var(--danger-line)";
-            status.innerHTML = `<span>Upload failed: ${xhr.responseText || 'Error'}</span> <button type="button" class="btn secondary btn-micro" style="margin-left:8px;" onclick="retryLibraryUpload()">Retry</button>`;
+            status.innerHTML = `<span>Upload failed: ${escapeHtml(xhr.responseText || 'Error')}</span> <button type="button" class="btn secondary btn-micro" style="margin-left:8px;" onclick="retryLibraryUpload()">Retry</button>`;
             status.style.color = "var(--danger)";
             if (dropzoneBox) dropzoneBox.style.borderColor = "var(--danger-line)";
         }
