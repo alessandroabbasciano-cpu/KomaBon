@@ -4,7 +4,7 @@
 // Major.Minor.Patch, always with all three components: release.yml only triggers
 // on v[0-9]+.[0-9]+.[0-9]+ tags and compares the tag with this value character
 // by character. "1.10" here (or a v1.10 tag) would not publish any release.
-#define SYSTEM_VERSION "0.5.1"
+#define SYSTEM_VERSION "0.6.0"
 #define DEVICE_NAME "KomaBon"
 
 // Offline management hotspot (SoftAP). When the device can't reach a known
@@ -55,7 +55,8 @@
 // Display Settings (Portrait 7.5")
 #define SCREEN_WIDTH 480
 #define SCREEN_HEIGHT 800
-#define FONT_SIZE_DEFAULT 28 // Default font size (maps to FreeSans18pt GFX font)
+#define FONT_SIZE_DEFAULT 28        // Default font size (maps to FreeSans18pt GFX font)
+#define LAZY_RENDER_DEBOUNCE_MS 250 // Quiet period before drawing e-ink frame
 
 // Boot diagnostics
 // Set to 1 when debugging partition/filesystem issues. Keeping this off makes

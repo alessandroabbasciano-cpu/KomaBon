@@ -41,6 +41,10 @@ class InputMgr {
         return _isInteracting;
     }
 
+    bool hasPendingActions() const {
+        return _queueTail != _queueHead;
+    }
+
   private:
     InputMgr();
     OneButton btn;

@@ -7,17 +7,36 @@
   <meta name="theme-color" content="#18181b">
   <title>KomaBon Browser Installer</title>
   <meta name="description" content="Update KomaBon directly from a supported web browser.">
+  <link rel="stylesheet" href="wiki.css">
   <link rel="stylesheet" href="installer.css">
   <script type="module" src="https://unpkg.com/esp-web-tools@10/dist/web/install-button.js?module"></script>
 </head>
 
 <body>
+  <header class="wiki-header">
+    <div class="brand-group">
+      <a href="index.html" class="brand-logo">
+        <span>📖 KomaBon</span>
+        <span class="version-tag" data-version-badge hidden>Loading…</span>
+      </a>
+    </div>
+
+    <nav class="header-nav">
+      <a href="wiki.html" class="nav-link">📖 <span>Wiki & Docs</span></a>
+      <a href="index.html" class="nav-link active">⚡ <span>Web Flasher</span></a>
+      <a href="wiki.html#hardware-guide" class="nav-link">🛠️ <span>Hardware</span></a>
+      <a href="https://github.com/alessandroabbasciano-cpu/KomaBon" target="_blank" rel="noopener" class="nav-link github-btn">
+        <svg height="16" width="16" viewBox="0 0 16 16" fill="currentColor"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"></path></svg>
+        <span>GitHub</span>
+      </a>
+    </nav>
+  </header>
+
   <main>
     <section class="intro" aria-labelledby="page-title">
       <p class="eyebrow">XIAO ePaper Dev Board (ESP32-S3 Plus)</p>
       <div class="title-row">
         <h1 id="page-title">Flash KomaBon</h1>
-        <span class="version" data-version-badge hidden>Loading…</span>
       </div>
       <p>Install or update the firmware and web interface over USB. No PlatformIO or command line required.</p>
     </section>
@@ -141,8 +160,10 @@
   </main>
 
   <footer>
-    <a href="https://github.com/alessandroabbasciano-cpu/KomaBon">KomaBon Source</a>
-    <a href="https://github.com/alessandroabbasciano-cpu/KomaBon/issues">Report a problem</a>
+    <a href="wiki.html">📖 KomaBon Wiki & Docs</a>
+    <a href="wiki.html#hardware-guide">🛠️ Hardware Guide</a>
+    <a href="https://github.com/alessandroabbasciano-cpu/KomaBon">Source Code</a>
+    <a href="https://github.com/alessandroabbasciano-cpu/KomaBon/issues">Report an Issue</a>
   </footer>
 
   <script src="installer.js"></script>

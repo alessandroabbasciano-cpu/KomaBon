@@ -104,7 +104,8 @@ void loop() {
         lastPhysicalInputTime = millis();
     }
 
-    if (millis() - lastPhysicalInputTime > 200) {
+    if (!InputMgr::getInstance().hasPendingActions() &&
+        (millis() - lastPhysicalInputTime > LAZY_RENDER_DEBOUNCE_MS)) {
         AppMgr::getInstance().draw();
     }
 

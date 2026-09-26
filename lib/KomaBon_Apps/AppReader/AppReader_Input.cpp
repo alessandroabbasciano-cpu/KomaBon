@@ -29,14 +29,18 @@ void AppReader::handleInput(InputAction action) {
         int maxIndex = (int)_books.size() - 1;
 
         if (action == INPUT_NEXT) {
-            _previousBookIndex = _selectedBookIndex;
+            if (!_librarySelectionOnlyRedraw) {
+                _previousBookIndex = _selectedBookIndex;
+            }
             _selectedBookIndex++;
             if (_selectedBookIndex > maxIndex) _selectedBookIndex = 0;
             _librarySelectionOnlyRedraw = _booksScanned;
             updateLibraryScroll();
             _needsRedraw = true;
         } else if (action == INPUT_PREV) {
-            _previousBookIndex = _selectedBookIndex;
+            if (!_librarySelectionOnlyRedraw) {
+                _previousBookIndex = _selectedBookIndex;
+            }
             _selectedBookIndex--;
             if (_selectedBookIndex < 0) _selectedBookIndex = maxIndex;
             _librarySelectionOnlyRedraw = _booksScanned;

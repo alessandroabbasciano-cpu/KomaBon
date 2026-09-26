@@ -1,0 +1,666 @@
+<!doctype html>
+<html lang="en">
+
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#121214">
+  <title>KomaBon Wiki — Documentation & Hardware Guide</title>
+  <meta name="description" content="Comprehensive documentation, hardware modding guide, Web UI manual, and architecture reference for KomaBon OS.">
+  <link rel="stylesheet" href="wiki.css">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+</head>
+
+<body>
+  <!-- HEADER -->
+  <header class="wiki-header">
+    <div class="brand-group">
+      <button class="menu-toggle" aria-label="Toggle navigation menu">☰</button>
+      <a href="wiki.html" class="brand-logo">
+        <span>📖 KomaBon</span>
+        <span class="version-tag">v0.6.0</span>
+      </a>
+    </div>
+
+    <nav class="header-nav">
+      <a href="wiki.html" class="nav-link active">📖 <span>Wiki</span></a>
+      <a href="index.html" class="nav-link">⚡ <span>Web Flasher</span></a>
+      <a href="#hardware-guide" class="nav-link">🛠️ <span>Hardware</span></a>
+      <a href="https://github.com/alessandroabbasciano-cpu/KomaBon" target="_blank" rel="noopener" class="nav-link github-btn">
+        <svg height="16" width="16" viewBox="0 0 16 16" fill="currentColor"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"></path></svg>
+        <span>GitHub</span>
+      </a>
+    </nav>
+  </header>
+
+  <div class="sidebar-backdrop"></div>
+
+  <!-- WIKI LAYOUT -->
+  <div class="wiki-layout">
+    <!-- SIDEBAR -->
+    <aside class="wiki-sidebar">
+      <div class="sidebar-search">
+        <span class="search-icon">🔍</span>
+        <input type="text" class="search-input" placeholder="Search documentation..." aria-label="Search documentation">
+      </div>
+
+      <div class="nav-section">
+        <div class="section-title">Getting Started</div>
+        <ul class="section-links">
+          <li><a href="#overview" class="active">Overview & Architecture</a></li>
+          <li><a href="#specs">Hardware Specifications</a></li>
+          <li><a href="#flashing">Installation & Flashing</a></li>
+          <li><a href="#first-boot">First Boot & Setup</a></li>
+        </ul>
+      </div>
+
+      <div class="nav-section">
+        <div class="section-title">Hardware & Electronics</div>
+        <ul class="section-links">
+          <li><a href="#hardware-guide">Modding & Wiring Guide</a></li>
+          <li><a href="#efuse-guide">Burning DIS_PAD_JTAG eFuse</a></li>
+          <li><a href="#pinout-matrix">Pinout & Schematic Matrix</a></li>
+          <li><a href="#silicon-rules">Octal PSRAM Safety Rules</a></li>
+          <li><a href="#power-mgmt">Power & Battery Monitoring</a></li>
+        </ul>
+      </div>
+
+      <div class="nav-section">
+        <div class="section-title">Controls & Navigation</div>
+        <ul class="section-links">
+          <li><a href="#joystick-controls">5-Way Joystick & Buttons</a></li>
+          <li><a href="#rapid-input">Rapid Input & Debounce (v0.6.0)</a></li>
+          <li><a href="#calibration-wizard">Joystick Calibration Wizard</a></li>
+          <li><a href="#reading-controls">Reading Gestures & Shortcuts</a></li>
+        </ul>
+      </div>
+
+      <div class="nav-section">
+        <div class="section-title">Web Interface</div>
+        <ul class="section-links">
+          <li><a href="#web-ui-dashboard">Dashboard & Storage Recovery</a></li>
+          <li><a href="#web-ui-library">Library & Infinite Scroll</a></li>
+          <li><a href="#ghost-nodes">Ghost Files & Missing Storage</a></li>
+          <li><a href="#series-grouping">Series & Manga Accordions</a></li>
+          <li><a href="#swr-cache">SWR Caching Engine</a></li>
+        </ul>
+      </div>
+
+      <div class="nav-section">
+        <div class="section-title">Converter Pipeline</div>
+        <ul class="section-links">
+          <li><a href="#converter-overview">In-Browser Universal Pipeline</a></li>
+          <li><a href="#supported-formats">Supported Formats (CBZ, EPUB, PDF)</a></li>
+          <li><a href="#dithering-cropping">Atkinson Dithering & Auto-Crop</a></li>
+          <li><a href="#kmb-format">The .kmb Binary Comic Format</a></li>
+        </ul>
+      </div>
+
+      <div class="nav-section">
+        <div class="section-title">System & Partitions</div>
+        <ul class="section-links">
+          <li><a href="#partition-table">Flash Partition Layout (16MB)</a></li>
+          <li><a href="#storage-architecture">Dual-Filesystem Integrity</a></li>
+          <li><a href="#metadata-files">JSON Configuration Files</a></li>
+          <li><a href="#ota-updates">Ed25519 Cryptographic OTA</a></li>
+        </ul>
+      </div>
+
+      <div class="nav-section">
+        <div class="section-title">Maintenance</div>
+        <ul class="section-links">
+          <li><a href="#troubleshooting">Troubleshooting & Bus Recovery</a></li>
+          <li><a href="#faq">Frequently Asked Questions</a></li>
+        </ul>
+      </div>
+    </aside>
+
+    <!-- CONTENT -->
+    <main class="wiki-content">
+      <!-- SECTION 1: OVERVIEW -->
+      <section id="overview" class="doc-section">
+        <h1 class="page-title">📖 KomaBon Documentation</h1>
+        <p class="page-lead">
+          KomaBon (from <em>Koma</em>: manga panel, and <em>Bon</em>: book) is an ultra-optimized, open-source E-Ink operating system engineered for the Seeed Studio XIAO ESP32-S3 TRMNL 7.5" DIY Kit.
+        </p>
+
+        <div class="feature-grid">
+          <div class="feature-card">
+            <span class="feature-icon">⚡</span>
+            <h3>Zero-Decryption E-Ink</h3>
+            <p>Direct 1-bit bitmapped rendering with Atkinson dithering and adaptive waveform partial updates.</p>
+          </div>
+          <div class="feature-card">
+            <span class="feature-icon">🎮</span>
+            <h3>5-Way Tactile Joystick</h3>
+            <p>Physical directional navigation with debounced deadzone filtering and rapid multi-item skipping.</p>
+          </div>
+          <div class="feature-card">
+            <span class="feature-icon">💾</span>
+            <h3>Dual-Filesystem Design</h3>
+            <p>External MicroSD on dedicated SPI2 bus paired with protected internal flash partitions.</p>
+          </div>
+          <div class="feature-card">
+            <span class="feature-icon">🌐</span>
+            <h3>Universal Client Converter</h3>
+            <p>Converts CBZ, PDF, EPUB, and ODT entirely in browser JavaScript with smart margin cropping.</p>
+          </div>
+        </div>
+
+        <p>
+          Unlike generic e-readers that struggle to parse heavy manga archives or large EPUB files on resource-constrained microcontrollers, KomaBon takes an architectural split: all CPU-heavy decompression, page layout, image scaling, margin cropping, and dithering are performed client-side inside the modern web browser. The device itself only receives pre-rendered, perfectly packed 1-bit binary streams, resulting in instantaneous page flips and days of battery life.
+        </p>
+      </section>
+
+      <!-- SECTION 2: HARDWARE SPECS -->
+      <section id="specs" class="doc-section">
+        <h2>⚙️ Hardware Specifications</h2>
+        <div class="table-container">
+          <table>
+            <thead>
+              <tr>
+                <th>Component</th>
+                <th>Specification</th>
+                <th>Role in KomaBon</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td><strong>SoC</strong></td>
+                <td>Seeed Studio XIAO ESP32-S3 Plus</td>
+                <td>Dual-core Xtensa LX7 @ 240MHz, Wi-Fi 4 + BLE 5.0</td>
+              </tr>
+              <tr>
+                <td><strong>Memory</strong></td>
+                <td>8 MB Octal PSRAM @ 120MHz (OPI)</td>
+                <td>High-speed page buffer & rich text caching</td>
+              </tr>
+              <tr>
+                <td><strong>Internal Flash</strong></td>
+                <td>8 MB / 16 MB QIO Flash</td>
+                <td>Bootloader, firmware, SystemFS (LittleFS Web UI)</td>
+              </tr>
+              <tr>
+                <td><strong>Display</strong></td>
+                <td>7.5-inch E-Ink (GDEY075T7)</td>
+                <td>800 × 480 resolution, 1-bit B/W, SPI0 native bus</td>
+              </tr>
+              <tr>
+                <td><strong>External Storage</strong></td>
+                <td>MicroSD Card Slot via SPI2</td>
+                <td>Dedicated high-capacity storage for user library (FAT32)</td>
+              </tr>
+              <tr>
+                <td><strong>Primary Input</strong></td>
+                <td>5-Way Tactile Analog Joystick</td>
+                <td>Interfaced via ADC1 (GPIO2) resistor ladder</td>
+              </tr>
+              <tr>
+                <td><strong>Auxiliary Inputs</strong></td>
+                <td>KEY2 (GPIO3) & KEY3 (GPIO5)</td>
+                <td>KEY2: Instant Full Refresh | KEY3: Back / Wakeup</td>
+              </tr>
+              <tr>
+                <td><strong>Power Architecture</strong></td>
+                <td>2000 mAh Li-ion + PMIC</td>
+                <td>SY6974B / ETA6003 PMIC, battery ADC on GPIO1</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <!-- SECTION 3: FLASHING -->
+      <section id="flashing" class="doc-section">
+        <h2>⚡ Installation & Flashing</h2>
+        <p>KomaBon supports three official installation and upgrade methods:</p>
+
+        <h3>1. Browser Web Flasher (Recommended)</h3>
+        <p>
+          The fastest way to install or update KomaBon is using the official <a href="index.html"><strong>KomaBon Web Flasher</strong></a> via Google Chrome or Microsoft Edge on desktop. It uses the Web Serial API to communicate directly with your device over USB without requiring any software installation.
+        </p>
+
+        <div class="alert alert-note">
+          <div class="alert-title">ℹ️ Update vs. Setup New Hardware</div>
+          <ul>
+            <li><strong>Update existing KomaBon:</strong> Writes only the active firmware and LittleFS partitions. Keeps your Wi-Fi credentials, book library, and reading progress intact.</li>
+            <li><strong>Set up new hardware:</strong> Performs a complete initial write including bootloader, partition table, firmware, and Web UI.</li>
+          </ul>
+        </div>
+
+        <div class="alert alert-danger">
+          <div class="alert-title">⚠️ "Erase Device" Checkbox Warning</div>
+          When updating an existing installation, <strong>never</strong> check the "Erase device" box, or your Wi-Fi credentials and local system settings will be wiped. Erasing is only safe when preparing a brand new, unprogrammed board.
+        </div>
+
+        <h3>2. Local Flashing via PlatformIO</h3>
+        <p>If you are building from source or developing custom features, you can flash via PlatformIO CLI or VS Code:</p>
+
+        <pre><code># 1. Clone repository
+git clone https://github.com/alessandroabbasciano-cpu/KomaBon.git
+cd KomaBon
+
+# 2. Build and upload firmware binary
+pio run --target upload
+
+# 3. Build and upload LittleFS web assets
+pio run --target buildfs
+pio run --target uploadfs
+
+# 4. Monitor live serial logs
+pio device monitor -b 115200</code></pre>
+
+        <h3>3. Over-The-Air (OTA) Updates</h3>
+        <p>
+          Once connected to your local Wi-Fi, KomaBon can automatically check for updates against the GitHub Releases API. Updates are verified using <strong>Ed25519 cryptographic signatures</strong>; the device refuses to install any binary whose digest does not match the official project key.
+        </p>
+      </section>
+
+      <!-- SECTION 4: FIRST BOOT -->
+      <section id="first-boot" class="doc-section">
+        <h2>🚀 First Boot & Device Setup</h2>
+        <p>When powering up KomaBon for the first time:</p>
+
+        <ol>
+          <li>
+            <strong>Hardware Diagnostics Screen:</strong> The e-paper screen renders a boot banner displaying MicroSD status (<code>Mounted</code> or <code>Failed</code>), Joystick calibration state (<code>Calibrated</code> or <code>Default</code>), and Battery percentage.
+          </li>
+          <li>
+            <strong>Automatic Wizard Routing:</strong> If no calibration file (<code>/joy_cal.json</code>) is found on the filesystem, KomaBon automatically routes you directly into the <strong>Hardware Calibration Wizard</strong>.
+          </li>
+          <li>
+            <strong>Offline Management Hotspot:</strong> If no known Wi-Fi network is reachable, KomaBon broadcasts an offline management access point:
+            <ul>
+              <li><strong>SSID:</strong> <code>KomaBon</code></li>
+              <li><strong>Password:</strong> Displayed on screen or generated from hardware MAC</li>
+              <li><strong>IP Address:</strong> <code>http://192.168.4.1/</code></li>
+            </ul>
+          </li>
+        </ol>
+      </section>
+
+      <!-- SECTION 5: HARDWARE MODS -->
+      <section id="hardware-guide" class="doc-section">
+        <h2>🛠️ Hardware Modding & Wiring Guide</h2>
+        <p>
+          KomaBon is built on top of the <strong>TRMNL 7.5" OG DIY Kit</strong> carrier board paired with a <strong>Seeed Studio XIAO ESP32-S3 Plus</strong> module. To support a massive library and precise physical navigation, two hardware modifications are required:
+        </p>
+
+        <ol>
+          <li>Wiring an external <strong>MicroSD card module</strong> onto dedicated SPI2 hardware pins.</li>
+          <li>Wiring a <strong>5-way analog joystick</strong> in parallel to KEY1 (GPIO2 / ADC1_CH1).</li>
+        </ol>
+
+        <h3 id="efuse-guide">🔥 Mandatory Step: Burning the DIS_PAD_JTAG eFuse</h3>
+        
+        <div class="alert alert-danger">
+          <div class="alert-title">🚨 CRITICAL SILICON REQUIREMENT</div>
+          On ESP32-S3 silicon, <code>GPIO39</code> (MTCK), <code>GPIO41</code> (MTDI), and <code>GPIO42</code> (MTMS) are multiplexed with the internal USB-Serial-JTAG debugging controller. Connecting a USB cable or performing a software reset pulls these pins into debug state, which permanently locks up the MicroSD SPI bus. You <strong>MUST</strong> burn the <code>DIS_PAD_JTAG</code> eFuse to free these pads!
+        </div>
+
+        <h4>eFuse Burning Step-by-Step:</h4>
+        <pre><code># 1. Install Espressif tool
+pip install esptool
+
+# 2. Check current eFuse status (Read-Only)
+python -m espefuse --port &lt;YOUR_COM_PORT&gt; summary
+
+# Look for DIS_PAD_JTAG:
+# DIS_PAD_JTAG (BLOCK0) = False R/W (0b0)
+
+# 3. Permanently burn the eFuse (IRREVERSIBLE OPERATION)
+python -m espefuse --port &lt;YOUR_COM_PORT&gt; burn_efuse DIS_PAD_JTAG
+
+# Type BURN in capital letters when prompted.
+
+# 4. Perform a cold reboot: Unplug USB for 5 seconds and reconnect.</code></pre>
+
+        <div class="alert alert-tip">
+          <div class="alert-title">💡 What does burning this eFuse change?</div>
+          USB firmware flashing, serial monitoring (115200 baud), and OTA updates remain <strong>100% functional</strong>. The only feature permanently disconnected is JTAG hardware breakpoint debugging on those three specific pins.
+        </div>
+
+        <h3 id="pinout-matrix">🔌 Complete Pinout & Wiring Matrix</h3>
+        <div class="table-container">
+          <table>
+            <thead>
+              <tr>
+                <th>Target Peripheral</th>
+                <th>Signal</th>
+                <th>Source Pad / Location</th>
+                <th>ESP32-S3 GPIO</th>
+                <th>Wiring Notes</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td><strong>MicroSD</strong></td>
+                <td>VCC</td>
+                <td>Pin 12 on XIAO Module</td>
+                <td>3.3V</td>
+                <td>Solid regulated 3.3V line</td>
+              </tr>
+              <tr>
+                <td><strong>MicroSD</strong></td>
+                <td>GND</td>
+                <td>Pin 13 on XIAO Module</td>
+                <td>GND</td>
+                <td>Common ground</td>
+              </tr>
+              <tr>
+                <td><strong>MicroSD</strong></td>
+                <td>MISO</td>
+                <td>Castellation Pin 10</td>
+                <td>GPIO 8</td>
+                <td>Weak internal pullup enabled</td>
+              </tr>
+              <tr>
+                <td><strong>MicroSD</strong></td>
+                <td>SCK</td>
+                <td>Pad RX1 / NFC1 (Connector J4)</td>
+                <td>GPIO 41</td>
+                <td><strong>Twist tightly with GND lead</strong></td>
+              </tr>
+              <tr>
+                <td><strong>MicroSD</strong></td>
+                <td>MOSI</td>
+                <td>Pad TX1 / NFC2 (Connector J4)</td>
+                <td>GPIO 42</td>
+                <td>Keep wire length under 5 cm</td>
+              </tr>
+              <tr>
+                <td><strong>MicroSD</strong></td>
+                <td>CS</td>
+                <td>Pin 16 on XIAO (SPI1_CS0 net)</td>
+                <td>GPIO 39</td>
+                <td>Direct castellation or Font Chip U6 Pad 1</td>
+              </tr>
+              <tr>
+                <td><strong>Joystick</strong></td>
+                <td>SIG (Signal)</td>
+                <td>Pad KEY1 (BUTTON1 net)</td>
+                <td>GPIO 2</td>
+                <td>Analog ADC1_CH1 resistor ladder</td>
+              </tr>
+              <tr>
+                <td><strong>Joystick</strong></td>
+                <td>GND</td>
+                <td>Pad KEY1 Ground</td>
+                <td>GND</td>
+                <td>Return ground to button frame</td>
+              </tr>
+              <tr>
+                <td><strong>Button</strong></td>
+                <td>KEY3</td>
+                <td>TRMNL Onboard Button 3</td>
+                <td>GPIO 5</td>
+                <td>Back / Wakeup (Active LOW)</td>
+              </tr>
+              <tr>
+                <td><strong>Button</strong></td>
+                <td>KEY2</td>
+                <td>TRMNL Onboard Button 2</td>
+                <td>GPIO 3</td>
+                <td>Full display refresh (Active LOW)</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        <h3 id="silicon-rules">🚫 Strict Octal PSRAM Rule (GPIO 33–37)</h3>
+        <div class="alert alert-danger">
+          <div class="alert-title">⛔ ABSOLUTE RULE: NEVER TOUCH GPIO 33 THROUGH GPIO 37</div>
+          The Seeed XIAO ESP32-S3 Plus board uses an 8MB Octal PSRAM chip running at 120MHz over pins <strong>GPIO 33, 34, 35, 36, and 37</strong> (<code>qio_opi</code> mode). Soldering to these pins or declaring them in code causes immediate silicon bus collisions, memory watchdog panics, or unrecoverable board failure.
+        </div>
+
+        <h3 id="power-mgmt">🔋 Power Management & Battery ADC</h3>
+        <p>
+          Battery voltage is monitored through a dedicated resistor divider on <strong>GPIO 1</strong>. The firmware uses the factory eFuse ADC calibration curves (<code>analogReadMilliVolts()</code>) for millimeter-accurate battery percentage calculation across 3.00V (Empty) to 4.20V (Full).
+        </p>
+      </section>
+
+      <!-- SECTION 6: CONTROLS & NAVIGATION -->
+      <section id="joystick-controls" class="doc-section">
+        <h2>🎮 Controls & Physical Navigation</h2>
+        <p>KomaBon is built for one-handed ergonomic reading using physical controls:</p>
+
+        <div class="feature-grid">
+          <div class="feature-card">
+            <span class="feature-icon">🕹️</span>
+            <h3>Joystick Directions</h3>
+            <p><strong>Right:</strong> Next page | <strong>Left:</strong> Previous page | <strong>Up/Down:</strong> Menu navigation & TOC scroll.</p>
+          </div>
+          <div class="feature-card">
+            <span class="feature-icon">🔘</span>
+            <h3>Center Click & Long-Press</h3>
+            <p><strong>Click:</strong> Select / Confirm / Reader Quick Settings.<br><strong>Hold (800ms):</strong> Return to Main Menu from anywhere.</p>
+          </div>
+          <div class="feature-card">
+            <span class="feature-icon">↩️</span>
+            <h3>KEY3 Button (GPIO 5)</h3>
+            <p>Dedicated <strong>Back</strong> / Exit button. Press to escape overlays, close dialogs, or wake device from deep sleep.</p>
+          </div>
+          <div class="feature-card">
+            <span class="feature-icon">🔄</span>
+            <h3>KEY2 Button (GPIO 3)</h3>
+            <p><strong>Full Refresh:</strong> Clears accumulated e-ink ghosting immediately without altering reading position.</p>
+          </div>
+        </div>
+
+        <h3 id="rapid-input">⚡ Rapid Input Engine & Debouncing (New in v0.6.0)</h3>
+        <p>
+          E-paper displays require 300–450 ms of physical hardware refresh latency. In older versions, pressing the joystick rapidly 3 times would trigger an intermediate refresh on item 1, freeze the interface, and then jump to item 3.
+        </p>
+        <p>
+          <strong>KomaBon v0.6.0 introduces an advanced decoupled input engine:</strong>
+        </p>
+        <ul>
+          <li><strong>80 ms Deadzone (<code>JOY_COOLDOWN_MS</code>):</strong> Replaces the older 200 ms lockout, instantly accepting rapid double- and triple-clicks without losing strokes.</li>
+          <li><strong>250 ms Lazy Render Window (<code>LAZY_RENDER_DEBOUNCE_MS</code>):</strong> Holds screen redraws in memory while the user continues moving. If you tap 3 times quickly, the menu cursor advances 0 → 1 → 2 → 3 in RAM, and only <em>one single e-ink refresh</em> occurs on the final target!</li>
+          <li><strong>Queue Guard (<code>hasPendingActions()</code>):</strong> Guarantees that the display controller never starts drawing a frame if unhandled input events remain queued.</li>
+        </ul>
+
+        <h3 id="calibration-wizard">🎯 Joystick Calibration Wizard</h3>
+        <p>
+          Because analog resistor tolerances vary across joystick modules, KomaBon includes a built-in calibration utility accessible via <strong>Settings → Calibrate Joystick</strong>:
+        </p>
+        <ol>
+          <li>The screen displays real-time ADC raw values.</li>
+          <li>Follow the on-screen prompts: click <strong>Center</strong>, push <strong>Up</strong>, push <strong>Down</strong>, push <strong>Left</strong>, push <strong>Right</strong>.</li>
+          <li>The calibrated center points are saved permanently to <code>/joy_cal.json</code> on external storage and loaded automatically on boot.</li>
+        </ol>
+      </section>
+
+      <!-- SECTION 7: WEB INTERFACE -->
+      <section id="web-ui-dashboard" class="doc-section">
+        <h2>🌐 Web Interface (Web UI)</h2>
+        <p>
+          Connect your computer or smartphone to the same Wi-Fi network and open <code>http://&lt;KOMABON_IP&gt;/</code> in any browser to access the device management suite.
+        </p>
+
+        <h3>1. Dashboard & Storage Recovery</h3>
+        <p>
+          The Dashboard displays live device telemetry: battery voltage, percentage, active Wi-Fi network, storage utilization, and firmware version.
+        </p>
+        <div class="alert alert-tip">
+          <div class="alert-title">🛠️ MicroSD Bus Remount Badge</div>
+          Located directly beneath the Universal Converter, the <strong>Remount SD Bus</strong> button allows you to re-initialize the external MicroSD SPI2 controller without rebooting the reader. If you swapped cards or experienced an SPI bus glitch, clicking this button immediately restores library access.
+        </div>
+
+        <h3 id="web-ui-library">2. Modern Library with Chunked Virtual Scroll</h3>
+        <p>
+          To ensure lightning-fast performance even with libraries of 500+ books, the Web UI uses an <strong>IntersectionObserver-driven chunked renderer</strong> (30 items per batch). Memory usage stays minimal, and scrolling remains butter-smooth on mobile devices.
+        </p>
+
+        <h3 id="ghost-nodes">3. Ghost Node Architecture (Missing Files)</h3>
+        <p>
+          If a book was previously read but its file is no longer present on the MicroSD card (e.g. card swapped, corrupted, or file renamed), KomaBon prevents data loss:
+        </p>
+        <ul>
+          <li>The book is displayed with a semi-transparent card and a prominent <span class="badge badge-orange">FILE MISSING</span> badge.</li>
+          <li>Your reading progress (page number, chapter) is preserved in <code>ProgressStore</code>.</li>
+          <li>If you delete a ghost book from the Web UI, the system cleanly removes the orphaned metadata, progress records, and book order entries without VFS errors.</li>
+        </ul>
+
+        <h3 id="series-grouping">4. Manga Series Grouping (Accordions)</h3>
+        <p>
+          Multi-volume manga series (e.g., <em>Berserk Vol. 01</em>, <em>Berserk Vol. 02</em>) are automatically grouped into clean, expandable accordion cards. In-memory instant search expands matching series dynamically as you type.
+        </p>
+
+        <h3 id="swr-cache">5. Zero-Latency SWR Cache</h3>
+        <p>
+          Switching to the Library tab renders instantly (0 ms) using cached data stored in browser <code>sessionStorage</code>. The interface revalidates data with the ESP32 in the background; if files were added or removed, the DOM updates seamlessly without visual flicker.
+        </p>
+      </section>
+
+      <!-- SECTION 8: CONVERTER -->
+      <section id="converter-overview" class="doc-section">
+        <h2>📚 Universal Manga & Document Converter</h2>
+        <p>
+          Embedded directly into the Web UI dashboard, the Universal Converter transforms complex documents into pure 1-bit E-Ink optimized formats without sending data to any external server.
+        </p>
+
+        <h3 id="supported-formats">Supported Input Formats</h3>
+        <ul>
+          <li><strong>CBZ & ZIP:</strong> Comic and manga image archives.</li>
+          <li><strong>EPUB:</strong> Standard e-books (extracts text, formatting, and chapter images).</li>
+          <li><strong>PDF:</strong> Document pages rasterized and scaled at high DPI.</li>
+          <li><strong>ODT:</strong> OpenDocument text documents.</li>
+        </ul>
+
+        <h3 id="dithering-cropping">Smart Margin Cropping & Atkinson Dithering</h3>
+        <p>
+          Raw manga scans often have large white margins that waste valuable E-Ink screen space. KomaBon's converter executes an intelligent edge-detection pass (<code>getCropBounds</code>) to eliminate whitespace and center the artwork to fit the 800 × 480 panel.
+        </p>
+        <p>
+          Grayscale and color images are translated into binary black-and-white using <strong>Atkinson Dithering</strong>, preserving delicate line art, screentones, and gradients without the harsh clustering artifacts typical of Floyd-Steinberg dithering.
+        </p>
+
+        <h3 id="kmb-format">The .kmb Binary Comic Format</h3>
+        <p>
+          For maximum reading performance, comics are exported as <code>.kmb</code> (KomaBon Manga Binary) files:
+        </p>
+        <ul>
+          <li><strong>File Header:</strong> <code>KMB1</code> magic signature + width, height, and page count.</li>
+          <li><strong>1-Bit Bitmaps:</strong> Pure 1-bit packed byte arrays (1 bit per pixel: 800×480 is only 48,000 bytes per page).</li>
+          <li><strong>Embedded Thumbnails:</strong> Automatically includes pre-rendered 60×80 and 120×160 thumbnails for instant library loading.</li>
+          <li><strong>Reading Speed:</strong> The ESP32 streams pages directly from SD card into display buffer via DMA in under 15 milliseconds!</li>
+        </ul>
+      </section>
+
+      <!-- SECTION 9: PARTITIONS & STORAGE -->
+      <section id="partition-table" class="doc-section">
+        <h2>📦 Partitions & System Architecture</h2>
+        <p>
+          KomaBon uses a custom 16 MB partition table defined in <code>partitions_16MB.csv</code>:
+        </p>
+
+        <div class="table-container">
+          <table>
+            <thead>
+              <tr>
+                <th>Partition Name</th>
+                <th>Type / Subtype</th>
+                <th>Flash Offset</th>
+                <th>Size</th>
+                <th>Purpose</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td><code>nvs</code></td>
+                <td>data / nvs</td>
+                <td>0x009000</td>
+                <td>20 KB</td>
+                <td>Wi-Fi credentials, non-volatile state</td>
+              </tr>
+              <tr>
+                <td><code>otadata</code></td>
+                <td>data / ota</td>
+                <td>0x00E000</td>
+                <td>8 KB</td>
+                <td>OTA active boot partition selector</td>
+              </tr>
+              <tr>
+                <td><code>app0</code></td>
+                <td>app / ota_0</td>
+                <td>0x010000</td>
+                <td>2.5 MB</td>
+                <td>Primary KomaBon firmware partition</td>
+              </tr>
+              <tr>
+                <td><code>app1</code></td>
+                <td>app / ota_1</td>
+                <td>0x290000</td>
+                <td>2.5 MB</td>
+                <td>Secondary OTA rollback partition</td>
+              </tr>
+              <tr>
+                <td><code>spiffs</code></td>
+                <td>data / spiffs</td>
+                <td>0x510000</td>
+                <td>1.0 MB</td>
+                <td>LittleFS: Web UI HTML/CSS/JS assets</td>
+              </tr>
+              <tr>
+                <td><code>ebooks</code></td>
+                <td>data / spiffs</td>
+                <td>0x610000</td>
+                <td>9.9 MB</td>
+                <td>Internal storage fallback when SD is absent</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        <h3 id="metadata-files">JSON Configuration Schema</h3>
+        <p>User configuration and reading state are preserved across reboots in structured JSON files:</p>
+        <ul>
+          <li><code>/progress.json</code>: Maps book titles to current chapter, node index, character offset, and global page.</li>
+          <li><code>/book_order.json</code>: Persists custom user drag-and-drop book sorting order.</li>
+          <li><code>/joy_cal.json</code>: Contains calibrated ADC thresholds for Center, Up, Down, Left, and Right.</li>
+          <li><code>/reader_config.json</code>: Stores font family (FreeSans, Merriweather, Literata, etc.), font size, and refresh frequency.</li>
+        </ul>
+      </section>
+
+      <!-- SECTION 10: TROUBLESHOOTING -->
+      <section id="troubleshooting" class="doc-section">
+        <h2>🔧 Troubleshooting & FAQ</h2>
+
+        <h3>MicroSD Card Not Detected / Mount Fails</h3>
+        <ol>
+          <li><strong>Check eFuse:</strong> Verify that <code>DIS_PAD_JTAG</code> was burned. If unburned, the USB debugger locks the bus.</li>
+          <li><strong>Wiring Integrity:</strong> The SCK line (GPIO 41) <em>must</em> be twisted with a GND wire to suppress high-frequency SPI reflections.</li>
+          <li><strong>Card Format:</strong> Ensure your card is formatted as <strong>FAT32</strong> or <strong>exFAT</strong> with MBR partition table.</li>
+          <li><strong>Storage Recovery:</strong> Click "Remount SD Bus" from the Web UI Dashboard.</li>
+        </ol>
+
+        <h3>Ghosting on E-Ink Display</h3>
+        <p>
+          Monochrome electrophoretic displays naturally accumulate particle drift after multiple partial updates. Press the physical <strong>KEY2</strong> button once to force an immediate full-waveform screen refresh. You can also configure the automatic refresh frequency (every 5, 10, or 20 pages) in the Reader Settings overlay.
+        </p>
+
+        <h3>Joystick Direction Feels Sticky or Skips</h3>
+        <p>
+          Run the on-screen <strong>Calibration Wizard</strong> from the Settings menu. With the <strong>v0.6.0</strong> update, rapid inputs now benefit from 80 ms deadzones and 250 ms quiet-period rendering, eliminating intermediate freezes.
+        </p>
+      </section>
+
+      <!-- FOOTER -->
+      <footer class="wiki-footer">
+        <div>KomaBon OS &copy; 2026 &mdash; Built with ❤️ for manga enthusiasts.</div>
+        <div>
+          <a href="https://github.com/alessandroabbasciano-cpu/KomaBon" target="_blank" rel="noopener">GitHub</a> &bull;
+          <a href="index.html">Web Flasher</a> &bull;
+          <a href="https://github.com/alessandroabbasciano-cpu/KomaBon/issues" target="_blank" rel="noopener">Report Issue</a>
+        </div>
+      </footer>
+    </main>
+  </div>
+
+  <script src="wiki.js"></script>
+</body>
+
+</html>

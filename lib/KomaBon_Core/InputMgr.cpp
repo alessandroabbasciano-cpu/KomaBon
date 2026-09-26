@@ -62,6 +62,7 @@ void InputMgr::update() {
 void InputMgr::inputTask(void* parameter) {
     InputMgr* self = static_cast<InputMgr*>(parameter);
 
+    static const unsigned long JOY_COOLDOWN_MS = 80;
     JoyDirection lastJoyDirection = JOY_NONE;
     unsigned long joyPressTime = 0;
     bool joyLongPressSent = false;
@@ -160,7 +161,7 @@ void InputMgr::inputTask(void* parameter) {
                 lastJoyDirection = JOY_NONE;
 
                 // Engage deadzone to absorb voltage spikes as the switch opens
-                joyCooldown = now + 200;
+                joyCooldown = now + JOY_COOLDOWN_MS;
             }
         }
 

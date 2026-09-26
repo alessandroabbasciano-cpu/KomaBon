@@ -49,7 +49,7 @@ The true beating heart of KomaBon is its **Universal Conversion Pipeline**, impl
 
 > ⚠️ **CRITICAL STEP — eFuse JTAG Disabling:**  
 > GPIO39, GPIO41, and GPIO42 overlap with the ESP32-S3 hardware JTAG controller. Connecting USB or soft-resetting the device forces debug signals onto these lines, crashing the MicroSD bus. You **must burn the `DIS_PAD_JTAG` eFuse** before reliable operation is possible.  
-> 📖 **Read the full assembly and electrical guide: [Hardware Modding & eFuse Guide](docs/HARDWARE_MODS.md)** (or view online on the [Web Documentation](https://alessandroabbasciano-cpu.github.io/KomaBon/hardware.html)).
+> 📖 **Read the full assembly, wiring, and electrical guide: [KomaBon Official Wiki](https://alessandroabbasciano-cpu.github.io/KomaBon/wiki.html#hardware-guide)** (or offline in [docs/HARDWARE_MODS.md](docs/HARDWARE_MODS.md)).
 
 ### Pinout Reference
 
@@ -104,13 +104,20 @@ To monitor real-time serial output for debugging:
 4. Select your local network and provide credentials.
 5. Access the device's local web interface at `http://<KOMABON_IP>/` to upload books and manage settings.
 
-## ✨ Core Features & Architecture
+## ✨ Core Features & Architecture (v0.6.0)
 
+* **Rapid Navigation & Lazy Rendering (v0.6.0):** Decoupled 80ms deadzone filter combined with a 250ms debounced quiet window. Multi-item menu jumps and rapid page flips execute seamlessly in RAM, triggering only a single, final E-Ink partial refresh.
+* **Storage Auto-Recovery & Remount Card:** Dedicated SD Bus recovery trigger in Web UI Dashboard and automated bus re-negotiation on failed uploads.
+* **Ghost Node Architecture:** Protects reading state and book ordering if a MicroSD card is swapped or missing, displaying an orange *FILE MISSING* badge while keeping progress safe.
+* **Zero-Latency SWR Cache & Chunked Rendering:** Instant 0ms library tab switching powered by `sessionStorage` and `IntersectionObserver` virtual chunking (30 items) for massive libraries.
 * **Hardware Calibration Wizard:** Built-in routine to map and calibrate the 5-way analog joystick thresholds accurately.
 * **Dual-Filesystem Integrity:** Decouples system firmware from user books, ensuring seamless OTA updates without data loss.
-* **Universal Pre-processing Pipeline:** Translates CBZ, ZIP, PDF, ODT, and EPUB files directly into lightning-fast 1-bit E-Ink formats.
-* **Local Web Management:** Access the device over Wi-Fi to upload, organize, and delete books directly from your browser.
+* **Universal In-Browser Pipeline:** Converts CBZ, ZIP, PDF, ODT, and EPUB files directly into lightning-fast 1-bit E-Ink formats with Atkinson dithering and auto white-margin crop.
 * **Robust Power States:** Intelligent sleep management and battery level indicators tailored for extended reading sessions.
+
+## 📚 Documentation & Wiki
+
+For the complete technical manual, circuit schematics, eFuse burning instructions, Web UI guide, and troubleshooting, visit the **[KomaBon Official Wiki](https://alessandroabbasciano-cpu.github.io/KomaBon/wiki.html)**.
 
 ## 📦 Partition Notes
 

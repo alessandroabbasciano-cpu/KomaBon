@@ -293,6 +293,7 @@ void AppReader::drawLibrary() {
         display.setPartialWindow(0, 0, display.width(), display.height());
     }
     _librarySelectionOnlyRedraw = false;
+    _previousBookIndex = _selectedBookIndex;
 
     std::map<int, std::vector<uint8_t>> thumbCache;
     int preLoadY = HEADER_H;
