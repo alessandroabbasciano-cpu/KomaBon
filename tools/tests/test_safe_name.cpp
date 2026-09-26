@@ -31,12 +31,18 @@ int main() {
     assert(!isSafeBookName(string("bad\nname.epub")));
     assert(!isSafeBookName(string("bad\x01name.epub")));
 
-    // Only known extensions are accepted.
+    // Only known extensions are accepted (.epub, .ttf, .kmb).
     assert(!isSafeBookName(string("index.html")));
     assert(!isSafeBookName(string("noextension")));
+    assert(isSafeBookName(string("comic.kmb")));
 
-    // Overlong names are rejected (LittleFS name limit).
-    assert(!isSafeBookName(string(std::string(64, 'a') + ".epub")));
+    // Names up to KOMABON_MAX_NAME_LEN (128) are accepted.
+    assert(isSafeBookName(string(std::string(64, 'a') + ".epub")));
+    assert(isSafeBookName(string(std::string(120, 'a') + ".epub")));
+
+    // Overlong names are rejected (KOMABON_MAX_NAME_LEN limit).
+    assert(!isSafeBookName(string(std::string(KOMABON_MAX_NAME_LEN, 'a') + ".epub")));
+    assert(!isSafeBookName(string(std::string(130, 'a') + ".epub")));
 
     printf("test_safe_name: all tests passed.\n");
     return 0;
