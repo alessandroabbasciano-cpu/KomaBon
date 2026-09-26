@@ -24,6 +24,48 @@ async function fetchBooks() {
     }
 }
 
+function parseSeriesInfo(filename) {
+    const nameWithoutExt = filename.replace(/\.(kmb|epub|cbz|zip|pdf)$/i, '');
+    const match = nameWithoutExt.match(/^(.*?)(?:[\s._-]+(?:v(?:ol(?:ume)?)?|c(?:h(?:apter)?)?|tome)?[\s._-]*(\d+)(?:[a-z]|\b).*)$/i);
+    if (match) {
+        const series = match[1].replace(/[\s._-]+$/, '').trim();
+        const volNum = parseInt(match[2], 10);
+        if (series.length >= 2) {
+            return { series, volume: isNaN(volNum) ? 0 : volNum };
+        }
+    }
+    return null;
+}
+
+function renderBookItem(book, epubs) {
+    const bookIsFont = isFont(book.filename);
+    const bookIsKmb = isKmb(book.filename);
+    const nameAttr = escapeAttr(book.filename);
+
+    let orderBtns = '';
+    if (isEpub(book.filename) && epubs.length > 1) {
+        const idx = epubs.indexOf(book);
+        orderBtns = `
+            <span class="order-btns">
+                <button class="btn-order" ${idx === 0 ? 'disabled' : ''} data-action="move" data-dir="-1" data-filename="${nameAttr}" title="Move up">▲</button>
+                <button class="btn-order" ${idx === epubs.length - 1 ? 'disabled' : ''} data-action="move" data-dir="1" data-filename="${nameAttr}" title="Move down">▼</button>
+            </span>`;
+    }
+
+    let displayIcon = '📖 ';
+    if (bookIsFont) displayIcon = '📂 [Font] ';
+    if (bookIsKmb) displayIcon = '🖼️ [Comic] ';
+
+    return `
+    <div class="book-item" data-filename="${nameAttr}">
+        ${orderBtns}
+        <span class="book-title">${displayIcon}${escapeHtml(book.name)}</span>
+        <span class="book-size">${Math.round(book.size / 1024)} KB</span>
+        <button class="btn-order" data-action="download" data-filename="${nameAttr}" title="Download File">DL</button>
+        <button class="btn-delete" data-action="delete" data-filename="${nameAttr}" data-name="${escapeAttr(book.name)}">Delete</button>
+    </div>`;
+}
+
 // Render book list items
 function renderBooks() {
     const bookList = document.getElementById('book-list');
@@ -36,34 +78,87 @@ function renderBooks() {
 
     const epubs = currentBooks.filter(b => isEpub(b.filename));
 
-    bookList.innerHTML = currentBooks.map(book => {
-        const bookIsFont = isFont(book.filename);
-        const bookIsKmb = isKmb(book.filename);
-        const nameAttr = escapeAttr(book.filename);
+    // 1. Detect series for manga/comics (.kmb)
+    const seriesCounts = {};
+    const bookSeriesMap = new Map();
 
-        let orderBtns = '';
-        if (isEpub(book.filename) && epubs.length > 1) {
-            const idx = epubs.indexOf(book);
-            orderBtns = `
-                <span class="order-btns">
-                    <button class="btn-order" ${idx === 0 ? 'disabled' : ''} data-action="move" data-dir="-1" data-filename="${nameAttr}" title="Move up">▲</button>
-                    <button class="btn-order" ${idx === epubs.length - 1 ? 'disabled' : ''} data-action="move" data-dir="1" data-filename="${nameAttr}" title="Move down">▼</button>
-                </span>`;
+    currentBooks.forEach(b => {
+        if (isKmb(b.filename)) {
+            const info = parseSeriesInfo(b.filename);
+            if (info) {
+                seriesCounts[info.series] = (seriesCounts[info.series] || 0) + 1;
+                bookSeriesMap.set(b.filename, info);
+            }
         }
+    });
 
-        let displayIcon = '📖 ';
-        if (bookIsFont) displayIcon = '📂 [Font] ';
-        if (bookIsKmb) displayIcon = '🖼️ [Comic] ';
+    // 2. Build grouped data structure
+    const renderedItems = [];
+    const processedSeries = new Set();
 
-        return `
-        <div class="book-item" data-filename="${nameAttr}">
-            ${orderBtns}
-            <span class="book-title">${displayIcon}${escapeHtml(book.name)}</span>
-            <span class="book-size">${Math.round(book.size / 1024)} KB</span>
-            <button class="btn-order" data-action="download" data-filename="${nameAttr}" title="Download File">DL</button>
-            <button class="btn-delete" data-action="delete" data-filename="${nameAttr}" data-name="${escapeAttr(book.name)}">Delete</button>
-        </div>
-    `}).join('');
+    currentBooks.forEach(book => {
+        const info = bookSeriesMap.get(book.filename);
+        if (info && seriesCounts[info.series] >= 2) {
+            if (!processedSeries.has(info.series)) {
+                processedSeries.add(info.series);
+                const seriesBooks = currentBooks.filter(b => {
+                    const s = bookSeriesMap.get(b.filename);
+                    return s && s.series === info.series;
+                });
+                seriesBooks.sort((x, y) => {
+                    const sx = bookSeriesMap.get(x.filename);
+                    const sy = bookSeriesMap.get(y.filename);
+                    return (sx ? sx.volume : 0) - (sy ? sy.volume : 0);
+                });
+                const totalSize = seriesBooks.reduce((acc, b) => acc + (b.size || 0), 0);
+                renderedItems.push({
+                    type: 'series',
+                    name: info.series,
+                    books: seriesBooks,
+                    totalSize
+                });
+            }
+        } else {
+            renderedItems.push({
+                type: 'single',
+                book: book
+            });
+        }
+    });
+
+    // 3. Render HTML
+    bookList.innerHTML = renderedItems.map(item => {
+        if (item.type === 'single') {
+            return renderBookItem(item.book, epubs);
+        } else {
+            const seriesNameAttr = escapeAttr(item.name);
+            const totalMb = (item.totalSize / (1024 * 1024)).toFixed(1);
+            const sizeStr = item.totalSize >= 1024 * 1024 ? `${totalMb} MB` : `${Math.round(item.totalSize / 1024)} KB`;
+
+            const nestedHtml = item.books.map(b => {
+                const nameAttr = escapeAttr(b.filename);
+                return `
+                <div class="book-item series-nested-item" data-filename="${nameAttr}">
+                    <span class="book-title">🖼️ ${escapeHtml(b.name)}</span>
+                    <span class="book-size">${Math.round(b.size / 1024)} KB</span>
+                    <button class="btn-order" data-action="download" data-filename="${nameAttr}" title="Download File">DL</button>
+                    <button class="btn-delete" data-action="delete" data-filename="${nameAttr}" data-name="${escapeAttr(b.name)}">Delete</button>
+                </div>`;
+            }).join('');
+
+            return `
+            <details class="series-group" data-series="${seriesNameAttr}">
+                <summary class="series-header">
+                    <span class="series-title">📚 <strong>${escapeHtml(item.name)}</strong></span>
+                    <span class="series-badge">${item.books.length} volumi</span>
+                    <span class="book-size">${sizeStr}</span>
+                </summary>
+                <div class="series-items">
+                    ${nestedHtml}
+                </div>
+            </details>`;
+        }
+    }).join('');
 
     bindBookListActions();
 }
@@ -333,15 +428,41 @@ function importLibraryState(input) {
 }
 // Filter books based on search input
 function filterBooks() {
-    const query = document.getElementById('book-search').value.toLowerCase();
-    const items = document.querySelectorAll('.book-item');
+    const searchInput = document.getElementById('book-search');
+    if (!searchInput) return;
+    const query = searchInput.value.toLowerCase().trim();
 
-    items.forEach(item => {
-        const title = item.querySelector('.book-title').textContent.toLowerCase();
-        if (title.includes(query)) {
-            item.style.display = 'flex';
+    // 1. Standalone books (not inside a series group)
+    const standaloneItems = document.querySelectorAll('#book-list > .book-item');
+    standaloneItems.forEach(item => {
+        const titleEl = item.querySelector('.book-title');
+        const title = titleEl ? titleEl.textContent.toLowerCase() : '';
+        item.style.display = (!query || title.includes(query)) ? 'flex' : 'none';
+    });
+
+    // 2. Series groups
+    const seriesGroups = document.querySelectorAll('.series-group');
+    seriesGroups.forEach(group => {
+        const seriesTitle = (group.dataset.series || '').toLowerCase();
+        const nestedItems = group.querySelectorAll('.series-nested-item');
+        let anyChildMatches = false;
+
+        nestedItems.forEach(item => {
+            const titleEl = item.querySelector('.book-title');
+            const title = titleEl ? titleEl.textContent.toLowerCase() : '';
+            const matches = !query || title.includes(query) || seriesTitle.includes(query);
+            item.style.display = matches ? 'flex' : 'none';
+            if (matches && query) anyChildMatches = true;
+        });
+
+        if (!query) {
+            group.style.display = 'block';
+            group.open = false;
+        } else if (seriesTitle.includes(query) || anyChildMatches) {
+            group.style.display = 'block';
+            group.open = true;
         } else {
-            item.style.display = 'none';
+            group.style.display = 'none';
         }
     });
 }

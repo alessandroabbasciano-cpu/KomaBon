@@ -562,6 +562,77 @@ details.inline-details .compact-row {
 }
 
 /* ==========================================================================
+   Series Grouping (Manga / Comics Accordion)
+   ========================================================================== */
+.series-group {
+    border-bottom: 1px solid var(--line);
+    background-color: var(--surface);
+    transition: background-color 0.2s ease;
+}
+
+.series-group[open] {
+    background-color: rgba(0, 0, 0, 0.02);
+}
+
+.series-header {
+    display: flex;
+    align-items: center;
+    padding: 10px 12px;
+    cursor: pointer;
+    user-select: none;
+    gap: 0.75rem;
+    font-weight: 600;
+    list-style: none;
+}
+
+.series-header::-webkit-details-marker {
+    display: none;
+}
+
+.series-header::before {
+    content: '▶';
+    font-size: 11px;
+    display: inline-block;
+    transition: transform 0.2s ease;
+    color: var(--muted);
+}
+
+.series-group[open] > .series-header::before {
+    transform: rotate(90deg);
+}
+
+.series-title {
+    flex: 1;
+    min-width: 140px;
+    color: var(--ink);
+    font-size: 15px;
+}
+
+.series-badge {
+    background: var(--line);
+    color: var(--ink);
+    padding: 2px 8px;
+    border-radius: 12px;
+    font-size: 12px;
+    font-weight: 500;
+}
+
+.series-items {
+    padding-left: 1.5rem;
+    border-top: 1px dashed var(--line);
+    background: var(--paper);
+}
+
+.series-nested-item {
+    border-bottom: 1px dashed var(--line);
+    padding: 8px 10px;
+}
+
+.series-nested-item:last-child {
+    border-bottom: none;
+}
+
+/* ==========================================================================
    Form Controls & Buttons
    ========================================================================== */
 .setting-row {
