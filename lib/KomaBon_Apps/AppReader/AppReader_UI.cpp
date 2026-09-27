@@ -106,6 +106,106 @@ void AppReader::drawReading() {
     } while (display.nextPage());
 }
 
+void AppReader::drawOverlaySettings() {
+    DisplayMgr& dispMgr = DisplayMgr::getInstance();
+    KomaBonDisplay& display = dispMgr.getDisplay();
+    FontMgr& fontMgr = FontMgr::getInstance();
+
+    int ow = 320; // Slightly wider to accommodate font names
+    int oh = 230; // Reduced height since we have fewer items
+    int ox = (display.width() - ow) / 2;
+    int oy = (display.height() - oh) / 2;
+
+    display.setPartialWindow(ox, oy, ow, oh);
+    display.firstPage();
+    do {
+        display.fillScreen(GxEPD_WHITE);
+        display.drawRect(ox, oy, ow, oh, GxEPD_BLACK);
+        display.drawRect(ox + 2, oy + 2, ow - 4, oh - 4, GxEPD_BLACK);
+
+        fontMgr.drawTextCentered(display, "Quick Settings", oy + 35, FONT_SIZE_SUBTITLE, GxEPD_BLACK);
+        display.drawLine(ox + 20, oy + 55, ox + ow - 20, oy + 55, GxEPD_BLACK);
+
+        // Dynamic Strings Generation
+        char fontSizeStr[32];
+        snprintf(fontSizeStr, sizeof(fontSizeStr), "Font Size: %d pt", _fontSizePt);
+
+        const char* fontNames[] = {"FreeSans",     "Merriweather", "Literata",
+                                   "Source Serif", "Gelasio",      "Open Sans"};
+        char fontFamilyStr[40];
+        // Safety bound check
+        int safeFontIdx = (_fontFamily >= 0 && _fontFamily <= 5) ? _fontFamily : 0;
+        snprintf(fontFamilyStr, sizeof(fontFamilyStr), "Font: %s", fontNames[safeFontIdx]);
+
+        const char* items[] = {fontSizeStr, fontFamilyStr, "Force Refresh", "Close & Apply"};
+
+        for (int i = 0; i < 4; i++) {
+            int itemY = oy + 95 + (i * 32);
+            fontMgr.drawTextCentered(display, items[i], itemY, FONT_SIZE_BODY, GxEPD_BLACK);
+            if (i == _overlaySelectedIndex) {
+                display.drawRect(ox + 20, itemY - 20, ow - 40, 28, GxEPD_BLACK);
+                display.drawRect(ox + 21, itemY - 19, ow - 42, 26, GxEPD_BLACK);
+            }
+        }
+    } while (display.nextPage());
+}
+
+void AppReader::drawOverlayTOC() {
+    DisplayMgr& dispMgr = DisplayMgr::getInstance();
+    KomaBonDisplay& display = dispMgr.getDisplay();
+    FontMgr& fontMgr = FontMgr::getInstance();
+
+    int ow = 320;
+    int oh = 340;
+    int ox = (display.width() - ow) / 2;
+    int oy = (display.height() - oh) / 2;
+
+    display.setPartialWindow(ox, oy, ow, oh);
+    display.firstPage();
+    do {
+        display.fillScreen(GxEPD_WHITE);
+        display.drawRect(ox, oy, ow, oh, GxEPD_BLACK);
+        display.drawRect(ox + 2, oy + 2, ow - 4, oh - 4, GxEPD_BLACK);
+
+        fontMgr.drawTextCentered(display, "Chapters", oy + 35, FONT_SIZE_SUBTITLE, GxEPD_BLACK);
+        display.drawLine(ox + 20, oy + 55, ox + ow - 20, oy + 55, GxEPD_BLACK);
+
+        int totalChapters = 0;
+        {
+            KomaBonGuard guard(_epubMutex);
+            if (_epubLoader) totalChapters = _epubLoader->getChapterCount();
+        }
+
+        if (totalChapters == 0) {
+            fontMgr.drawTextCentered(display, "No chapters found.", oy + 150, FONT_SIZE_BODY, GxEPD_BLACK);
+        } else {
+            int itemsPerPage = 7;
+            for (int i = 0; i < itemsPerPage; i++) {
+                int chapIdx = _overlayScrollOffset + i;
+                if (chapIdx >= totalChapters) break;
+
+                int itemY = oy + 90 + (i * 32);
+                char buf[32];
+                snprintf(buf, sizeof(buf), "Chapter %d", chapIdx + 1);
+
+                if (chapIdx == _overlaySelectedIndex) {
+                    display.fillRect(ox + 20, itemY - 20, ow - 40, 28, GxEPD_BLACK);
+                    fontMgr.drawTextCentered(display, buf, itemY, FONT_SIZE_BODY, GxEPD_WHITE);
+                } else {
+                    fontMgr.drawTextCentered(display, buf, itemY, FONT_SIZE_BODY, GxEPD_BLACK);
+                }
+            }
+
+            if (_overlayScrollOffset > 0) {
+                fontMgr.drawTextCentered(display, "^", oy + 65, FONT_SIZE_SMALL, GxEPD_BLACK);
+            }
+            if (_overlayScrollOffset + itemsPerPage < totalChapters) {
+                fontMgr.drawTextCentered(display, "v", oy + oh - 15, FONT_SIZE_SMALL, GxEPD_BLACK);
+            }
+        }
+    } while (display.nextPage());
+}
+
 void AppReader::drawSleepCover() {
     DisplayMgr& dispMgr = DisplayMgr::getInstance();
     KomaBonDisplay& display = dispMgr.getDisplay();
@@ -213,105 +313,5 @@ void AppReader::drawSleepCover() {
         fontMgr.drawTextCentered(display, "Zzz Sleeping - Move joystick to wake", pillY + 23, FONT_SIZE_BODY,
                                  GxEPD_WHITE);
 
-    } while (display.nextPage());
-}
-
-void AppReader::drawOverlaySettings() {
-    DisplayMgr& dispMgr = DisplayMgr::getInstance();
-    KomaBonDisplay& display = dispMgr.getDisplay();
-    FontMgr& fontMgr = FontMgr::getInstance();
-
-    int ow = 320; // Slightly wider to accommodate font names
-    int oh = 230; // Reduced height since we have fewer items
-    int ox = (display.width() - ow) / 2;
-    int oy = (display.height() - oh) / 2;
-
-    display.setPartialWindow(ox, oy, ow, oh);
-    display.firstPage();
-    do {
-        display.fillScreen(GxEPD_WHITE);
-        display.drawRect(ox, oy, ow, oh, GxEPD_BLACK);
-        display.drawRect(ox + 2, oy + 2, ow - 4, oh - 4, GxEPD_BLACK);
-
-        fontMgr.drawTextCentered(display, "Quick Settings", oy + 35, FONT_SIZE_SUBTITLE, GxEPD_BLACK);
-        display.drawLine(ox + 20, oy + 55, ox + ow - 20, oy + 55, GxEPD_BLACK);
-
-        // Dynamic Strings Generation
-        char fontSizeStr[32];
-        snprintf(fontSizeStr, sizeof(fontSizeStr), "Font Size: %d pt", _fontSizePt);
-
-        const char* fontNames[] = {"FreeSans",     "Merriweather", "Literata",
-                                   "Source Serif", "Gelasio",      "Open Sans"};
-        char fontFamilyStr[40];
-        // Safety bound check
-        int safeFontIdx = (_fontFamily >= 0 && _fontFamily <= 5) ? _fontFamily : 0;
-        snprintf(fontFamilyStr, sizeof(fontFamilyStr), "Font: %s", fontNames[safeFontIdx]);
-
-        const char* items[] = {fontSizeStr, fontFamilyStr, "Force Refresh", "Close & Apply"};
-
-        for (int i = 0; i < 4; i++) {
-            int itemY = oy + 95 + (i * 32);
-            fontMgr.drawTextCentered(display, items[i], itemY, FONT_SIZE_BODY, GxEPD_BLACK);
-            if (i == _overlaySelectedIndex) {
-                display.drawRect(ox + 20, itemY - 20, ow - 40, 28, GxEPD_BLACK);
-                display.drawRect(ox + 21, itemY - 19, ow - 42, 26, GxEPD_BLACK);
-            }
-        }
-    } while (display.nextPage());
-}
-
-void AppReader::drawOverlayTOC() {
-    DisplayMgr& dispMgr = DisplayMgr::getInstance();
-    KomaBonDisplay& display = dispMgr.getDisplay();
-    FontMgr& fontMgr = FontMgr::getInstance();
-
-    int ow = 320;
-    int oh = 340;
-    int ox = (display.width() - ow) / 2;
-    int oy = (display.height() - oh) / 2;
-
-    display.setPartialWindow(ox, oy, ow, oh);
-    display.firstPage();
-    do {
-        display.fillScreen(GxEPD_WHITE);
-        display.drawRect(ox, oy, ow, oh, GxEPD_BLACK);
-        display.drawRect(ox + 2, oy + 2, ow - 4, oh - 4, GxEPD_BLACK);
-
-        fontMgr.drawTextCentered(display, "Chapters", oy + 35, FONT_SIZE_SUBTITLE, GxEPD_BLACK);
-        display.drawLine(ox + 20, oy + 55, ox + ow - 20, oy + 55, GxEPD_BLACK);
-
-        int totalChapters = 0;
-        {
-            KomaBonGuard guard(_epubMutex);
-            if (_epubLoader) totalChapters = _epubLoader->getChapterCount();
-        }
-
-        if (totalChapters == 0) {
-            fontMgr.drawTextCentered(display, "No chapters found.", oy + 150, FONT_SIZE_BODY, GxEPD_BLACK);
-        } else {
-            int itemsPerPage = 7;
-            for (int i = 0; i < itemsPerPage; i++) {
-                int chapIdx = _overlayScrollOffset + i;
-                if (chapIdx >= totalChapters) break;
-
-                int itemY = oy + 90 + (i * 32);
-                char buf[32];
-                snprintf(buf, sizeof(buf), "Chapter %d", chapIdx + 1);
-
-                if (chapIdx == _overlaySelectedIndex) {
-                    display.fillRect(ox + 20, itemY - 20, ow - 40, 28, GxEPD_BLACK);
-                    fontMgr.drawTextCentered(display, buf, itemY, FONT_SIZE_BODY, GxEPD_WHITE);
-                } else {
-                    fontMgr.drawTextCentered(display, buf, itemY, FONT_SIZE_BODY, GxEPD_BLACK);
-                }
-            }
-
-            if (_overlayScrollOffset > 0) {
-                fontMgr.drawTextCentered(display, "^", oy + 65, FONT_SIZE_SMALL, GxEPD_BLACK);
-            }
-            if (_overlayScrollOffset + itemsPerPage < totalChapters) {
-                fontMgr.drawTextCentered(display, "v", oy + oh - 15, FONT_SIZE_SMALL, GxEPD_BLACK);
-            }
-        }
     } while (display.nextPage());
 }
