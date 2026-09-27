@@ -210,4 +210,4 @@ void AppWebTransfer::drawQRCode(KomaBonDisplay& display, const char* text, int t
             }
         }
     }
-}
+}

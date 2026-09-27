@@ -39,4 +39,4 @@ class AppWebTransfer : public App {
     void drawQRCode(KomaBonDisplay& display, const char* text, int topY, int scale);
 };
 
-#endif // APP_WEB_TRANSFER_H
+#endif // APP_WEB_TRANSFER_H
