@@ -33,6 +33,8 @@ class BatteryMgr {
     void loadSleepSettings(); // Load from EbookFS
     void resetIdleTimer();    // Call when user interacts
     void enterIdleSleep(const char* reason = "unspecified");
+    void prepareAndEnterDeepSleep();
+    void drawDefaultSleepScreen();
 
     // Draws the complete status bar icons (Wi-Fi, SD, Battery) into the provided display buffer
     void drawStatusBar(KomaBonDisplay& display, int startX, int startY);

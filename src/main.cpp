@@ -80,16 +80,22 @@ void setup() {
     AppSettings* settingsApp = new AppSettings();
     appMgr.registerApp(settingsApp);
 
-    // Compile post-boot diagnostic report
-    char bootReport[64];
-    snprintf(bootReport, sizeof(bootReport), "SD: %s | Joy: %s | Bat: %d%%",
-             SDMgr::getInstance().isMounted() ? "Mounted" : "Failed",
-             (SystemFS.exists("/joy_cal.json") || EbookFS.exists("/joy_cal.json")) ? "Calibrated" : "Default",
-             BatteryMgr::getInstance().getStatus().percentage);
+    bool isDeepSleepWakeup = (esp_sleep_get_wakeup_cause() != ESP_SLEEP_WAKEUP_UNDEFINED);
 
-    // Single full-screen update only after all buses are safely stabilized
-    displayMgr.showBootScreen(100, bootReport);
-    delay(2000); // Give user time to read boot report
+    if (!isDeepSleepWakeup) {
+        // Compile post-boot diagnostic report
+        char bootReport[64];
+        snprintf(bootReport, sizeof(bootReport), "SD: %s | Joy: %s | Bat: %d%%",
+                 SDMgr::getInstance().isMounted() ? "Mounted" : "Failed",
+                 (SystemFS.exists("/joy_cal.json") || EbookFS.exists("/joy_cal.json")) ? "Calibrated" : "Default",
+                 BatteryMgr::getInstance().getStatus().percentage);
+
+        // Single full-screen update only after all buses are safely stabilized
+        displayMgr.showBootScreen(100, bootReport);
+        delay(2000); // Give user time to read boot report
+    } else {
+        Serial.println("[BOOT] Woke up from Deep Sleep via GPIO interrupt. Fast resume...");
+    }
 
     if (!SystemFS.exists("/joy_cal.json") && !EbookFS.exists("/joy_cal.json")) {
         Serial.println("[BOOT] Missing calibration. Starting wizard.");

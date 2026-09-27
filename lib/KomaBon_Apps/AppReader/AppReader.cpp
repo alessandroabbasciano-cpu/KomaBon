@@ -6,6 +6,7 @@
 #include "SDMgr.h"
 #include "BookMeta.h"
 #include "DisplayMgr.h"
+#include "BatteryMgr.h"
 #include <WiFi.h>
 #include <ArduinoJson.h>
 
@@ -78,13 +79,34 @@ void AppReader::loadSettings() {
 }
 
 bool AppReader::hasBootResume() {
-    return false;
+    ProgressStore& store = ProgressStore::getInstance();
+    return store.resumeOnBoot() && (store.lastBook().length() > 0);
 }
 void AppReader::resumeSavedBookOnStart() {
     _resumeSavedBookOnStart = true;
 }
 
+bool AppReader::handleSleep() {
+    if (_state == VIEW_READING) {
+        enterSleepMode();
+        return true;
+    }
+    return false;
+}
+
+void AppReader::enterSleepMode() {
+    Serial.println("AppReader: Entering deep sleep from reading mode...");
+    saveReadingProgress(true);
+    flushProgress();
+    drawSleepCover();
+    BatteryMgr::getInstance().prepareAndEnterDeepSleep();
+}
+
 void AppReader::start() {
+    // Dynamic Frequency Scaling: Scale CPU down to 80 MHz for reading power savings
+    setCpuFrequencyMhz(80);
+    Serial.println("AppReader: CPU scaled to 80 MHz for power efficiency.");
+
     // Force offline mode to guarantee battery efficiency
     if (WiFi.getMode() != WIFI_OFF) {
         delay(50);
@@ -116,6 +138,10 @@ void AppReader::start() {
 void AppReader::stop() {
     closeBook();
     InputMgr::getInstance().clearCallback();
+
+    // Restore CPU clock back to 240 MHz for system menus and high-speed Wi-Fi
+    setCpuFrequencyMhz(240);
+    Serial.println("AppReader: CPU restored to 240 MHz.");
 }
 
 void AppReader::update() {

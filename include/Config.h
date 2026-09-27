@@ -69,7 +69,7 @@
 // configurable in Settings); holding KEY2 no longer puts the device to
 // sleep, but a short click still triggers a full refresh. Set to 1 to bring
 // the manual long-press standby back.
-#define KOMABON_KEY2_STANDBY_ENABLED 0
+#define KOMABON_KEY2_STANDBY_ENABLED 1
 
 // Battery calibration
 // Fully charged LiPo cells should read 4.20V. The previous value here (1.075)

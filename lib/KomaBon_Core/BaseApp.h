@@ -21,6 +21,12 @@ class App {
     // and the current screen must be fully repainted without losing state.
     virtual void forceRedraw() {}
 
+    // Called when the system enters deep sleep (manual or idle timeout).
+    // Return true if the app rendered its own custom sleep screen, false to show default.
+    virtual bool handleSleep() {
+        return false;
+    }
+
     // Apply a new reading font size (points). Only the reader acts on this;
     // other apps ignore it. Lets the web layer drive it through the App*
     // interface without depending on reader internals.

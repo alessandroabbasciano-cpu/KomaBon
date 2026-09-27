@@ -22,6 +22,7 @@ class SDMgr {
     // Force a complete SPI bus reset and remount cycle initiated by the user
     bool remountManual();
     bool remount();
+    void end();
 
     bool isMounted() const {
         return _mounted;

@@ -131,6 +131,12 @@ void AppMainMenu::handleInput(InputAction action) {
     int minSelectable = _hasResume ? 0 : 1;
     int maxSelectable = apps.size() - 1;
 
+    if (action == INPUT_SLEEP) {
+        stopHotspot();
+        BatteryMgr::getInstance().enterIdleSleep("manual_main_menu");
+        return;
+    }
+
     if (action == INPUT_NEXT || action == INPUT_RIGHT) {
         selectedIndex++;
         if (selectedIndex > maxSelectable) selectedIndex = minSelectable;

@@ -60,6 +60,8 @@ void AppReader::handleInput(InputAction action) {
             openSettingsOverlay();
         else if (action == INPUT_PREV)
             openTOCOverlay();
+        else if (action == INPUT_SLEEP)
+            enterSleepMode();
         else if (action == INPUT_BACK) {
             closeBook();
             _state = VIEW_LIBRARY;

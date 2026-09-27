@@ -257,3 +257,22 @@ void SDMgr::checkFatClusterAlignment() {
                       clusterKb);
     }
 }
+
+void SDMgr::end() {
+    if (_mounted) {
+        SD.end();
+        _mounted = false;
+        EbookFSPtr = &InternalEbookFS;
+        Serial.println("SDMgr: MicroSD unmounted and released.");
+    }
+    if (_spi) {
+        _spi->end();
+        delete _spi;
+        _spi = nullptr;
+    }
+    pinMode(SD_CS_PIN, INPUT_PULLUP);
+    pinMode(SD_MOSI_PIN, INPUT_PULLUP);
+    pinMode(SD_SCK_PIN, INPUT_PULLUP);
+    pinMode(SD_MISO_PIN, INPUT_PULLUP);
+}
+

@@ -19,10 +19,12 @@ const uint8_t* AppWebTransfer::getIconImage() {
 }
 
 void AppWebTransfer::start() {
+    // Run at full 240 MHz for maximum Wi-Fi throughput and HTTP parsing
+    setCpuFrequencyMhz(240);
     _state = WebTransferState::Init;
     _needsRedraw = true;
     InputMgr::getInstance().setCallback(std::bind(&AppWebTransfer::handleInput, this, std::placeholders::_1));
-    Serial.println("AppWebTransfer: UI initialized. Waiting for E-ink charge pump to power off...");
+    Serial.println("AppWebTransfer: UI initialized (240MHz). Waiting for E-ink charge pump to power off...");
 }
 
 void AppWebTransfer::stop() {

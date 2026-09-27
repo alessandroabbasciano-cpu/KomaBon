@@ -9,6 +9,10 @@
 #include "SDMgr.h"
 #include <WiFi.h>
 #include "../../include/NetworkState.h"
+#include "AppMgr.h"
+#include "FontMgr.h"
+#include "JoystickMgr.h"
+#include <driver/rtc_io.h>
 
 const float BatteryMgr::CHARGE_THRESHOLD = 0.03f;
 const float BatteryMgr::CRITICAL_VOLTAGE = 3.0f;
@@ -227,8 +231,7 @@ void BatteryMgr::shutdownLowBattery() {
     Serial.println("Battery critically low - entering deep sleep");
     Serial.printf("Voltage: %.2fV\n", _cachedStatus.voltage);
     Serial.flush();
-    delay(100);
-    esp_deep_sleep_start();
+    enterIdleSleep("low_battery");
 }
 
 BatteryStatus BatteryMgr::getStatus() {
@@ -268,37 +271,103 @@ void BatteryMgr::resetIdleTimer() {
     _lastActivityTime = millis();
 }
 
-void BatteryMgr::enterIdleSleep(const char* reason) {
-    String sleepMessage;
-    {
-        KomaBonGuard guard(_mutex);
-        sleepMessage = _sleepMessage;
-    }
-
+void BatteryMgr::drawDefaultSleepScreen() {
     KomaBonDisplay& display = DisplayMgr::getInstance().getDisplay();
+    FontMgr& fontMgr = FontMgr::getInstance();
+
     display.setFullWindow();
     display.firstPage();
     do {
         display.fillScreen(GxEPD_WHITE);
-        display.setFont(&FreeSans18pt8b);
-        display.setTextColor(GxEPD_BLACK);
 
-        int16_t tbx, tby;
-        uint16_t tbw, tbh;
-        display.getTextBounds(sleepMessage.c_str(), 0, 0, &tbx, &tby, &tbw, &tbh);
+        // Status bar on top
+        drawStatusBar(display, display.width() - 105, 10);
 
-        int16_t x = (display.width() - tbw) / 2 - tbx;
-        int16_t y = (display.height() - tbh) / 2 - tby;
+        // System Branding
+        fontMgr.drawTextCenteredBold(display, "KomaBon", 350, FONT_SIZE_HEADER, GxEPD_BLACK);
+        fontMgr.drawTextCentered(display, "Device in Deep Sleep", 395, FONT_SIZE_SUBTITLE, GxEPD_BLACK);
 
-        display.setCursor(x, y);
-        display.print(sleepMessage);
+        // Battery statistics
+        BatteryStatus bat = getStatus();
+        char batStr[48];
+        snprintf(batStr, sizeof(batStr), "Battery: %d%% (%.2fV)", bat.percentage, bat.voltage);
+        fontMgr.drawTextCentered(display, batStr, 440, FONT_SIZE_BODY, GxEPD_BLACK);
+
+        // Bottom rounded pill badge: "Move joystick to wake"
+        const int pillW = 340;
+        const int pillH = 34;
+        const int pillX = (display.width() - pillW) / 2;
+        const int pillY = 720;
+        display.fillRoundRect(pillX, pillY, pillW, pillH, 17, GxEPD_BLACK);
+        fontMgr.drawTextCentered(display, "Move joystick to wake", pillY + 23, FONT_SIZE_BODY, GxEPD_WHITE);
+
     } while (display.nextPage());
+}
 
-    delay(100);
-    esp_sleep_enable_ext0_wakeup((gpio_num_t)PIN_BUTTON_BACK, 0);
+void BatteryMgr::prepareAndEnterDeepSleep() {
+    Serial.println("BatteryMgr: Preparing hardware for deep sleep (<20uA)...");
+    Serial.flush();
 
+    // 1. Put E-Ink display controller into hibernate mode
+    // Sends deep sleep command and turns off high-voltage PREVGH / PREVGL charge pumps
+    DisplayMgr::getInstance().getDisplay().hibernate();
+
+    // 2. Shut down MicroSD and SPI bus to eliminate parasitic leakage
+    SDMgr::getInstance().end();
+
+    // 3. Ensure Wi-Fi radio is completely powered off
+    WiFi.disconnect(true);
+    WiFi.mode(WIFI_OFF);
+
+    // 4. Wait for user to release all physical inputs (joystick and buttons)
+    // to prevent immediate spurious wakeup from the held gesture
+    unsigned long releaseStart = millis();
+    while ((digitalRead(PIN_BUTTON_BACK) == LOW ||
+            digitalRead(PIN_BUTTON_SLEEP) == LOW ||
+            JoystickMgr::getInstance().getDirection() != JOY_NONE) &&
+           (millis() - releaseStart < 3000)) {
+        delay(20);
+    }
+    delay(100); // Debounce physical switch release
+
+    // 5. Configure RTC pullups and EXT1 wakeup on ESP32-S3:
+    // JOY_ADC_PIN (GPIO 2, any joystick movement), PIN_BUTTON_SLEEP (GPIO 3), PIN_BUTTON_BACK (GPIO 5)
+    pinMode(JOY_ADC_PIN, INPUT_PULLUP);
+    pinMode(PIN_BUTTON_SLEEP, INPUT_PULLUP);
+    pinMode(PIN_BUTTON_BACK, INPUT_PULLUP);
+
+    rtc_gpio_pullup_en((gpio_num_t)JOY_ADC_PIN);
+    rtc_gpio_pulldown_dis((gpio_num_t)JOY_ADC_PIN);
+
+    rtc_gpio_pullup_en((gpio_num_t)PIN_BUTTON_SLEEP);
+    rtc_gpio_pulldown_dis((gpio_num_t)PIN_BUTTON_SLEEP);
+
+    rtc_gpio_pullup_en((gpio_num_t)PIN_BUTTON_BACK);
+    rtc_gpio_pulldown_dis((gpio_num_t)PIN_BUTTON_BACK);
+
+    esp_sleep_enable_ext1_wakeup(
+        (1ULL << JOY_ADC_PIN) | (1ULL << PIN_BUTTON_SLEEP) | (1ULL << PIN_BUTTON_BACK),
+        ESP_EXT1_WAKEUP_ANY_LOW
+    );
+
+    Serial.println("BatteryMgr: Entering ESP32 Deep Sleep now. Zzz...");
+    Serial.flush();
     delay(50);
     esp_deep_sleep_start();
+}
+
+void BatteryMgr::enterIdleSleep(const char* reason) {
+    Serial.printf("BatteryMgr: Entering sleep (reason: %s)...\n", reason);
+    App* current = AppMgr::getInstance().getCurrentApp();
+    bool handled = false;
+    if (current) {
+        handled = current->handleSleep();
+    }
+    if (!handled) {
+        if (current) current->stop();
+        drawDefaultSleepScreen();
+    }
+    prepareAndEnterDeepSleep();
 }
 
 void BatteryMgr::drawStatusBar(KomaBonDisplay& display, int startX, int startY) {

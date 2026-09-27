@@ -64,6 +64,13 @@ class AppReader : public App {
     void handleInput(InputAction action);
     void forceRedraw() override;
 
+    bool handleSleep() override;
+    bool isReading() const {
+        return _state == VIEW_READING;
+    }
+    void enterSleepMode();
+    void drawSleepCover();
+
     void applyFontSize(int pt) override;
     void applyFontFamily(int family) override;
 

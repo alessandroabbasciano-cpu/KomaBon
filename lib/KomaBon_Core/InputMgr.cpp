@@ -115,6 +115,11 @@ void InputMgr::inputTask(void* parameter) {
                 if (heldTime < 30) {
                     // Lock the direction to prevent thumb rolling errors
                     lastJoyDirection = currentJoyDir;
+                } else if (heldTime >= 1000 && lastJoyDirection == JOY_DOWN) {
+                    Serial.println("INPUT: JOY Down Long Press -> SLEEP");
+                    BatteryMgr::getInstance().resetIdleTimer();
+                    self->enqueueAction(INPUT_SLEEP);
+                    joyLongPressSent = true;
                 } else if (heldTime >= BUTTON_LONG_PRESS_MS) {
                     if (lastJoyDirection == JOY_CENTER) {
                         Serial.println("INPUT: JOY Center Long Press -> GO TO MAIN MENU");
@@ -251,9 +256,6 @@ void InputMgr::enterStandby() {
                   digitalRead(PIN_BUTTON_SLEEP),
                   (JoystickMgr::getInstance().getDirection() != JOY_NONE ? 1 : 0));
     Serial.flush();
-
-    App* current = AppMgr::getInstance().getCurrentApp();
-    if (current) current->stop();
 
     BatteryMgr::getInstance().enterIdleSleep("key2_long_press");
 }
