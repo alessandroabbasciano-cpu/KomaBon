@@ -7,9 +7,9 @@
 #include "../../include/Config.h"
 #include <WiFi.h>
 
-static const char* ROW_LABELS[] = {"Font size",     "Font family", "Orientation", "Refresh screen",
-                                   "Sleep timeout", "Network",     "System",      "Joystick",
-                                   "Save",          "Discard"};
+static const char* ROW_LABELS[] = {"Font size",     "Font family",  "Orientation", "Refresh screen",
+                                   "Sleep timeout", "Sleep screen", "Network",     "System",
+                                   "Joystick",      "Save",         "Discard"};
 
 static const char* FONT_FAMILY_NAMES[] = {"FreeSans",       "Merriweather", "Literata",
                                           "Source Serif 4", "Gelasio",      "Open Sans"};
@@ -53,6 +53,11 @@ String AppSettings::valueForRow(int index) const {
             return String(_reader.refreshFrequency) + " pages";
         case ROW_SLEEP:
             return _sleep.timeout == 0 ? String("Off") : String(_sleep.timeout) + " min";
+        case ROW_SLEEP_SCREEN: {
+            const char* screenModes[] = {"Cover", "Custom", "Minimal"};
+            int mode = SettingsStore::clampSleepScreenMode(_sleep.screenMode);
+            return String(screenModes[mode]);
+        }
         case ROW_NETWORK:
         case ROW_SYSTEM:
         case ROW_JOYSTICK:

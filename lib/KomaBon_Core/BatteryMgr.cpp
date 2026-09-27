@@ -13,6 +13,7 @@
 #include "FontMgr.h"
 #include "JoystickMgr.h"
 #include <driver/rtc_io.h>
+#include "SettingsStore.h"
 
 const float BatteryMgr::CHARGE_THRESHOLD = 0.03f;
 const float BatteryMgr::CRITICAL_VOLTAGE = 3.0f;
@@ -30,8 +31,8 @@ static int voltageToPercentage(float voltage) {
 
 BatteryMgr::BatteryMgr()
     : _lastReadTime(0), _historyIndex(0), _lastHistoryUpdate(0), _previousVoltage(0.0f),
-      _sleepTimeoutMinutes(0), _sleepMessage("Press button to wake"), _lastActivityTime(0),
-      _lastValidVoltage(0.0f), _criticalCount(0), _lastChargingTime(0) {
+      _sleepTimeoutMinutes(0), _sleepScreenMode(SLEEP_SCREEN_COVER), _sleepMessage("Press button to wake"),
+      _lastActivityTime(0), _lastValidVoltage(0.0f), _criticalCount(0), _lastChargingTime(0) {
     _cachedStatus = {0.0f, 0, false};
     for (int i = 0; i < 5; i++) {
         _voltageHistory[i] = 0.0f;
@@ -250,20 +251,10 @@ BatteryStatus BatteryMgr::refreshNow() {
 
 void BatteryMgr::loadSleepSettings() {
     KomaBonGuard guard(_mutex);
-    if (EbookFS.exists("/sleep_config.json")) {
-        File file = EbookFS.open("/sleep_config.json", "r");
-        if (file) {
-            DynamicJsonDocument doc(512);
-            if (!deserializeJson(doc, file)) {
-                _sleepTimeoutMinutes = doc.containsKey("sleepTimeout") ? doc["sleepTimeout"].as<int>() : 0;
-                _sleepMessage = doc["sleepMessage"] | "Press button to wake";
-            }
-            file.close();
-        }
-    } else {
-        _sleepTimeoutMinutes = 0;
-        _sleepMessage = "Press button to wake";
-    }
+    SleepSettings s = SettingsStore::getInstance().loadSleep();
+    _sleepTimeoutMinutes = s.timeout;
+    _sleepScreenMode = s.screenMode;
+    _sleepMessage = s.message;
 }
 
 void BatteryMgr::resetIdleTimer() {
@@ -271,37 +262,74 @@ void BatteryMgr::resetIdleTimer() {
     _lastActivityTime = millis();
 }
 
+bool BatteryMgr::loadCustomScreensaver(uint8_t* buffer, size_t maxLen) {
+    if (!buffer || maxLen < 48000) return false;
+    if (!KomaBonStorage::ensureReady()) return false;
+
+    File f;
+    if (EbookFS.exists("/screensaver.raw")) {
+        f = EbookFS.open("/screensaver.raw", "r");
+    } else if (EbookFS.exists("/screensavers/sleep.raw")) {
+        f = EbookFS.open("/screensavers/sleep.raw", "r");
+    } else if (SystemFS.exists("/screensaver.raw")) {
+        f = SystemFS.open("/screensaver.raw", "r");
+    }
+
+    if (!f) return false;
+
+    size_t fSize = f.size();
+    if (fSize == 48004) {
+        uint8_t hdr[4];
+        if (f.read(hdr, 4) != 4) {
+            f.close();
+            return false;
+        }
+        size_t bytesRead = f.read(buffer, 48000);
+        f.close();
+        return (bytesRead == 48000);
+    } else if (fSize == 48000) {
+        size_t bytesRead = f.read(buffer, 48000);
+        f.close();
+        return (bytesRead == 48000);
+    }
+
+    f.close();
+    return false;
+}
+
 void BatteryMgr::drawDefaultSleepScreen() {
     KomaBonDisplay& display = DisplayMgr::getInstance().getDisplay();
     FontMgr& fontMgr = FontMgr::getInstance();
 
     display.setFullWindow();
+
+    bool drawnCustom = false;
+    uint8_t* customBuf = nullptr;
+    if (_sleepScreenMode == SLEEP_SCREEN_CUSTOM) {
+        customBuf = (uint8_t*)ps_malloc(48000);
+        if (!customBuf) customBuf = (uint8_t*)malloc(48000);
+        if (customBuf && loadCustomScreensaver(customBuf, 48000)) {
+            drawnCustom = true;
+        }
+    }
+
     display.firstPage();
     do {
         display.fillScreen(GxEPD_WHITE);
 
-        // Status bar on top
+        if (drawnCustom && customBuf) {
+            display.drawBitmap(0, 0, customBuf, 480, 800, GxEPD_BLACK);
+        } else {
+            // Elegant minimal KomaBon branding
+            fontMgr.drawTextCenteredBold(display, "KomaBon", 390, FONT_SIZE_HEADER, GxEPD_BLACK);
+        }
+
+        // Status bar on top: Wi-Fi, SD, and Battery icon + %
         drawStatusBar(display, display.width() - 105, 10);
 
-        // System Branding
-        fontMgr.drawTextCenteredBold(display, "KomaBon", 350, FONT_SIZE_HEADER, GxEPD_BLACK);
-        fontMgr.drawTextCentered(display, "Device in Deep Sleep", 395, FONT_SIZE_SUBTITLE, GxEPD_BLACK);
-
-        // Battery statistics
-        BatteryStatus bat = getStatus();
-        char batStr[48];
-        snprintf(batStr, sizeof(batStr), "Battery: %d%% (%.2fV)", bat.percentage, bat.voltage);
-        fontMgr.drawTextCentered(display, batStr, 440, FONT_SIZE_BODY, GxEPD_BLACK);
-
-        // Bottom rounded pill badge: "Move joystick to wake"
-        const int pillW = 340;
-        const int pillH = 34;
-        const int pillX = (display.width() - pillW) / 2;
-        const int pillY = 720;
-        display.fillRoundRect(pillX, pillY, pillW, pillH, 17, GxEPD_BLACK);
-        fontMgr.drawTextCentered(display, "Move joystick to wake", pillY + 23, FONT_SIZE_BODY, GxEPD_WHITE);
-
     } while (display.nextPage());
+
+    if (customBuf) free(customBuf);
 }
 
 void BatteryMgr::prepareAndEnterDeepSleep() {

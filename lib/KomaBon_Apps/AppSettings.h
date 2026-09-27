@@ -41,6 +41,7 @@ class AppSettings : public App {
         ROW_ROTATION,
         ROW_REFRESH,
         ROW_SLEEP,
+        ROW_SLEEP_SCREEN,
         ROW_NETWORK,
         ROW_SYSTEM,
         ROW_JOYSTICK,

@@ -82,6 +82,7 @@ void setupSettingsEndpoints(AsyncWebServer* server) {
 
         SleepSettings s = SettingsStore::getInstance().loadSleep();
         doc["sleepTimeout"] = s.timeout;
+        doc["screenMode"] = s.screenMode;
         doc["sleepMessage"] = s.message;
 
         serializeJson(doc, *response);
@@ -98,6 +99,9 @@ void setupSettingsEndpoints(AsyncWebServer* server) {
 
                 if (json.containsKey("sleepTimeout")) {
                     s.timeout = json["sleepTimeout"].as<int>();
+                }
+                if (json.containsKey("screenMode")) {
+                    s.screenMode = json["screenMode"].as<int>();
                 }
                 if (json.containsKey("sleepMessage")) {
                     s.message = json["sleepMessage"].as<String>();

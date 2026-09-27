@@ -80,10 +80,12 @@ void AppSettings::forceRedraw() {
 }
 
 void AppSettings::recomputeDirty() {
+    SleepSettings loadedSleep = SettingsStore::getInstance().loadSleep();
     _dirty = _reader.fontSize != _readerSaved.fontSize || _reader.fontFamily != _readerSaved.fontFamily ||
              _reader.refreshFrequency != _readerSaved.refreshFrequency ||
              _display.rotation != _displaySaved.rotation ||
-             _sleep.timeout != SettingsStore::getInstance().loadSleep().timeout;
+             _sleep.timeout != loadedSleep.timeout ||
+             _sleep.screenMode != loadedSleep.screenMode;
 }
 
 bool AppSettings::rowChanged(int index) const {
@@ -96,6 +98,10 @@ bool AppSettings::rowChanged(int index) const {
             return _display.rotation != _displaySaved.rotation;
         case ROW_REFRESH:
             return _reader.refreshFrequency != _readerSaved.refreshFrequency;
+        case ROW_SLEEP:
+            return _sleep.timeout != SettingsStore::getInstance().loadSleep().timeout;
+        case ROW_SLEEP_SCREEN:
+            return _sleep.screenMode != SettingsStore::getInstance().loadSleep().screenMode;
         default:
             return false;
     }
@@ -144,6 +150,10 @@ void AppSettings::cycleValue(int index, bool forward) {
         case ROW_SLEEP:
             _sleep.timeout = forward ? cycleIntForward(SLEEP_TIMEOUTS, 5, _sleep.timeout)
                                      : cycleIntBackward(SLEEP_TIMEOUTS, 5, _sleep.timeout);
+            break;
+        case ROW_SLEEP_SCREEN:
+            _sleep.screenMode = forward ? (_sleep.screenMode + 1) % 3
+                                        : (_sleep.screenMode + 2) % 3;
             break;
         default:
             return;

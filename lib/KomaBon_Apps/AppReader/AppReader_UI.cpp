@@ -4,6 +4,7 @@
 #include "BatteryMgr.h"
 #include "KomaBonFS.h"
 #include "icon_reader.h"
+#include "../KomaBon_Core/SettingsStore.h"
 
 const uint8_t* AppReader::getIconImage() {
     return icon_reader_160x160;
@@ -216,18 +217,48 @@ void AppReader::drawSleepCover() {
     String fileName = normalizedBookName(_currentBookPath);
     int dot = fileName.lastIndexOf('.');
     String baseName = (dot > 0) ? fileName.substring(0, dot) : fileName;
-    String coverPath = "/covers/" + baseName + ".cover";
 
-    std::vector<uint8_t> coverData;
-    bool hasCover = false;
-    if (SystemFS.exists(coverPath)) {
-        File f = SystemFS.open(coverPath, "r");
-        if (f) {
-            coverData.resize(2400);
-            if (f.read(coverData.data(), 2400) == 2400) {
-                hasCover = true;
+    SleepSettings sleepSettings = SettingsStore::getInstance().loadSleep();
+    int screenMode = sleepSettings.screenMode;
+
+    bool drawnCustom = false;
+    uint8_t* customBuf = nullptr;
+    if (screenMode == SLEEP_SCREEN_CUSTOM) {
+        customBuf = (uint8_t*)ps_malloc(48000);
+        if (!customBuf) customBuf = (uint8_t*)malloc(48000);
+        if (customBuf && BatteryMgr::getInstance().loadCustomScreensaver(customBuf, 48000)) {
+            drawnCustom = true;
+        }
+    }
+
+    if (_isComicMode && _kbReader && _comicPageBuffer && !drawnCustom && screenMode != SLEEP_SCREEN_MINIMAL) {
+        if (!_kbReader->readPage(0, _comicPageBuffer)) {
+            Serial.println("AppReader: Failed to read KMB cover page 0 from SD.");
+        }
+    }
+
+    size_t epubCoverSize = 0;
+    uint8_t* epubCoverData = nullptr;
+    if (!_isComicMode && _epubLoader && !drawnCustom && screenMode != SLEEP_SCREEN_MINIMAL) {
+        epubCoverData = _epubLoader->getCoverImageData(&epubCoverSize);
+        if (!epubCoverData) {
+            epubCoverData = _epubLoader->getRawZipData("cover_main.raw", &epubCoverSize);
+        }
+    }
+
+    String coverPath = "/covers/" + baseName + ".cover";
+    bool hasSmallCover = false;
+    std::vector<uint8_t> smallCoverData;
+    if (!drawnCustom && screenMode != SLEEP_SCREEN_MINIMAL && !_isComicMode && !epubCoverData) {
+        if (SystemFS.exists(coverPath)) {
+            File f = SystemFS.open(coverPath, "r");
+            if (f) {
+                smallCoverData.resize(2400);
+                if (f.read(smallCoverData.data(), 2400) == 2400) {
+                    hasSmallCover = true;
+                }
+                f.close();
             }
-            f.close();
         }
     }
 
@@ -235,83 +266,90 @@ void AppReader::drawSleepCover() {
     do {
         display.fillScreen(GxEPD_WHITE);
 
-        // Status bar on top
-        BatteryMgr::getInstance().drawStatusBar(display, display.width() - 105, 10);
+        if (drawnCustom && customBuf) {
+            display.drawBitmap(0, 0, customBuf, 480, 800, GxEPD_BLACK);
+        } else if (screenMode == SLEEP_SCREEN_MINIMAL) {
+            String title = baseName;
+            title.replace('_', ' ');
+            fontMgr.drawTextCenteredBold(display, "KomaBon", 360, FONT_SIZE_HEADER, GxEPD_BLACK);
+            fontMgr.drawTextCentered(display, title.c_str(), 420, FONT_SIZE_SUBTITLE, GxEPD_BLACK);
+        } else {
+            // SLEEP_SCREEN_COVER (or fallback if custom wallpaper missing)
+            bool coverRendered = false;
 
-        // Centered cover: 120x160 scaled 2x -> 240x320
-        const int coverW = 240;
-        const int coverH = 320;
-        const int coverX = (display.width() - coverW) / 2;
-        const int coverY = 110;
-
-        if (hasCover) {
-            const uint8_t* data = coverData.data();
-            for (int sy = 0; sy < 160; sy++) {
-                int rowOffset = sy * 15;
-                for (int sx = 0; sx < 120; sx++) {
-                    uint8_t byteVal = data[rowOffset + (sx / 8)];
-                    if (byteVal & (1 << (7 - (sx % 8)))) {
-                        display.fillRect(coverX + sx * 2, coverY + sy * 2, 2, 2, GxEPD_BLACK);
-                    }
+            if (_isComicMode && _kbReader && _comicPageBuffer) {
+                display.drawBitmap(0, 0, _comicPageBuffer, _kbReader->getWidth(), _kbReader->getHeight(),
+                                   GxEPD_BLACK);
+                coverRendered = true;
+            } else if (!_isComicMode && epubCoverData && epubCoverSize >= 4) {
+                uint16_t imgW = epubCoverData[0] | (epubCoverData[1] << 8);
+                uint16_t imgH = epubCoverData[2] | (epubCoverData[3] << 8);
+                if (epubCoverSize == 4 + ((imgW + 7) / 8) * imgH && imgW <= 800 && imgH <= 1200) {
+                    int drawX = (display.width() - imgW) / 2;
+                    int drawY = (display.height() - imgH) / 2;
+                    if (drawX < 0) drawX = 0;
+                    if (drawY < 0) drawY = 0;
+                    display.drawBitmap(drawX, drawY, epubCoverData + 4, imgW, imgH, GxEPD_BLACK);
+                    coverRendered = true;
                 }
             }
 
-            // Elegant frame and drop shadow
-            display.drawRect(coverX - 1, coverY - 1, coverW + 2, coverH + 2, GxEPD_BLACK);
-            display.fillRect(coverX + 4, coverY + coverH + 1, coverW, 3, GxEPD_BLACK);
-            display.fillRect(coverX + coverW + 1, coverY + 4, 3, coverH, GxEPD_BLACK);
-        } else {
-            display.drawRoundRect(coverX, coverY, coverW, coverH, 8, GxEPD_BLACK);
-            display.drawRoundRect(coverX + 3, coverY + 3, coverW - 6, coverH - 6, 6, GxEPD_BLACK);
-            display.fillRect(coverX + 16, coverY + 8, 8, coverH - 16, GxEPD_BLACK);
-            fontMgr.drawTextCentered(display, "KomaBon", coverY + (coverH / 2), FONT_SIZE_SUBTITLE, GxEPD_BLACK);
-        }
-
-        // Book title below cover
-        String title = baseName;
-        title.replace('_', ' ');
-        if (fontMgr.getTextWidthBold(title.c_str(), FONT_SIZE_MENU) > display.width() - 40) {
-            while (title.length() > 3 &&
-                   fontMgr.getTextWidthBold((title + "...").c_str(), FONT_SIZE_MENU) > display.width() - 40) {
-                title = title.substring(0, title.length() - 1);
+            if (!coverRendered) {
+                if (hasSmallCover) {
+                    const int coverW = 240;
+                    const int coverH = 320;
+                    const int coverX = (display.width() - coverW) / 2;
+                    const int coverY = 160;
+                    const uint8_t* data = smallCoverData.data();
+                    for (int sy = 0; sy < 160; sy++) {
+                        int rowOffset = sy * 15;
+                        for (int sx = 0; sx < 120; sx++) {
+                            uint8_t byteVal = data[rowOffset + (sx / 8)];
+                            if (byteVal & (1 << (7 - (sx % 8)))) {
+                                display.fillRect(coverX + sx * 2, coverY + sy * 2, 2, 2, GxEPD_BLACK);
+                            }
+                        }
+                    }
+                    display.drawRect(coverX - 1, coverY - 1, coverW + 2, coverH + 2, GxEPD_BLACK);
+                } else {
+                    String title = baseName;
+                    title.replace('_', ' ');
+                    fontMgr.drawTextCenteredBold(display, title.c_str(), 390, FONT_SIZE_HEADER, GxEPD_BLACK);
+                }
             }
-            title += "...";
         }
-        fontMgr.drawTextCenteredBold(display, title.c_str(), 485, FONT_SIZE_MENU, GxEPD_BLACK);
 
-        // Reading progress text
+        // Top Status Bar (Wi-Fi, SD, Battery % and icon)
+        BatteryMgr::getInstance().drawStatusBar(display, display.width() - 105, 10);
+
+        // Bottom compact reading progress badge in overlay
         char progStr[48];
         if (_totalPages > 0) {
             int pct = (int)(((float)_globalPageNumber / (float)_totalPages) * 100.0f + 0.5f);
             if (pct > 100) pct = 100;
-            snprintf(progStr, sizeof(progStr), "Page %d of %d  (%d%%)", _globalPageNumber, _totalPages, pct);
+            snprintf(progStr, sizeof(progStr), "%d%% \xB7 Pag. %d di %d", pct, _globalPageNumber, _totalPages);
         } else {
-            snprintf(progStr, sizeof(progStr), "Page %d", _globalPageNumber);
-        }
-        fontMgr.drawTextCentered(display, progStr, 520, FONT_SIZE_BODY, GxEPD_BLACK);
-
-        // Progress bar
-        if (_totalPages > 0) {
-            const int barW = 280;
-            const int barH = 6;
-            const int barX = (display.width() - barW) / 2;
-            const int barY = 535;
-            display.drawRect(barX, barY, barW, barH, GxEPD_BLACK);
-            int fillW = (int)(((float)_globalPageNumber / (float)_totalPages) * (barW - 2));
-            if (fillW > barW - 2) fillW = barW - 2;
-            if (fillW > 0) {
-                display.fillRect(barX + 1, barY + 1, fillW, barH - 2, GxEPD_BLACK);
-            }
+            snprintf(progStr, sizeof(progStr), "Pag. %d", _globalPageNumber);
         }
 
-        // Bottom pill badge: "Zzz Sleeping — Move joystick to wake"
-        const int pillW = 360;
-        const int pillH = 34;
+        display.setFont(&FreeSans9pt8b);
+        int16_t bx, by;
+        uint16_t bw, bh;
+        display.getTextBounds(progStr, 0, 0, &bx, &by, &bw, &bh);
+
+        const int pillW = bw + 28;
+        const int pillH = 28;
         const int pillX = (display.width() - pillW) / 2;
-        const int pillY = 720;
-        display.fillRoundRect(pillX, pillY, pillW, pillH, 17, GxEPD_BLACK);
-        fontMgr.drawTextCentered(display, "Zzz Sleeping - Move joystick to wake", pillY + 23, FONT_SIZE_BODY,
-                                 GxEPD_WHITE);
+        const int pillY = display.height() - pillH - 22;
+
+        display.fillRoundRect(pillX, pillY, pillW, pillH, 6, GxEPD_WHITE);
+        display.drawRoundRect(pillX, pillY, pillW, pillH, 6, GxEPD_BLACK);
+        display.setTextColor(GxEPD_BLACK);
+        display.setCursor(pillX + 14, pillY + pillH - 8);
+        display.print(progStr);
 
     } while (display.nextPage());
+
+    if (epubCoverData) free(epubCoverData);
+    if (customBuf) free(customBuf);
 }

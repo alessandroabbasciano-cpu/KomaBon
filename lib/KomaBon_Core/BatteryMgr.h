@@ -35,6 +35,8 @@ class BatteryMgr {
     void enterIdleSleep(const char* reason = "unspecified");
     void prepareAndEnterDeepSleep();
     void drawDefaultSleepScreen();
+    bool loadCustomScreensaver(uint8_t* buffer, size_t maxLen);
+    int getSleepScreenMode() const { return _sleepScreenMode; }
 
     // Draws the complete status bar icons (Wi-Fi, SD, Battery) into the provided display buffer
     void drawStatusBar(KomaBonDisplay& display, int startX, int startY);
@@ -69,6 +71,7 @@ class BatteryMgr {
     static const unsigned long CHARGING_GRACE_MS = 60000;
 
     int _sleepTimeoutMinutes;
+    int _sleepScreenMode;
     String _sleepMessage;
     unsigned long _lastActivityTime;
 };
