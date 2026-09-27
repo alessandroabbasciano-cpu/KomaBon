@@ -1,8 +1,28 @@
 #include "WebMgr.h"
 #include <ESPAsyncWebServer.h>
 #include <AsyncJson.h>
+#include <SD.h>
+#include "../KomaBon_Core/KomaBonFS.h"
 #include "../KomaBon_Core/SettingsStore.h"
 #include "../KomaBon_Core/BatteryMgr.h"
+
+struct ScreensaverUploadState {
+    AsyncWebServerRequest* owner = nullptr;
+    File file;
+    size_t bytesWritten = 0;
+    bool ok = false;
+    String error;
+
+    void reset() {
+        if (file) file.close();
+        owner = nullptr;
+        bytesWritten = 0;
+        ok = false;
+        error = "";
+    }
+};
+
+static ScreensaverUploadState g_screensaverUpload;
 
 void setupSettingsEndpoints(AsyncWebServer* server) {
 
@@ -119,4 +139,162 @@ void setupSettingsEndpoints(AsyncWebServer* server) {
             }
         });
     server->addHandler(sleepSettingsHandler);
-}
+
+    server->on("/api/settings/screensaver", HTTP_GET, [](AsyncWebServerRequest* request) {
+        bool hasCustom = false;
+        size_t fileSize = 0;
+        fs::FS* targetFS = nullptr;
+        String filePath = "";
+
+        if (EbookFS.exists("/screensaver.raw")) {
+            hasCustom = true;
+            targetFS = &EbookFS;
+            filePath = "/screensaver.raw";
+        } else if (EbookFS.exists("/screensavers/sleep.raw")) {
+            hasCustom = true;
+            targetFS = &EbookFS;
+            filePath = "/screensavers/sleep.raw";
+        } else if (SystemFS.exists("/screensaver.raw")) {
+            hasCustom = true;
+            targetFS = &SystemFS;
+            filePath = "/screensaver.raw";
+        }
+
+        if (hasCustom && targetFS) {
+            File f = targetFS->open(filePath, "r");
+            if (f) {
+                fileSize = f.size();
+                f.close();
+            }
+        }
+
+        if (request->hasParam("raw") && hasCustom && targetFS) {
+            request->send(*targetFS, filePath, "application/octet-stream");
+            return;
+        }
+
+        AsyncResponseStream* response = request->beginResponseStream("application/json");
+        DynamicJsonDocument doc(256);
+        doc["exists"] = hasCustom;
+        doc["size"] = fileSize;
+        doc["path"] = filePath;
+        doc["screenMode"] = SettingsStore::getInstance().loadSleep().screenMode;
+        serializeJson(doc, *response);
+        request->send(response);
+    });
+
+    server->on("/api/settings/screensaver", HTTP_DELETE, [](AsyncWebServerRequest* request) {
+        bool removed = false;
+        if (EbookFS.exists("/screensaver.raw")) {
+            EbookFS.remove("/screensaver.raw");
+            removed = true;
+        }
+        if (SystemFS.exists("/screensaver.raw")) {
+            SystemFS.remove("/screensaver.raw");
+            removed = true;
+        }
+
+        SettingsStore::Transaction tx;
+        SettingsStore& store = SettingsStore::getInstance();
+        SleepSettings s = store.loadSleep();
+        if (s.screenMode == SLEEP_SCREEN_CUSTOM) {
+            s.screenMode = SLEEP_SCREEN_COVER;
+            store.saveSleep(s);
+            BatteryMgr::getInstance().loadSleepSettings();
+        }
+
+        AsyncResponseStream* response = request->beginResponseStream("application/json");
+        DynamicJsonDocument doc(128);
+        doc["ok"] = true;
+        doc["removed"] = removed;
+        serializeJson(doc, *response);
+        request->send(response);
+    });
+
+    server->on(
+        "/api/settings/screensaver/upload", HTTP_POST,
+        [](AsyncWebServerRequest* request) {
+            if (g_screensaverUpload.owner != request) {
+                request->send(400, "application/json", "{\"ok\":false,\"error\":\"no file provided\"}");
+                return;
+            }
+
+            if (g_screensaverUpload.ok) {
+                request->send(200, "application/json",
+                              "{\"ok\":true,\"message\":\"Screensaver installed successfully\"}");
+            } else {
+                String errMsg = g_screensaverUpload.error.length() ? g_screensaverUpload.error : "Upload failed";
+                request->send(400, "application/json", "{\"ok\":false,\"error\":\"" + errMsg + "\"}");
+            }
+            g_screensaverUpload.reset();
+        },
+        [](AsyncWebServerRequest* request, String filename, size_t index, uint8_t* data, size_t len, bool final) {
+            if (index == 0) {
+                if (g_screensaverUpload.owner != nullptr && g_screensaverUpload.owner != request) {
+                    return;
+                }
+                g_screensaverUpload.reset();
+                g_screensaverUpload.owner = request;
+
+                request->onDisconnect([request]() {
+                    if (g_screensaverUpload.owner == request) {
+                        if (g_screensaverUpload.file) g_screensaverUpload.file.close();
+                        if (EbookFS.exists("/screensaver.raw.tmp")) EbookFS.remove("/screensaver.raw.tmp");
+                        g_screensaverUpload.reset();
+                    }
+                });
+
+                if (EbookFS.exists("/screensaver.raw.tmp")) {
+                    EbookFS.remove("/screensaver.raw.tmp");
+                }
+
+                g_screensaverUpload.file = EbookFS.open("/screensaver.raw.tmp", FILE_WRITE);
+                if (!g_screensaverUpload.file) {
+                    g_screensaverUpload.error = "Failed to open temporary file on storage";
+                    return;
+                }
+            }
+
+            if (g_screensaverUpload.owner != request || !g_screensaverUpload.file) return;
+
+            if (len > 0) {
+                size_t written = g_screensaverUpload.file.write(data, len);
+                if (written == len) {
+                    g_screensaverUpload.bytesWritten += written;
+                } else {
+                    g_screensaverUpload.error = "Storage write failure";
+                    g_screensaverUpload.file.close();
+                    return;
+                }
+            }
+
+            if (final) {
+                g_screensaverUpload.file.flush();
+                g_screensaverUpload.file.close();
+
+                if (g_screensaverUpload.bytesWritten == 48000 || g_screensaverUpload.bytesWritten == 48004) {
+                    if (EbookFS.exists("/screensaver.raw")) {
+                        EbookFS.remove("/screensaver.raw");
+                    }
+                    if (EbookFS.rename("/screensaver.raw.tmp", "/screensaver.raw")) {
+                        g_screensaverUpload.ok = true;
+
+                        SettingsStore::Transaction tx;
+                        SettingsStore& store = SettingsStore::getInstance();
+                        SleepSettings s = store.loadSleep();
+                        s.screenMode = SLEEP_SCREEN_CUSTOM;
+                        store.saveSleep(s);
+                        BatteryMgr::getInstance().loadSleepSettings();
+                    } else {
+                        g_screensaverUpload.error = "Failed to save /screensaver.raw";
+                        EbookFS.remove("/screensaver.raw.tmp");
+                    }
+                } else {
+                    g_screensaverUpload.error = "Invalid screensaver size (" +
+                                                String(g_screensaverUpload.bytesWritten) +
+                                                " bytes, expected 48000 or 48004)";
+                    EbookFS.remove("/screensaver.raw.tmp");
+                }
+            }
+        });
+}

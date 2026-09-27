@@ -63,6 +63,7 @@ void InputMgr::inputTask(void* parameter) {
     InputMgr* self = static_cast<InputMgr*>(parameter);
 
     static const unsigned long JOY_COOLDOWN_MS = 80;
+    static const unsigned long JOY_MENU_LONG_PRESS_MS = 800;
     JoyDirection lastJoyDirection = JOY_NONE;
     unsigned long joyPressTime = 0;
     bool joyLongPressSent = false;
@@ -78,6 +79,24 @@ void InputMgr::inputTask(void* parameter) {
         // SIGNAL INTEGRITY: Mask ADC transients caused by mechanical release and resistive ladder discharge
         if (now < joyCooldown) {
             currentJoyDir = JOY_NONE;
+        }
+
+        // Handle initial wakeup release suppression:
+        // Hold through the wake press and swallow its release to prevent ghost clicks.
+        if (self->_suppressWakeRelease) {
+            if (currentJoyDir == JOY_NONE && !key1Pressed && !key2Pressed) {
+                self->_suppressWakeRelease = false;
+                joyPressTime = 0;
+                joyLongPressSent = false;
+                lastJoyDirection = JOY_NONE;
+                self->_btnBackPressTime = 0;
+                self->_btnBackLongPressSent = false;
+                self->_btnSleepPressTime = 0;
+                self->_btnSleepLongPressSent = false;
+                joyCooldown = now + 150;
+            }
+            vTaskDelay(pdMS_TO_TICKS(5));
+            continue;
         }
 
         bool key3Pressed = (currentJoyDir == JOY_CENTER);
@@ -120,18 +139,16 @@ void InputMgr::inputTask(void* parameter) {
                     BatteryMgr::getInstance().resetIdleTimer();
                     self->enqueueAction(INPUT_SLEEP);
                     joyLongPressSent = true;
-                } else if (heldTime >= BUTTON_LONG_PRESS_MS) {
-                    if (lastJoyDirection == JOY_CENTER) {
-                        Serial.println("INPUT: JOY Center Long Press -> GO TO MAIN MENU");
-                        BatteryMgr::getInstance().resetIdleTimer();
-                        self->enqueueAction(INPUT_GO_TO_MAIN_MENU);
-                        joyLongPressSent = true;
-                    } else if (lastJoyDirection == JOY_LEFT) {
-                        Serial.println("INPUT: JOY Left Long Press -> BACK");
-                        BatteryMgr::getInstance().resetIdleTimer();
-                        self->enqueueAction(INPUT_BACK);
-                        joyLongPressSent = true;
-                    }
+                } else if (heldTime >= JOY_MENU_LONG_PRESS_MS && lastJoyDirection == JOY_CENTER) {
+                    Serial.println("INPUT: JOY Center Long Press -> GO TO MAIN MENU");
+                    BatteryMgr::getInstance().resetIdleTimer();
+                    self->enqueueAction(INPUT_GO_TO_MAIN_MENU);
+                    joyLongPressSent = true;
+                } else if (heldTime >= 600 && lastJoyDirection == JOY_LEFT) {
+                    Serial.println("INPUT: JOY Left Long Press -> BACK");
+                    BatteryMgr::getInstance().resetIdleTimer();
+                    self->enqueueAction(INPUT_BACK);
+                    joyLongPressSent = true;
                 }
             }
         } else {

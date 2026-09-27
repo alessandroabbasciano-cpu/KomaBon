@@ -34,6 +34,7 @@ class BatteryMgr {
     void resetIdleTimer();    // Call when user interacts
     void enterIdleSleep(const char* reason = "unspecified");
     void prepareAndEnterDeepSleep();
+    void reenterDeepSleep();
     void drawDefaultSleepScreen();
     bool loadCustomScreensaver(uint8_t* buffer, size_t maxLen);
     int getSleepScreenMode() const { return _sleepScreenMode; }

@@ -45,6 +45,10 @@ class InputMgr {
         return _queueTail != _queueHead;
     }
 
+    void suppressWakeRelease() {
+        _suppressWakeRelease = true;
+    }
+
   private:
     InputMgr();
     OneButton btn;
@@ -110,6 +114,7 @@ class InputMgr {
     volatile bool _standbyRequested = false;
 
     volatile bool _isInteracting = false;
+    volatile bool _suppressWakeRelease = false;
 
     static void staticClick(void* ptr);
     static void staticDoubleClick(void* ptr);

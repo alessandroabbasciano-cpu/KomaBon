@@ -384,6 +384,40 @@ void BatteryMgr::prepareAndEnterDeepSleep() {
     esp_deep_sleep_start();
 }
 
+void BatteryMgr::reenterDeepSleep() {
+    // Abort sequence when wake-up conditions (e.g. 900ms hold) are not met.
+    // Wait for physical contacts to be released to avoid immediate wake loops.
+    unsigned long releaseStart = millis();
+    while ((digitalRead(PIN_BUTTON_BACK) == LOW ||
+            digitalRead(PIN_BUTTON_SLEEP) == LOW ||
+            analogRead(JOY_ADC_PIN) < 3800) &&
+           (millis() - releaseStart < 2000)) {
+        delay(20);
+    }
+    delay(50);
+
+    pinMode(JOY_ADC_PIN, INPUT_PULLUP);
+    pinMode(PIN_BUTTON_SLEEP, INPUT_PULLUP);
+    pinMode(PIN_BUTTON_BACK, INPUT_PULLUP);
+
+    rtc_gpio_pullup_en((gpio_num_t)JOY_ADC_PIN);
+    rtc_gpio_pulldown_dis((gpio_num_t)JOY_ADC_PIN);
+    rtc_gpio_pullup_en((gpio_num_t)PIN_BUTTON_SLEEP);
+    rtc_gpio_pulldown_dis((gpio_num_t)PIN_BUTTON_SLEEP);
+    rtc_gpio_pullup_en((gpio_num_t)PIN_BUTTON_BACK);
+    rtc_gpio_pulldown_dis((gpio_num_t)PIN_BUTTON_BACK);
+
+    esp_sleep_enable_ext1_wakeup(
+        (1ULL << JOY_ADC_PIN) | (1ULL << PIN_BUTTON_SLEEP) | (1ULL << PIN_BUTTON_BACK),
+        ESP_EXT1_WAKEUP_ANY_LOW
+    );
+
+    Serial.println("BatteryMgr: Re-entering deep sleep (unconfirmed wake).");
+    Serial.flush();
+    delay(20);
+    esp_deep_sleep_start();
+}
+
 void BatteryMgr::enterIdleSleep(const char* reason) {
     Serial.printf("BatteryMgr: Entering sleep (reason: %s)...\n", reason);
     App* current = AppMgr::getInstance().getCurrentApp();

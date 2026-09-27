@@ -26,12 +26,46 @@ static bool gOtaConfirmedValid = false;
 
 void setup() {
     Serial.begin(115200);
-    delay(150);
+    delay(50);
 
-    // Emergency Hardware Safe-Boot check:
-    // If the back button or joystick center is held at power-on, enter rescue mode immediately.
-    if (SafeBoot::checkRequested()) {
-        SafeBoot::run();
+    bool isDeepSleepWakeup = (esp_sleep_get_wakeup_cause() != ESP_SLEEP_WAKEUP_UNDEFINED);
+
+    if (isDeepSleepWakeup) {
+        // Deep sleep wakeup verification:
+        // Only confirm wakeup if JOY_CENTER is held continuously for 900ms.
+        // Accidental bumps, quick touches, or tilts (UP/DOWN/LEFT/RIGHT) immediately
+        // return to deep sleep without touching display or storage.
+        pinMode(JOY_ADC_PIN, INPUT);
+        analogSetAttenuation(ADC_11db);
+
+        bool confirmedWake = true;
+        const int wakeCheckSamples = 18; // 18 samples * 50ms = 900ms
+        for (int i = 0; i < wakeCheckSamples; i++) {
+            int joyVal = analogRead(JOY_ADC_PIN);
+            // JOY_CENTER connects GPIO 2 directly to GND (< 600).
+            // Tilts produce >= 1200, open switch > 3800.
+            if (joyVal >= 600) {
+                confirmedWake = false;
+                break;
+            }
+            delay(50);
+        }
+
+        if (!confirmedWake) {
+            Serial.println("[BOOT] Aborting deep sleep wake: JOY_CENTER was not held for 900ms.");
+            BatteryMgr::getInstance().reenterDeepSleep();
+        }
+
+        Serial.println("[BOOT] Confirmed prolonged JOY_CENTER wake-up. Resuming system...");
+        // Inform InputMgr to suppress the release of this initial wake hold,
+        // so releasing the joystick after the screen updates doesn't trigger a ghost click.
+        InputMgr::getInstance().suppressWakeRelease();
+    } else {
+        // Emergency Hardware Safe-Boot check:
+        // If the back button or joystick center is held at power-on, enter rescue mode immediately.
+        if (SafeBoot::checkRequested()) {
+            SafeBoot::run();
+        }
     }
 
     gBootTimestamp = millis();
@@ -79,8 +113,6 @@ void setup() {
 
     AppSettings* settingsApp = new AppSettings();
     appMgr.registerApp(settingsApp);
-
-    bool isDeepSleepWakeup = (esp_sleep_get_wakeup_cause() != ESP_SLEEP_WAKEUP_UNDEFINED);
 
     if (!isDeepSleepWakeup) {
         // Compile post-boot diagnostic report

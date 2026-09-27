@@ -188,6 +188,14 @@
                     <div id="display-settings-status" class="status-msg"></div>
                     <hr class="divider">
                     <div class="setting-row">
+                        <label for="sleep-screen-mode">Sleep Screen Mode</label>
+                        <select id="sleep-screen-mode">
+                            <option value="0">Book Cover (Reading) / Minimal (Idle)</option>
+                            <option value="1">Custom Screensaver (Image)</option>
+                            <option value="2">Minimal Logo Only</option>
+                        </select>
+                    </div>
+                    <div class="setting-row">
                         <label for="sleep-timeout">Idle Sleep Timeout (Minutes)</label>
                         <input type="number" id="sleep-timeout" min="0" max="60" value="5" class="input-narrow">
                     </div>
@@ -198,6 +206,26 @@
                     </div>
                     <button class="btn secondary" onclick="saveSleepSettings()">Save Sleep Settings</button>
                     <div id="sleep-settings-status" class="status-msg"></div>
+                </div>
+
+                <div class="card" id="screensaver-card">
+                    <h3>Custom Screensaver</h3>
+                    <p class="hint">Upload any image (PNG, JPG, WEBP). It will be scaled to 480&times;800 and dithered to 1-bit native RAW.</p>
+                    
+                    <div style="text-align: center; margin: 14px 0;">
+                        <canvas id="screensaver-preview-canvas" width="240" height="400" style="border: 1px solid var(--line); border-radius: 6px; background: #fff; max-width: 100%; height: auto; display: none;"></canvas>
+                        <div id="screensaver-empty-preview" style="padding: 28px 12px; border: 2px dashed var(--line); border-radius: 6px; color: var(--text-muted); font-size: 0.85rem;">
+                            No custom screensaver active on device
+                        </div>
+                    </div>
+
+                    <div class="btn-row" style="margin-top: 10px; gap: 8px;">
+                        <input type="file" id="screensaver-file-input" accept="image/*" class="hidden-input" onchange="handleScreensaverFileSelect(this.files)">
+                        <button class="btn secondary" onclick="document.getElementById('screensaver-file-input').click()">Choose Image…</button>
+                        <button class="btn primary" id="upload-screensaver-btn" onclick="uploadCustomScreensaver()" disabled>Apply Screensaver</button>
+                        <button class="btn danger" id="delete-screensaver-btn" onclick="deleteCustomScreensaver()" style="display: none;">Remove</button>
+                    </div>
+                    <div id="screensaver-status" class="status-msg"></div>
                 </div>
 
                 <div class="card">
