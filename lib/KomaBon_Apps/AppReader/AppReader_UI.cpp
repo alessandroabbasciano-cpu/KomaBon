@@ -327,7 +327,8 @@ void AppReader::drawSleepCover() {
         if (_totalPages > 0) {
             int pct = (int)(((float)_globalPageNumber / (float)_totalPages) * 100.0f + 0.5f);
             if (pct > 100) pct = 100;
-            snprintf(progStr, sizeof(progStr), "%d%% \xB7 Pag. %d di %d", pct, _globalPageNumber, _totalPages);
+            snprintf(progStr, sizeof(progStr), "%d%% \xB7 Pag. %d di %d", pct, _globalPageNumber,
+                     _totalPages);
         } else {
             snprintf(progStr, sizeof(progStr), "Pag. %d", _globalPageNumber);
         }

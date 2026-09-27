@@ -275,4 +275,3 @@ void SDMgr::end() {
     pinMode(SD_SCK_PIN, INPUT_PULLUP);
     pinMode(SD_MISO_PIN, INPUT_PULLUP);
 }
-

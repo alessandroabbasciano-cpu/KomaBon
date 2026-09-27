@@ -83,8 +83,7 @@ void AppSettings::recomputeDirty() {
     SleepSettings loadedSleep = SettingsStore::getInstance().loadSleep();
     _dirty = _reader.fontSize != _readerSaved.fontSize || _reader.fontFamily != _readerSaved.fontFamily ||
              _reader.refreshFrequency != _readerSaved.refreshFrequency ||
-             _display.rotation != _displaySaved.rotation ||
-             _sleep.timeout != loadedSleep.timeout ||
+             _display.rotation != _displaySaved.rotation || _sleep.timeout != loadedSleep.timeout ||
              _sleep.screenMode != loadedSleep.screenMode;
 }
 
@@ -152,8 +151,7 @@ void AppSettings::cycleValue(int index, bool forward) {
                                      : cycleIntBackward(SLEEP_TIMEOUTS, 5, _sleep.timeout);
             break;
         case ROW_SLEEP_SCREEN:
-            _sleep.screenMode = forward ? (_sleep.screenMode + 1) % 3
-                                        : (_sleep.screenMode + 2) % 3;
+            _sleep.screenMode = forward ? (_sleep.screenMode + 1) % 3 : (_sleep.screenMode + 2) % 3;
             break;
         default:
             return;

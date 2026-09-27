@@ -13,17 +13,28 @@ CrashHandler::CrashHandler() : _lastResetReason(ESP_RST_UNKNOWN), _hasCrashLog(f
 
 static const char* getReasonName(esp_reset_reason_t r) {
     switch (r) {
-        case ESP_RST_POWERON:   return "POWERON";
-        case ESP_RST_EXT:       return "EXTERNAL_PIN";
-        case ESP_RST_SW:        return "SOFTWARE_RESET";
-        case ESP_RST_PANIC:     return "EXCEPTION_PANIC";
-        case ESP_RST_INT_WDT:   return "INTERRUPT_WATCHDOG";
-        case ESP_RST_TASK_WDT:  return "TASK_WATCHDOG";
-        case ESP_RST_WDT:       return "OTHER_WATCHDOG";
-        case ESP_RST_DEEPSLEEP: return "DEEP_SLEEP_WAKE";
-        case ESP_RST_BROWNOUT:  return "BROWNOUT_VOLTAGE_DROP";
-        case ESP_RST_SDIO:      return "SDIO_RESET";
-        default:                return "UNKNOWN";
+        case ESP_RST_POWERON:
+            return "POWERON";
+        case ESP_RST_EXT:
+            return "EXTERNAL_PIN";
+        case ESP_RST_SW:
+            return "SOFTWARE_RESET";
+        case ESP_RST_PANIC:
+            return "EXCEPTION_PANIC";
+        case ESP_RST_INT_WDT:
+            return "INTERRUPT_WATCHDOG";
+        case ESP_RST_TASK_WDT:
+            return "TASK_WATCHDOG";
+        case ESP_RST_WDT:
+            return "OTHER_WATCHDOG";
+        case ESP_RST_DEEPSLEEP:
+            return "DEEP_SLEEP_WAKE";
+        case ESP_RST_BROWNOUT:
+            return "BROWNOUT_VOLTAGE_DROP";
+        case ESP_RST_SDIO:
+            return "SDIO_RESET";
+        default:
+            return "UNKNOWN";
     }
 }
 
@@ -39,14 +50,12 @@ void CrashHandler::init() {
     s_bootCount++;
     _lastResetReason = esp_reset_reason();
 
-    Serial.printf("[CrashHandler] Boot #%u | Reset Reason: %s (%d)\n",
-                  s_bootCount, getReasonName(_lastResetReason), (int)_lastResetReason);
+    Serial.printf("[CrashHandler] Boot #%u | Reset Reason: %s (%d)\n", s_bootCount,
+                  getReasonName(_lastResetReason), (int)_lastResetReason);
 
     // Check if previous reset was abnormal
-    bool abnormal = (_lastResetReason == ESP_RST_PANIC ||
-                     _lastResetReason == ESP_RST_INT_WDT ||
-                     _lastResetReason == ESP_RST_TASK_WDT ||
-                     _lastResetReason == ESP_RST_WDT ||
+    bool abnormal = (_lastResetReason == ESP_RST_PANIC || _lastResetReason == ESP_RST_INT_WDT ||
+                     _lastResetReason == ESP_RST_TASK_WDT || _lastResetReason == ESP_RST_WDT ||
                      _lastResetReason == ESP_RST_BROWNOUT);
 
     if (abnormal && SystemFS.begin()) {

@@ -238,9 +238,8 @@ bool EpubLoader::parseOpf() {
             String idLower = id;
             idLower.toLowerCase();
 
-            bool isImageFile =
-                hrefLower.endsWith(".jpg") || hrefLower.endsWith(".jpeg") || hrefLower.endsWith(".png") ||
-                hrefLower.endsWith(".raw");
+            bool isImageFile = hrefLower.endsWith(".jpg") || hrefLower.endsWith(".jpeg") ||
+                               hrefLower.endsWith(".png") || hrefLower.endsWith(".raw");
 
             if (properties.indexOf("cover-image") != -1 && isImageFile) {
                 coverHref = href;

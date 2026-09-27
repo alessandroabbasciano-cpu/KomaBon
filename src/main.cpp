@@ -119,7 +119,8 @@ void setup() {
         char bootReport[64];
         snprintf(bootReport, sizeof(bootReport), "SD: %s | Joy: %s | Bat: %d%%",
                  SDMgr::getInstance().isMounted() ? "Mounted" : "Failed",
-                 (SystemFS.exists("/joy_cal.json") || EbookFS.exists("/joy_cal.json")) ? "Calibrated" : "Default",
+                 (SystemFS.exists("/joy_cal.json") || EbookFS.exists("/joy_cal.json")) ? "Calibrated"
+                                                                                       : "Default",
                  BatteryMgr::getInstance().getStatus().percentage);
 
         // Single full-screen update only after all buses are safely stabilized

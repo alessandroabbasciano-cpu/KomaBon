@@ -350,8 +350,7 @@ void BatteryMgr::prepareAndEnterDeepSleep() {
     // 4. Wait for user to release all physical inputs (joystick and buttons)
     // to prevent immediate spurious wakeup from the held gesture
     unsigned long releaseStart = millis();
-    while ((digitalRead(PIN_BUTTON_BACK) == LOW ||
-            digitalRead(PIN_BUTTON_SLEEP) == LOW ||
+    while ((digitalRead(PIN_BUTTON_BACK) == LOW || digitalRead(PIN_BUTTON_SLEEP) == LOW ||
             JoystickMgr::getInstance().getDirection() != JOY_NONE) &&
            (millis() - releaseStart < 3000)) {
         delay(20);
@@ -373,10 +372,9 @@ void BatteryMgr::prepareAndEnterDeepSleep() {
     rtc_gpio_pullup_en((gpio_num_t)PIN_BUTTON_BACK);
     rtc_gpio_pulldown_dis((gpio_num_t)PIN_BUTTON_BACK);
 
-    esp_sleep_enable_ext1_wakeup(
-        (1ULL << JOY_ADC_PIN) | (1ULL << PIN_BUTTON_SLEEP) | (1ULL << PIN_BUTTON_BACK),
-        ESP_EXT1_WAKEUP_ANY_LOW
-    );
+    esp_sleep_enable_ext1_wakeup((1ULL << JOY_ADC_PIN) | (1ULL << PIN_BUTTON_SLEEP) |
+                                     (1ULL << PIN_BUTTON_BACK),
+                                 ESP_EXT1_WAKEUP_ANY_LOW);
 
     Serial.println("BatteryMgr: Entering ESP32 Deep Sleep now. Zzz...");
     Serial.flush();
@@ -388,8 +386,7 @@ void BatteryMgr::reenterDeepSleep() {
     // Abort sequence when wake-up conditions (e.g. 900ms hold) are not met.
     // Wait for physical contacts to be released to avoid immediate wake loops.
     unsigned long releaseStart = millis();
-    while ((digitalRead(PIN_BUTTON_BACK) == LOW ||
-            digitalRead(PIN_BUTTON_SLEEP) == LOW ||
+    while ((digitalRead(PIN_BUTTON_BACK) == LOW || digitalRead(PIN_BUTTON_SLEEP) == LOW ||
             analogRead(JOY_ADC_PIN) < 3800) &&
            (millis() - releaseStart < 2000)) {
         delay(20);
@@ -407,10 +404,9 @@ void BatteryMgr::reenterDeepSleep() {
     rtc_gpio_pullup_en((gpio_num_t)PIN_BUTTON_BACK);
     rtc_gpio_pulldown_dis((gpio_num_t)PIN_BUTTON_BACK);
 
-    esp_sleep_enable_ext1_wakeup(
-        (1ULL << JOY_ADC_PIN) | (1ULL << PIN_BUTTON_SLEEP) | (1ULL << PIN_BUTTON_BACK),
-        ESP_EXT1_WAKEUP_ANY_LOW
-    );
+    esp_sleep_enable_ext1_wakeup((1ULL << JOY_ADC_PIN) | (1ULL << PIN_BUTTON_SLEEP) |
+                                     (1ULL << PIN_BUTTON_BACK),
+                                 ESP_EXT1_WAKEUP_ANY_LOW);
 
     Serial.println("BatteryMgr: Re-entering deep sleep (unconfirmed wake).");
     Serial.flush();

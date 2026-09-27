@@ -29,14 +29,10 @@ struct DisplaySettings {
     int rotation = 3; // 0..3 for 360-degree display rotation support
 };
 
-enum SleepScreenMode {
-    SLEEP_SCREEN_COVER = 0,
-    SLEEP_SCREEN_CUSTOM = 1,
-    SLEEP_SCREEN_MINIMAL = 2
-};
+enum SleepScreenMode { SLEEP_SCREEN_COVER = 0, SLEEP_SCREEN_CUSTOM = 1, SLEEP_SCREEN_MINIMAL = 2 };
 
 struct SleepSettings {
-    int timeout = 0; // Idle sleep timeout in minutes; 0 = disabled
+    int timeout = 0;                     // Idle sleep timeout in minutes; 0 = disabled
     int screenMode = SLEEP_SCREEN_COVER; // 0=Cover, 1=Custom, 2=Minimal
     String message = "Press button to wake";
 };

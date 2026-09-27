@@ -223,12 +223,14 @@ void setupSettingsEndpoints(AsyncWebServer* server) {
                 request->send(200, "application/json",
                               "{\"ok\":true,\"message\":\"Screensaver installed successfully\"}");
             } else {
-                String errMsg = g_screensaverUpload.error.length() ? g_screensaverUpload.error : "Upload failed";
+                String errMsg =
+                    g_screensaverUpload.error.length() ? g_screensaverUpload.error : "Upload failed";
                 request->send(400, "application/json", "{\"ok\":false,\"error\":\"" + errMsg + "\"}");
             }
             g_screensaverUpload.reset();
         },
-        [](AsyncWebServerRequest* request, String filename, size_t index, uint8_t* data, size_t len, bool final) {
+        [](AsyncWebServerRequest* request, String filename, size_t index, uint8_t* data, size_t len,
+           bool final) {
             if (index == 0) {
                 if (g_screensaverUpload.owner != nullptr && g_screensaverUpload.owner != request) {
                     return;
@@ -297,4 +299,4 @@ void setupSettingsEndpoints(AsyncWebServer* server) {
                 }
             }
         });
-}
+}
