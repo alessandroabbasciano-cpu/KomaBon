@@ -113,7 +113,8 @@ void JoystickMgr::init() {
     rtc_gpio_pulldown_dis((gpio_num_t)JOY_ADC_PIN);
     rtc_gpio_deinit((gpio_num_t)JOY_ADC_PIN);
 
-    pinMode(JOY_ADC_PIN, ANALOG); // explicitly disable digital I/O buffer to prevent CMOS shoot-through leakage
+    pinMode(JOY_ADC_PIN,
+            ANALOG); // explicitly disable digital I/O buffer to prevent CMOS shoot-through leakage
     analogSetPinAttenuation(JOY_ADC_PIN, ADC_11db);
     analogReadResolution(12);
     Serial.println("JoystickMgr: ADC1 initialized safely on JOY_ADC_PIN (RTC pullups cleared).");
