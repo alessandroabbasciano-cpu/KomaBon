@@ -7,6 +7,7 @@
 #include "../KomaBon_Web/WebMgr.h"
 #include "../../include/Config.h"
 #include <WiFi.h>
+#include <qrcode.h>
 
 AppWebTransfer::AppWebTransfer() {
     _needsRedraw = true;
@@ -51,10 +52,6 @@ void AppWebTransfer::update() {
         }
     } else if (_state == WebTransferState::StartingRadio) {
         Serial.println("AppWebTransfer: Booting up Wi-Fi radio...");
-
-        WiFi.mode(WIFI_AP_STA);
-        WiFi.softAP(AP_SSID, WebMgr::devicePassword());
-        delay(100);
 
         WebMgr::getInstance().connectWiFi();
 
@@ -135,25 +132,82 @@ void AppWebTransfer::drawReady() {
     KomaBonDisplay& display = dispMgr.getDisplay();
     FontMgr& fontMgr = FontMgr::getInstance();
 
-    int startY = 160;
-    int lineSpacing = 45;
+    bool isSta = (WiFi.status() == WL_CONNECTED);
+    String ipStr = isSta ? WiFi.localIP().toString() : WiFi.softAPIP().toString();
+    if (ipStr == "0.0.0.0" || ipStr.length() == 0) {
+        ipStr = isSta ? "192.168.1.1" : "192.168.4.1";
+    }
+    String url = "http://" + ipStr + "/";
 
-    fontMgr.drawTextCentered(display, "Server is running. Connect via web browser:", startY, FONT_SIZE_BODY,
-                             GxEPD_BLACK);
+    int startY = 100;
+    int lineSpacing = 30;
 
-    String ipStr = "IP Address: 192.168.4.1";
+    if (isSta) {
+        String netStr = "Network: " + WiFi.SSID();
+        fontMgr.drawTextCentered(display, netStr.c_str(), startY, FONT_SIZE_BODY, GxEPD_BLACK);
 
-    if (WiFi.status() == WL_CONNECTED) {
-        ipStr = "IP Address: " + WiFi.localIP().toString();
+        String ipLine = "IP: " + ipStr;
+        fontMgr.drawTextCentered(display, ipLine.c_str(), startY + lineSpacing, FONT_SIZE_BODY, GxEPD_BLACK);
+
+        fontMgr.drawTextCentered(display, "(or http://komabon.local/)", startY + (lineSpacing * 2),
+                                 FONT_SIZE_SMALL, GxEPD_BLACK);
+    } else {
+        fontMgr.drawTextCentered(display, "Hotspot Mode (No Wi-Fi)", startY, FONT_SIZE_BODY, GxEPD_BLACK);
+
+        String ssidStr = String("Wi-Fi SSID: ") + String(AP_SSID);
+        fontMgr.drawTextCentered(display, ssidStr.c_str(), startY + lineSpacing, FONT_SIZE_BODY, GxEPD_BLACK);
+
+        String passStr = String("Password: ") + String(WebMgr::devicePassword());
+        fontMgr.drawTextCentered(display, passStr.c_str(), startY + (lineSpacing * 2), FONT_SIZE_BODY,
+                                 GxEPD_BLACK);
+
+        String ipLine = "IP: " + ipStr;
+        fontMgr.drawTextCentered(display, ipLine.c_str(), startY + (lineSpacing * 3), FONT_SIZE_SMALL,
+                                 GxEPD_BLACK);
     }
 
-    fontMgr.drawTextCentered(display, ipStr.c_str(), startY + lineSpacing, FONT_SIZE_BODY, GxEPD_BLACK);
+    int qrTopY = isSta ? 220 : 250;
+    drawQRCode(display, url.c_str(), qrTopY, 7);
 
-    String ssidStr = String("Network (SSID): ") + String(AP_SSID);
-    String passStr = String("Password: ") + String(WebMgr::devicePassword());
-
-    fontMgr.drawTextCentered(display, ssidStr.c_str(), startY + (lineSpacing * 2), FONT_SIZE_BODY,
+    int textBelowY = qrTopY + 203 + 36;
+    fontMgr.drawTextCentered(display, "Scan with phone camera to open Web UI", textBelowY, FONT_SIZE_BODY,
                              GxEPD_BLACK);
-    fontMgr.drawTextCentered(display, passStr.c_str(), startY + (lineSpacing * 3), FONT_SIZE_BODY,
-                             GxEPD_BLACK);
+    fontMgr.drawTextCentered(display, "Upload books, screensavers & settings", textBelowY + 28,
+                             FONT_SIZE_SMALL, GxEPD_BLACK);
 }
+
+void AppWebTransfer::drawQRCode(KomaBonDisplay& display, const char* text, int topY, int scale) {
+    QRCode qrcode;
+    uint8_t version = 3;
+    size_t len = strlen(text);
+    if (len > 32) version = 4;
+    if (len > 46) version = 5;
+
+    uint16_t bufSize = qrcode_getBufferSize(version);
+    uint8_t qrcodeData[bufSize];
+    if (qrcode_initText(&qrcode, qrcodeData, version, ECC_LOW, text) != 0) {
+        Serial.println("AppWebTransfer: QR code init failed");
+        return;
+    }
+
+    int qrSize = qrcode.size;
+    int totalPx = qrSize * scale;
+    int startX = (display.width() - totalPx) / 2;
+    int startY = topY;
+    int quietPx = 14;
+
+    // Rounded background card with clean border
+    display.fillRoundRect(startX - quietPx, startY - quietPx, totalPx + (quietPx * 2),
+                          totalPx + (quietPx * 2), 8, GxEPD_WHITE);
+    display.drawRoundRect(startX - quietPx, startY - quietPx, totalPx + (quietPx * 2),
+                          totalPx + (quietPx * 2), 8, GxEPD_BLACK);
+
+    // Draw black QR modules
+    for (uint8_t y = 0; y < qrSize; y++) {
+        for (uint8_t x = 0; x < qrSize; x++) {
+            if (qrcode_getModule(&qrcode, x, y)) {
+                display.fillRect(startX + (x * scale), startY + (y * scale), scale, scale, GxEPD_BLACK);
+            }
+        }
+    }
+}
