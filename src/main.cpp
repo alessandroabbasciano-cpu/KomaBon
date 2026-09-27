@@ -1,5 +1,6 @@
 #include <Arduino.h>
 #include <esp_ota_ops.h>
+#include <driver/rtc_io.h>
 #include "Config.h"
 #include "NetworkState.h"
 
@@ -32,11 +33,13 @@ void setup() {
 
     if (isDeepSleepWakeup) {
         // Deep sleep wakeup verification:
-        // Only confirm wakeup if JOY_CENTER is held continuously for 900ms.
-        // Accidental bumps, quick touches, or tilts (UP/DOWN/LEFT/RIGHT) immediately
-        // return to deep sleep without touching display or storage.
-        pinMode(JOY_ADC_PIN, INPUT);
-        analogSetAttenuation(ADC_11db);
+        // Clear RTC pullups latched by ext1 sleep configuration
+        rtc_gpio_pullup_dis((gpio_num_t)JOY_ADC_PIN);
+        rtc_gpio_pulldown_dis((gpio_num_t)JOY_ADC_PIN);
+        rtc_gpio_deinit((gpio_num_t)JOY_ADC_PIN);
+
+        pinMode(JOY_ADC_PIN, ANALOG);
+        analogSetPinAttenuation(JOY_ADC_PIN, ADC_11db);
 
         bool confirmedWake = true;
         const int wakeCheckSamples = 18; // 18 samples * 50ms = 900ms

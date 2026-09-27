@@ -74,17 +74,29 @@ void InputMgr::inputTask(void* parameter) {
         bool key1Pressed = (digitalRead(PIN_BUTTON_BACK) == LOW);
         bool key2Pressed = (digitalRead(PIN_BUTTON_SLEEP) == LOW);
 
-        JoyDirection currentJoyDir = JoystickMgr::getInstance().getDirection();
+        JoyDirection rawJoyDir = JoystickMgr::getInstance().getDirection();
 
         // SIGNAL INTEGRITY: Mask ADC transients caused by mechanical release and resistive ladder discharge
         if (now < joyCooldown) {
-            currentJoyDir = JOY_NONE;
+            rawJoyDir = JOY_NONE;
         }
+
+        // 2-sample consecutive filter to prevent single-sample ADC spikes (e.g. from USB power ripple)
+        // from causing premature releases or spurious clicks.
+        static JoyDirection prevJoyDir = JOY_NONE;
+        JoyDirection currentJoyDir = JOY_NONE;
+        if (rawJoyDir == prevJoyDir) {
+            currentJoyDir = rawJoyDir;
+        } else {
+            // Keep previous stable state while candidate settles
+            currentJoyDir = (joyPressTime != 0) ? lastJoyDirection : JOY_NONE;
+        }
+        prevJoyDir = rawJoyDir;
 
         // Handle initial wakeup release suppression:
         // Hold through the wake press and swallow its release to prevent ghost clicks.
         if (self->_suppressWakeRelease) {
-            if (currentJoyDir == JOY_NONE && !key1Pressed && !key2Pressed) {
+            if (rawJoyDir == JOY_NONE && !key1Pressed && !key2Pressed) {
                 self->_suppressWakeRelease = false;
                 joyPressTime = 0;
                 joyLongPressSent = false;
@@ -93,7 +105,7 @@ void InputMgr::inputTask(void* parameter) {
                 self->_btnBackLongPressSent = false;
                 self->_btnSleepPressTime = 0;
                 self->_btnSleepLongPressSent = false;
-                joyCooldown = now + 150;
+                joyCooldown = now + 100;
             }
             vTaskDelay(pdMS_TO_TICKS(5));
             continue;

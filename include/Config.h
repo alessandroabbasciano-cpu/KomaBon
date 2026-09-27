@@ -55,8 +55,8 @@
 // Display Settings (Portrait 7.5")
 #define SCREEN_WIDTH 480
 #define SCREEN_HEIGHT 800
-#define FONT_SIZE_DEFAULT 28        // Default font size (maps to FreeSans18pt GFX font)
-#define LAZY_RENDER_DEBOUNCE_MS 250 // Quiet period before drawing e-ink frame
+#define FONT_SIZE_DEFAULT 28       // Default font size (maps to FreeSans18pt GFX font)
+#define LAZY_RENDER_DEBOUNCE_MS 60 // Quiet period before drawing e-ink frame (snappy response)
 
 // Boot diagnostics
 // Set to 1 when debugging partition/filesystem issues. Keeping this off makes

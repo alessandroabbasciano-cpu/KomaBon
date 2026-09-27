@@ -2,6 +2,7 @@
 #include "Config.h"
 #include "KomaBonFS.h"
 #include <ArduinoJson.h>
+#include <driver/rtc_io.h>
 
 JoystickMgr::JoystickMgr() {
     _cal = {0, 3350, 1250, 2650, 1950};
@@ -37,7 +38,9 @@ JoyDirection JoystickMgr::getDirection() {
         dir = JOY_RIGHT;
     }
 
-    if (minD > 500) return JOY_NONE;
+    // Increased tolerance window from 500 to 650 to comfortably absorb
+    // USB charging ripple and VBUS ground shifts without dropping movements.
+    if (minD > 650) return JOY_NONE;
     return dir;
 }
 
@@ -105,10 +108,15 @@ int JoystickMgr::readAnalogAveraged() {
 }
 
 void JoystickMgr::init() {
-    pinMode(JOY_ADC_PIN, ANALOG); // explicitly disable digital I/O buffer to prevent leakage
+    // Explicitly disconnect and disable any RTC pull-up / pull-down latch left by deep sleep
+    rtc_gpio_pullup_dis((gpio_num_t)JOY_ADC_PIN);
+    rtc_gpio_pulldown_dis((gpio_num_t)JOY_ADC_PIN);
+    rtc_gpio_deinit((gpio_num_t)JOY_ADC_PIN);
+
+    pinMode(JOY_ADC_PIN, ANALOG); // explicitly disable digital I/O buffer to prevent CMOS shoot-through leakage
     analogSetPinAttenuation(JOY_ADC_PIN, ADC_11db);
     analogReadResolution(12);
-    Serial.println("JoystickMgr: ADC1 initialized safely on JOY_ADC_PIN.");
+    Serial.println("JoystickMgr: ADC1 initialized safely on JOY_ADC_PIN (RTC pullups cleared).");
 
     if (!loadCalibration()) {
         Serial.println("JoystickMgr: No calibration file found, using defaults.");

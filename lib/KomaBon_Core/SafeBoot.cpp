@@ -11,8 +11,8 @@
 
 bool SafeBoot::checkRequested() {
     pinMode(PIN_BUTTON_BACK, INPUT_PULLUP);
-    pinMode(JOY_ADC_PIN, INPUT);
-    analogSetAttenuation(ADC_11db);
+    pinMode(JOY_ADC_PIN, ANALOG);
+    analogSetPinAttenuation(JOY_ADC_PIN, ADC_11db);
 
     int heldCount = 0;
     const int totalSamples = 24; // 24 samples * 50ms = 1200ms
