@@ -460,7 +460,8 @@ void AppSettings::update() {
                 if (abs(raw - _joyCalLastRaw) < 250) {
                     unsigned long holdDuration = millis() - _joyCalHoldStart;
                     if (holdDuration % 200 < 20) {
-                        Serial.printf("CALIB: Step %d holding... Raw=%d, Held=%lu ms\n", _joyCalStep, raw, holdDuration);
+                        Serial.printf("CALIB: Step %d holding... Raw=%d, Held=%lu ms\n", _joyCalStep, raw,
+                                      holdDuration);
                     }
                     if (holdDuration > 500) {
                         _joyCalValues[_joyCalStep] = raw;
