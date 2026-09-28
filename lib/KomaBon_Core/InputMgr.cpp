@@ -82,8 +82,17 @@ void InputMgr::inputTask(void* parameter) {
             rawJoyDir = JOY_NONE;
         }
 
-        // Direction is sampled directly without artificial latency filter
-        JoyDirection currentJoyDir = rawJoyDir;
+        // 2-sample consecutive filter to prevent single-sample ADC spikes (e.g. from USB power ripple)
+        // from causing premature releases or spurious clicks.
+        static JoyDirection prevJoyDir = JOY_NONE;
+        JoyDirection currentJoyDir = JOY_NONE;
+        if (rawJoyDir == prevJoyDir) {
+            currentJoyDir = rawJoyDir;
+        } else {
+            // Keep previous stable state while candidate settles
+            currentJoyDir = (joyPressTime != 0) ? lastJoyDirection : JOY_NONE;
+        }
+        prevJoyDir = rawJoyDir;
 
         // Real-time ADC / Button Diagnostics via Serial USB
         static JoyDirection s_lastReportedJoy = JOY_NONE;
@@ -119,6 +128,9 @@ void InputMgr::inputTask(void* parameter) {
         bool joyActive = (currentJoyDir != JOY_NONE);
 
         self->_isInteracting = (key1Pressed || key2Pressed || joyActive);
+        if (self->_isInteracting) {
+            self->_lastPhysicalInputTime = now;
+        }
 
 #if KOMABON_PIN_DIAG
         {

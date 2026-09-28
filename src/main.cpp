@@ -27,6 +27,8 @@ static bool gOtaConfirmedValid = false;
 
 void setup() {
     Serial.begin(115200);
+    Serial.setTxTimeoutMs(
+        0); // Non-blocking Serial. Prevents complete OS freeze if Web Serial host stops reading
     delay(50);
 
     bool isDeepSleepWakeup = (esp_sleep_get_wakeup_cause() != ESP_SLEEP_WAKEUP_UNDEFINED);
@@ -38,16 +40,42 @@ void setup() {
         rtc_gpio_pulldown_dis((gpio_num_t)JOY_ADC_PIN);
         rtc_gpio_deinit((gpio_num_t)JOY_ADC_PIN);
 
+        rtc_gpio_pullup_dis((gpio_num_t)PIN_BUTTON_SLEEP);
+        rtc_gpio_pulldown_dis((gpio_num_t)PIN_BUTTON_SLEEP);
+        rtc_gpio_deinit((gpio_num_t)PIN_BUTTON_SLEEP);
+
+        rtc_gpio_pullup_dis((gpio_num_t)PIN_BUTTON_BACK);
+        rtc_gpio_pulldown_dis((gpio_num_t)PIN_BUTTON_BACK);
+        rtc_gpio_deinit((gpio_num_t)PIN_BUTTON_BACK);
+
         pinMode(JOY_ADC_PIN, ANALOG);
         analogSetPinAttenuation(JOY_ADC_PIN, ADC_11db);
+        pinMode(PIN_BUTTON_SLEEP, INPUT_PULLUP);
+        pinMode(PIN_BUTTON_BACK, INPUT_PULLUP);
 
+        uint64_t ext1_mask = esp_sleep_get_ext1_wakeup_status();
         bool confirmedWake = true;
         const int wakeCheckSamples = 18; // 18 samples * 50ms = 900ms
+
         for (int i = 0; i < wakeCheckSamples; i++) {
-            int joyVal = analogRead(JOY_ADC_PIN);
-            // JOY_CENTER connects GPIO 2 directly to GND (< 600).
-            // Tilts produce >= 1200, open switch > 3800.
-            if (joyVal >= 600) {
+            bool isHeld = false;
+            
+            if ((ext1_mask & (1ULL << PIN_BUTTON_BACK)) && digitalRead(PIN_BUTTON_BACK) == LOW) {
+                isHeld = true;
+            } else if ((ext1_mask & (1ULL << JOY_ADC_PIN)) && analogRead(JOY_ADC_PIN) < 2000) {
+                // Lenient threshold (< 2000 instead of 600) because resistive ladders 
+                // can fluctuate when pressed, causing false-abort spikes.
+                isHeld = true;
+            }
+
+            // Fallback if ext1_mask is 0
+            if (ext1_mask == 0) {
+                if (digitalRead(PIN_BUTTON_BACK) == LOW || analogRead(JOY_ADC_PIN) < 2000) {
+                    isHeld = true;
+                }
+            }
+
+            if (!isHeld) {
                 confirmedWake = false;
                 break;
             }
@@ -55,11 +83,11 @@ void setup() {
         }
 
         if (!confirmedWake) {
-            Serial.println("[BOOT] Aborting deep sleep wake: JOY_CENTER was not held for 900ms.");
+            Serial.println("[BOOT] Aborting deep sleep wake: Button was not held for 900ms.");
             BatteryMgr::getInstance().reenterDeepSleep();
         }
 
-        Serial.println("[BOOT] Confirmed prolonged JOY_CENTER wake-up. Resuming system...");
+        Serial.println("[BOOT] Confirmed prolonged button wake-up. Resuming system...");
         // Inform InputMgr to suppress the release of this initial wake hold,
         // so releasing the joystick after the screen updates doesn't trigger a ghost click.
         InputMgr::getInstance().suppressWakeRelease();
@@ -153,14 +181,8 @@ void loop() {
     InputMgr::getInstance().update();
     AppMgr::getInstance().update();
 
-    static unsigned long lastPhysicalInputTime = 0;
-
-    if (InputMgr::getInstance().isInteracting()) {
-        lastPhysicalInputTime = millis();
-    }
-
     if (!InputMgr::getInstance().hasPendingActions() &&
-        (millis() - lastPhysicalInputTime > LAZY_RENDER_DEBOUNCE_MS)) {
+        (millis() - InputMgr::getInstance().getLastInputTime() > LAZY_RENDER_DEBOUNCE_MS)) {
         AppMgr::getInstance().draw();
     }
 

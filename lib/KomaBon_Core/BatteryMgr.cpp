@@ -372,8 +372,7 @@ void BatteryMgr::prepareAndEnterDeepSleep() {
     rtc_gpio_pullup_en((gpio_num_t)PIN_BUTTON_BACK);
     rtc_gpio_pulldown_dis((gpio_num_t)PIN_BUTTON_BACK);
 
-    esp_sleep_enable_ext1_wakeup((1ULL << JOY_ADC_PIN) | (1ULL << PIN_BUTTON_SLEEP) |
-                                     (1ULL << PIN_BUTTON_BACK),
+    esp_sleep_enable_ext1_wakeup((1ULL << JOY_ADC_PIN) | (1ULL << PIN_BUTTON_BACK),
                                  ESP_EXT1_WAKEUP_ANY_LOW);
 
     Serial.println("BatteryMgr: Entering ESP32 Deep Sleep now. Zzz...");

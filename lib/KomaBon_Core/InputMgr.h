@@ -41,6 +41,10 @@ class InputMgr {
         return _isInteracting;
     }
 
+    unsigned long getLastInputTime() const {
+        return _lastPhysicalInputTime;
+    }
+
     bool hasPendingActions() const {
         return _queueTail != _queueHead;
     }
@@ -114,6 +118,7 @@ class InputMgr {
     volatile bool _standbyRequested = false;
 
     volatile bool _isInteracting = false;
+    volatile unsigned long _lastPhysicalInputTime = 0;
     volatile bool _suppressWakeRelease = false;
 
     static void staticClick(void* ptr);
