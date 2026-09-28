@@ -15,6 +15,7 @@
 
 #include "../KomaBon_Apps/AppMainMenu.h"
 #include "../KomaBon_Apps/AppReader/AppReader.h"
+#include "../KomaBon_Apps/AppBookshelf/AppBookshelf.h"
 #include "../KomaBon_Apps/AppSettings.h"
 #include "../KomaBon_Apps/AppWebTransfer.h"
 #include "AppStorageTools.h"
@@ -135,6 +136,7 @@ void setup() {
 
     AppReader* readerApp = new AppReader();
     appMgr.registerApp(readerApp);
+    appMgr.registerApp(new AppBookshelf());
 
     static AppStorageTools appStorageTools;
     appMgr.registerApp(&appStorageTools);

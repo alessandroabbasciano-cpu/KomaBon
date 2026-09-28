@@ -61,3 +61,13 @@ void AppMgr::draw() {
         currentApp->draw();
     }
 }
+App* AppMgr::getAppByName(const char* name) {
+    if (!name) return nullptr;
+    for (size_t i = 0; i < apps.size(); i++) {
+        if (apps[i] && apps[i]->getName() && strcmp(apps[i]->getName(), name) == 0) {
+            return apps[i];
+        }
+    }
+    return nullptr;
+}
+

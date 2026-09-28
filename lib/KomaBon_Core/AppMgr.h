@@ -17,6 +17,7 @@ class AppMgr {
     App* getCurrentApp() {
         return currentApp;
     }
+    App* getAppByName(const char* name);
     std::vector<App*>& getApps() {
         return apps;
     }
