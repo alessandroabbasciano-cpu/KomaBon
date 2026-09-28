@@ -5,6 +5,8 @@
 #include "KomaBonFS.h"
 #include "icon_reader.h"
 #include "../KomaBon_Core/SettingsStore.h"
+#include "../../KomaBon_Core/AppMgr.h"
+#include "BookMeta.h"
 
 const uint8_t* AppReader::getIconImage() {
     return icon_reader_160x160;
@@ -14,9 +16,7 @@ void AppReader::draw() {
     if (!_needsRedraw) return;
     _needsRedraw = false;
 
-    if (_state == VIEW_LIBRARY)
-        drawLibrary();
-    else if (_state == VIEW_READING)
+    if (_state == VIEW_READING)
         drawReading();
     else if (_state == VIEW_OVERLAY_SETTINGS)
         drawOverlaySettings();
@@ -28,15 +28,15 @@ void AppReader::drawReading() {
     KomaBonGuard guard(_epubMutex);
 
     if (!_isComicMode && !_textRenderer) {
-        _state = VIEW_LIBRARY;
-        _librarySelectionOnlyRedraw = false;
-        drawLibrary();
+        AppMgr::getInstance().switchTo("Bookshelf");
+        
+        return;
         return;
     }
     if (_isComicMode && !_kbReader) {
-        _state = VIEW_LIBRARY;
-        _librarySelectionOnlyRedraw = false;
-        drawLibrary();
+        AppMgr::getInstance().switchTo("Bookshelf");
+        
+        return;
         return;
     }
 

@@ -12,32 +12,12 @@
 #include <vector>
 #include <map>
 
-enum ReaderState { VIEW_LIBRARY, VIEW_READING, VIEW_OVERLAY_SETTINGS, VIEW_OVERLAY_TOC };
+enum ReaderState { VIEW_READING, VIEW_OVERLAY_SETTINGS, VIEW_OVERLAY_TOC };
 
 // Utility function to extract the bare filename from a path (handling both / and \)
-inline String normalizedBookName(const String& path) {
-    String name = path;
-    int slash = name.lastIndexOf('/');
-    if (slash >= 0) name = name.substring(slash + 1);
-    slash = name.lastIndexOf('\\');
-    if (slash >= 0) name = name.substring(slash + 1);
-    return name;
-}
 
-struct BookEntry {
-    String path;         // Full path to file
-    String title;        // Display title
-    String originalName; // Key used by ProgressStore (original filename)
-    String baseName;     // Base filename without extension for thumbnail caching
-    bool hasProgress;    // True when a saved position exists
-    int globalPage;      // Current saved page, shown in library list
-    int totalPages;      // Cached total page count (0 when unknown)
-    bool hasCoverThumb;  // True if thumbnail already exists on storage
-    bool coverAttempted; // True if the extraction engine already evaluated this book
 
-    BookEntry()
-        : hasProgress(false), globalPage(1), totalPages(0), hasCoverThumb(false), coverAttempted(false) {}
-};
+
 
 class AppReader : public App {
   public:
@@ -51,46 +31,25 @@ class AppReader : public App {
     void draw() override;
 
     const uint8_t* getIconImage() override;
-    const char* getName() override {
-        return "Bookshelf";
-    }
+    const char* getName() override { return "Reader"; }
 
-    bool allowsSystemStatusIndicator() override {
-        return _state == VIEW_LIBRARY;
-    }
+    bool allowsSystemStatusIndicator() override { return false; }
 
+    void handleInput(InputAction action);
     bool hasBootResume();
     void resumeSavedBookOnStart();
-    void handleInput(InputAction action);
     void forceRedraw() override;
 
     bool handleSleep() override;
-    bool isReading() const {
-        return _state == VIEW_READING;
-    }
+    bool isReading() const { return _state == VIEW_READING; }
     void enterSleepMode();
     void drawSleepCover();
 
     void applyFontSize(int pt) override;
     void applyFontFamily(int family) override;
-
   private:
     ReaderState _state;
-
-    // Library State and Navigation
-    std::vector<BookEntry> _books;
-    int _selectedBookIndex;
-    bool _booksScanned;
-    bool _librarySelectionOnlyRedraw;
-    bool _resumeSavedBookOnStart;
-    int _previousBookIndex;
-    int _libraryScrollOffset;
-
-    void scanBooks();
-    void drawLibrary();
-    void updateLibraryScroll();
-    void drawBookTile(KomaBonDisplay& display, const BookEntry& book, int x, int y, int w, int h,
-                      bool selected, const uint8_t* thumbData = nullptr);
+    
 
     // Settings
     int _refreshEveryNPages;
@@ -151,6 +110,7 @@ class AppReader : public App {
     void drawOverlaySettings();
     void drawOverlayTOC();
 
+  public:
     bool openBook(const String& path, bool restoreProgress = true);
     bool openSavedProgress();
     bool loadBookProgress(const String& originalName, int& chapter, PagePointer& pointer, int& globalPage);

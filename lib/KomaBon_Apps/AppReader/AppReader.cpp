@@ -1,5 +1,4 @@
 #include "AppReader.h"
-#include "CoverExtractor.h"
 #include "AppMgr.h"
 #include "KomaBonFS.h"
 #include "ProgressStore.h"
@@ -11,13 +10,6 @@
 #include <ArduinoJson.h>
 
 AppReader::AppReader() {
-    _state = VIEW_LIBRARY;
-    _selectedBookIndex = 0;
-    _booksScanned = false;
-    _librarySelectionOnlyRedraw = false;
-    _resumeSavedBookOnStart = false;
-    _previousBookIndex = 0;
-    _libraryScrollOffset = 0;
     _epubLoader = nullptr;
     _textRenderer = nullptr;
     _kbReader = nullptr;
@@ -83,7 +75,6 @@ bool AppReader::hasBootResume() {
     return store.resumeOnBoot() && (store.lastBook().length() > 0);
 }
 void AppReader::resumeSavedBookOnStart() {
-    _resumeSavedBookOnStart = true;
 }
 
 bool AppReader::handleSleep() {
@@ -119,16 +110,12 @@ void AppReader::start() {
         _textRenderer->setFontFamily(_fontFamily);
     }
 
-    _state = VIEW_LIBRARY;
-    _booksScanned = false;
-    _librarySelectionOnlyRedraw = false;
     _needsRedraw = true;
     InputMgr::getInstance().setCallback(std::bind(&AppReader::handleInput, this, std::placeholders::_1));
 
-    if (_resumeSavedBookOnStart) {
-        _resumeSavedBookOnStart = false;
-        if (!openSavedProgress()) markProgressInactive();
-    }
+
+
+
 }
 
 void AppReader::stop() {
@@ -137,19 +124,11 @@ void AppReader::stop() {
 }
 
 void AppReader::update() {
-    if (_state == VIEW_LIBRARY) {
-        if (CoverExtractor::processNextCover(_books)) {
-            _librarySelectionOnlyRedraw = false;
-            _needsRedraw = true;
-        }
-    }
     if (_progressDirty && (millis() - _lastProgressChangeMs) >= PROGRESS_FLUSH_DELAY_MS) {
         flushProgress();
     }
 }
-
 void AppReader::forceRedraw() {
-    _librarySelectionOnlyRedraw = false;
     _currentPageRenderValid = false;
     _readingFirstDraw = true;
     _needsRedraw = true;
@@ -271,17 +250,17 @@ bool AppReader::loadBookProgress(const String& originalName, int& chapter, PageP
 }
 
 void AppReader::saveReadingProgress(bool resumeOnBoot) {
-    if (_currentBookPath.length() == 0 || _state == VIEW_LIBRARY) return;
+    if (_currentBookPath.length() == 0) return;
     _progressDirty = true;
     _progressResumeOnBoot = resumeOnBoot;
     _lastProgressChangeMs = millis();
 }
 
 void AppReader::flushProgress() {
+    if (_currentBookPath.length() == 0) return;
     if (!_progressDirty) return;
     _progressDirty = false;
 
-    if (_currentBookPath.length() == 0 || _state == VIEW_LIBRARY) return;
 
     String key = getOriginalFilename(normalizedBookName(_currentBookPath));
     if (key.length() == 0) return;
@@ -302,6 +281,7 @@ void AppReader::markProgressInactive() {
 }
 
 void AppReader::closeBook(bool markInactive) {
+    if (markInactive) saveReadingProgress(false);
     _killPageCountTask = true;
     _countingActive = false;
     if (_pageCountTaskHandle != nullptr) {
@@ -309,7 +289,6 @@ void AppReader::closeBook(bool markInactive) {
         _pageCountTaskHandle = nullptr;
     }
 
-    if (markInactive && _state != VIEW_LIBRARY) saveReadingProgress(false);
     flushProgress();
 
     KomaBonGuard guard(_epubMutex);
@@ -342,3 +321,4 @@ void AppReader::closeBook(bool markInactive) {
         _countRenderer = nullptr;
     }
 }
+
