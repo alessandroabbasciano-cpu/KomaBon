@@ -9,13 +9,7 @@ JoystickMgr::JoystickMgr() {
 }
 
 JoyDirection JoystickMgr::getDirection() {
-    int unused;
-    return getDirectionWithRaw(unused);
-}
-
-JoyDirection JoystickMgr::getDirectionWithRaw(int& outRawVal) {
     int val = readAnalogAveraged();
-    outRawVal = val;
     if (val > 3800) return JOY_NONE;
 
     int dCenter = abs(val - _cal.center);
