@@ -7,15 +7,15 @@
 #include <vector>
 
 struct BookEntry {
-    String path;         
-    String title;        
-    String originalName; 
-    String baseName;     
-    bool hasProgress;    
-    int globalPage;      
-    int totalPages;      
-    bool hasCoverThumb;  
-    bool coverAttempted; 
+    String path;
+    String title;
+    String originalName;
+    String baseName;
+    bool hasProgress;
+    int globalPage;
+    int totalPages;
+    bool hasCoverThumb;
+    bool coverAttempted;
 
     BookEntry()
         : hasProgress(false), globalPage(1), totalPages(0), hasCoverThumb(false), coverAttempted(false) {}
@@ -37,7 +37,9 @@ class AppBookshelf : public App {
         return "Bookshelf";
     }
 
-    bool allowsSystemStatusIndicator() override { return true; }
+    bool allowsSystemStatusIndicator() override {
+        return true;
+    }
     void handleInput(InputAction action);
 
   private:

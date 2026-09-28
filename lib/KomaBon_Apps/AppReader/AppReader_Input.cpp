@@ -10,13 +10,11 @@ void AppReader::handleInput(InputAction action) {
             closeBook();
         }
         AppMgr::getInstance().switchTo("Bookshelf");
-        
-        
+
         markProgressInactive();
         AppMgr::getInstance().switchTo(0);
         return;
     }
-
 
     if (_state == VIEW_READING) {
 
@@ -33,8 +31,7 @@ void AppReader::handleInput(InputAction action) {
         else if (action == INPUT_BACK) {
             closeBook();
             AppMgr::getInstance().switchTo("Bookshelf");
-            
-            
+
             _needsRedraw = true;
         }
     } else if (_state == VIEW_OVERLAY_SETTINGS) {

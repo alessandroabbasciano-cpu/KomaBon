@@ -16,9 +16,6 @@ enum ReaderState { VIEW_READING, VIEW_OVERLAY_SETTINGS, VIEW_OVERLAY_TOC };
 
 // Utility function to extract the bare filename from a path (handling both / and \)
 
-
-
-
 class AppReader : public App {
   public:
     AppReader();
@@ -31,9 +28,13 @@ class AppReader : public App {
     void draw() override;
 
     const uint8_t* getIconImage() override;
-    const char* getName() override { return "Reader"; }
+    const char* getName() override {
+        return "Reader";
+    }
 
-    bool allowsSystemStatusIndicator() override { return false; }
+    bool allowsSystemStatusIndicator() override {
+        return false;
+    }
 
     void handleInput(InputAction action);
     bool hasBootResume();
@@ -41,15 +42,17 @@ class AppReader : public App {
     void forceRedraw() override;
 
     bool handleSleep() override;
-    bool isReading() const { return _state == VIEW_READING; }
+    bool isReading() const {
+        return _state == VIEW_READING;
+    }
     void enterSleepMode();
     void drawSleepCover();
 
     void applyFontSize(int pt) override;
     void applyFontFamily(int family) override;
+
   private:
     ReaderState _state;
-    
 
     // Settings
     int _refreshEveryNPages;

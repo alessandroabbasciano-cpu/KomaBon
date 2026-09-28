@@ -189,7 +189,9 @@ void AppBookshelf::scanBooks() {
             String pathLower = b.path;
             pathLower.toLowerCase();
             if (!pathLower.endsWith(".kmb")) {
-                b.totalPages = PageCountStore::getInstance().get(b.originalName, SettingsStore::getInstance().loadReader().fontSize, SettingsStore::getInstance().loadReader().fontFamily);
+                b.totalPages = PageCountStore::getInstance().get(
+                    b.originalName, SettingsStore::getInstance().loadReader().fontSize,
+                    SettingsStore::getInstance().loadReader().fontFamily);
             }
         }
     }
@@ -216,7 +218,7 @@ void AppBookshelf::scanBooks() {
 }
 
 void AppBookshelf::drawBookTile(KomaBonDisplay& display, const BookEntry& book, int x, int y, int w, int h,
-                             bool selected, const uint8_t* thumbData) {
+                                bool selected, const uint8_t* thumbData) {
     if (thumbData) {
         display.drawBitmap(x, y, thumbData, 60, 80, GxEPD_BLACK);
     } else {
@@ -477,10 +479,13 @@ void AppBookshelf::drawLibrary() {
     } while (display.nextPage());
 }
 
+AppBookshelf::AppBookshelf()
+    : _selectedBookIndex(0), _booksScanned(false), _librarySelectionOnlyRedraw(false), _previousBookIndex(0),
+      _libraryScrollOffset(0), _needsRedraw(true) {}
 
-AppBookshelf::AppBookshelf() : _selectedBookIndex(0), _booksScanned(false), _librarySelectionOnlyRedraw(false), _previousBookIndex(0), _libraryScrollOffset(0), _needsRedraw(true) {}
-
-const uint8_t* AppBookshelf::getIconImage() { return nullptr; }
+const uint8_t* AppBookshelf::getIconImage() {
+    return nullptr;
+}
 
 void AppBookshelf::start() {
     _needsRedraw = true;
@@ -544,4 +549,3 @@ void AppBookshelf::handleInput(InputAction action) {
         }
     }
 }
-

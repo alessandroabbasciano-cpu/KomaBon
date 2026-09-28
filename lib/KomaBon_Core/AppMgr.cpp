@@ -70,4 +70,3 @@ App* AppMgr::getAppByName(const char* name) {
     }
     return nullptr;
 }
-

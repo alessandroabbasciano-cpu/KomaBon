@@ -29,13 +29,13 @@ void AppReader::drawReading() {
 
     if (!_isComicMode && !_textRenderer) {
         AppMgr::getInstance().switchTo("Bookshelf");
-        
+
         return;
         return;
     }
     if (_isComicMode && !_kbReader) {
         AppMgr::getInstance().switchTo("Bookshelf");
-        
+
         return;
         return;
     }

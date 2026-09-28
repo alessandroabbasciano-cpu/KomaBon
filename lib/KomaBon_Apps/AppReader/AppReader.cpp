@@ -74,8 +74,7 @@ bool AppReader::hasBootResume() {
     ProgressStore& store = ProgressStore::getInstance();
     return store.resumeOnBoot() && (store.lastBook().length() > 0);
 }
-void AppReader::resumeSavedBookOnStart() {
-}
+void AppReader::resumeSavedBookOnStart() {}
 
 bool AppReader::handleSleep() {
     if (_state == VIEW_READING) {
@@ -112,10 +111,6 @@ void AppReader::start() {
 
     _needsRedraw = true;
     InputMgr::getInstance().setCallback(std::bind(&AppReader::handleInput, this, std::placeholders::_1));
-
-
-
-
 }
 
 void AppReader::stop() {
@@ -261,7 +256,6 @@ void AppReader::flushProgress() {
     if (!_progressDirty) return;
     _progressDirty = false;
 
-
     String key = getOriginalFilename(normalizedBookName(_currentBookPath));
     if (key.length() == 0) return;
 
@@ -321,4 +315,3 @@ void AppReader::closeBook(bool markInactive) {
         _countRenderer = nullptr;
     }
 }
-
