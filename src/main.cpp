@@ -59,11 +59,11 @@ void setup() {
 
         for (int i = 0; i < wakeCheckSamples; i++) {
             bool isHeld = false;
-            
+
             if ((ext1_mask & (1ULL << PIN_BUTTON_BACK)) && digitalRead(PIN_BUTTON_BACK) == LOW) {
                 isHeld = true;
             } else if ((ext1_mask & (1ULL << JOY_ADC_PIN)) && analogRead(JOY_ADC_PIN) < 2000) {
-                // Lenient threshold (< 2000 instead of 600) because resistive ladders 
+                // Lenient threshold (< 2000 instead of 600) because resistive ladders
                 // can fluctuate when pressed, causing false-abort spikes.
                 isHeld = true;
             }

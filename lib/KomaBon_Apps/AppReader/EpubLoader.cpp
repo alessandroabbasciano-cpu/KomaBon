@@ -595,7 +595,8 @@ static void decodeHtmlEntities(String& text) {
     text = out;
 }
 
-std::vector<ContentNode> EpubLoader::parseHtmlToRichContent(const String& html, const String& chapterDir, volatile bool* abortFlag) {
+std::vector<ContentNode> EpubLoader::parseHtmlToRichContent(const String& html, const String& chapterDir,
+                                                            volatile bool* abortFlag) {
     std::vector<ContentNode> nodes;
     std::vector<TextStyle> styleStack;
     styleStack.push_back(STYLE_NORMAL);
@@ -607,7 +608,7 @@ std::vector<ContentNode> EpubLoader::parseHtmlToRichContent(const String& html, 
     int i = 0;
     while (i < (int)html.length()) {
         if (abortFlag && *abortFlag) break; // Check for task abort request
-        
+
         char c = html.charAt(i);
         if (c == '<') {
             if (currentText.length() > 0) {

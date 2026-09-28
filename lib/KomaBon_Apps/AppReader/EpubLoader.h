@@ -88,12 +88,14 @@ class EpubLoader {
 
     // Content getters
     int getChapterCount();
-    String getChapterContent(int index);                       // Legacy plain text
-    std::vector<ContentNode> getChapterContentRich(int index, volatile bool* abortFlag = nullptr); // Rich formatted content
-    
+    String getChapterContent(int index); // Legacy plain text
+    std::vector<ContentNode>
+    getChapterContentRich(int index, volatile bool* abortFlag = nullptr); // Rich formatted content
+
     // Extracted for lock-free background pagination
     String getChapterRawHtml(int index, String& outChapterDir);
-    std::vector<ContentNode> parseHtmlToRichContent(const String& html, const String& chapterDir = "", volatile bool* abortFlag = nullptr);
+    std::vector<ContentNode> parseHtmlToRichContent(const String& html, const String& chapterDir = "",
+                                                    volatile bool* abortFlag = nullptr);
 
     uint8_t* getCoverImageData(size_t* outSize); // Fetch cover image bytes
 
@@ -140,7 +142,6 @@ class EpubLoader {
     String extractMetadata(const String& xml, const String& tag);
 
     // Helper to read file from zip
-
 
     bool parseContainer();
     bool parseOpf();

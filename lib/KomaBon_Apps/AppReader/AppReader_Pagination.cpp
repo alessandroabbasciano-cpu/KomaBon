@@ -73,7 +73,7 @@ void AppReader::updateTotalPagesCount() {
         {
             KomaBonGuard guard(_epubMutex);
             if (!_epubLoader) return;
-    
+
             if (_countChapter >= _epubLoader->getChapterCount()) {
                 int total = std::max(1, _countPagesSoFar);
                 _totalPages = total;
@@ -83,7 +83,7 @@ void AppReader::updateTotalPagesCount() {
                 _countRenderer = nullptr;
                 return;
             }
-    
+
             rawHtml = _epubLoader->getChapterRawHtml(_countChapter, chapterDir);
         }
 
