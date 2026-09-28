@@ -97,12 +97,13 @@ void InputMgr::inputTask(void* parameter) {
         // Real-time ADC / Button Diagnostics via Serial USB
         static JoyDirection s_lastReportedJoy = JOY_NONE;
         static int s_lastReportedAdc = -1;
-        if (currentJoyDir != s_lastReportedJoy || (currentJoyDir != JOY_NONE && abs(rawAdcVal - s_lastReportedAdc) > 60)) {
+        if (currentJoyDir != s_lastReportedJoy ||
+            (currentJoyDir != JOY_NONE && abs(rawAdcVal - s_lastReportedAdc) > 60)) {
             s_lastReportedJoy = currentJoyDir;
             s_lastReportedAdc = rawAdcVal;
             const char* dirNames[] = {"NONE", "UP", "DOWN", "LEFT", "RIGHT", "CENTER"};
-            Serial.printf("JOYDIAG: rawADC=%d  dir=%s  held=%lu ms\n",
-                          rawAdcVal, dirNames[(int)currentJoyDir], joyPressTime ? (now - joyPressTime) : 0);
+            Serial.printf("JOYDIAG: rawADC=%d  dir=%s  held=%lu ms\n", rawAdcVal,
+                          dirNames[(int)currentJoyDir], joyPressTime ? (now - joyPressTime) : 0);
         }
 
         // Handle initial wakeup release suppression:
@@ -134,9 +135,9 @@ void InputMgr::inputTask(void* parameter) {
                 (uint8_t)((key1Pressed ? 0 : 0x01) | (key2Pressed ? 0 : 0x02) | (key3Pressed ? 0 : 0x04));
             if (snapshot != self->_lastPinSnapshot) {
                 self->_lastPinSnapshot = snapshot;
-                Serial.printf("PINDIAG: KEY1/GPIO%d=%d  KEY2/GPIO%d=%d  KEY3/GPIO%d=%d  (rawADC=%d)\n", PIN_BUTTON_BACK,
-                              (snapshot & 0x01) ? 1 : 0, PIN_BUTTON_SLEEP, (snapshot & 0x02) ? 1 : 0,
-                              JOY_ADC_PIN, (snapshot & 0x04) ? 1 : 0, rawAdcVal);
+                Serial.printf("PINDIAG: KEY1/GPIO%d=%d  KEY2/GPIO%d=%d  KEY3/GPIO%d=%d  (rawADC=%d)\n",
+                              PIN_BUTTON_BACK, (snapshot & 0x01) ? 1 : 0, PIN_BUTTON_SLEEP,
+                              (snapshot & 0x02) ? 1 : 0, JOY_ADC_PIN, (snapshot & 0x04) ? 1 : 0, rawAdcVal);
             }
         }
 #endif
