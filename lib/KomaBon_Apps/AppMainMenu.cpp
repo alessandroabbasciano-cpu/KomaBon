@@ -127,7 +127,8 @@ void AppMainMenu::forceRedraw() {
 void AppMainMenu::handleInput(InputAction action) {
     AppMgr& appMgr = AppMgr::getInstance();
     std::vector<App*> apps;
-    for(App* a : appMgr.getApps()) if(a->isVisibleInMenu()) apps.push_back(a);
+    for (App* a : appMgr.getApps())
+        if (a->isVisibleInMenu()) apps.push_back(a);
 
     int minSelectable = _hasResume ? 0 : 1;
     int maxSelectable = apps.size() - 1;
@@ -187,7 +188,8 @@ void AppMainMenu::draw() {
     FontMgr& fontMgr = FontMgr::getInstance();
     AppMgr& appMgr = AppMgr::getInstance();
     std::vector<App*> apps;
-    for(App* a : appMgr.getApps()) if(a->isVisibleInMenu()) apps.push_back(a);
+    for (App* a : appMgr.getApps())
+        if (a->isVisibleInMenu()) apps.push_back(a);
 
     int16_t screenW = display.width();
     int16_t screenH = display.height();
