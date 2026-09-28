@@ -24,7 +24,9 @@ class JoystickMgr {
 
     void init();
     JoyDirection getDirection();
+    JoyDirection getDirectionWithRaw(int& outRawVal);
     void setCalibration(const JoyCalibration& cal);
+    const JoyCalibration& getCalibration() const { return _cal; }
 
     // EXPOSED: Allows the settings menu to read raw ADC voltages for calibration
     int readAnalogAveraged();

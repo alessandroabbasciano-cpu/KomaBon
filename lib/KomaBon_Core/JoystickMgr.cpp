@@ -122,4 +122,6 @@ void JoystickMgr::init() {
     if (!loadCalibration()) {
         Serial.println("JoystickMgr: No calibration file found, using defaults.");
     }
+    Serial.printf("JoystickMgr: Calibration targets -> Center: %d, Up: %d, Down: %d, Left: %d, Right: %d\n",
+                  _cal.center, _cal.up, _cal.down, _cal.left, _cal.right);
 }

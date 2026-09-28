@@ -74,7 +74,8 @@ void InputMgr::inputTask(void* parameter) {
         bool key1Pressed = (digitalRead(PIN_BUTTON_BACK) == LOW);
         bool key2Pressed = (digitalRead(PIN_BUTTON_SLEEP) == LOW);
 
-        JoyDirection rawJoyDir = JoystickMgr::getInstance().getDirection();
+        int rawAdcVal = 0;
+        JoyDirection rawJoyDir = JoystickMgr::getInstance().getDirectionWithRaw(rawAdcVal);
 
         // SIGNAL INTEGRITY: Mask ADC transients caused by mechanical release and resistive ladder discharge
         if (now < joyCooldown) {
@@ -92,6 +93,17 @@ void InputMgr::inputTask(void* parameter) {
             currentJoyDir = (joyPressTime != 0) ? lastJoyDirection : JOY_NONE;
         }
         prevJoyDir = rawJoyDir;
+
+        // Real-time ADC / Button Diagnostics via Serial USB
+        static JoyDirection s_lastReportedJoy = JOY_NONE;
+        static int s_lastReportedAdc = -1;
+        if (currentJoyDir != s_lastReportedJoy || (currentJoyDir != JOY_NONE && abs(rawAdcVal - s_lastReportedAdc) > 60)) {
+            s_lastReportedJoy = currentJoyDir;
+            s_lastReportedAdc = rawAdcVal;
+            const char* dirNames[] = {"NONE", "UP", "DOWN", "LEFT", "RIGHT", "CENTER"};
+            Serial.printf("JOYDIAG: rawADC=%d  dir=%s  held=%lu ms\n",
+                          rawAdcVal, dirNames[(int)currentJoyDir], joyPressTime ? (now - joyPressTime) : 0);
+        }
 
         // Handle initial wakeup release suppression:
         // Hold through the wake press and swallow its release to prevent ghost clicks.
@@ -122,9 +134,9 @@ void InputMgr::inputTask(void* parameter) {
                 (uint8_t)((key1Pressed ? 0 : 0x01) | (key2Pressed ? 0 : 0x02) | (key3Pressed ? 0 : 0x04));
             if (snapshot != self->_lastPinSnapshot) {
                 self->_lastPinSnapshot = snapshot;
-                Serial.printf("PINDIAG: KEY1/GPIO%d=%d  KEY2/GPIO%d=%d  KEY3/GPIO%d=%d\n", PIN_BUTTON_BACK,
+                Serial.printf("PINDIAG: KEY1/GPIO%d=%d  KEY2/GPIO%d=%d  KEY3/GPIO%d=%d  (rawADC=%d)\n", PIN_BUTTON_BACK,
                               (snapshot & 0x01) ? 1 : 0, PIN_BUTTON_SLEEP, (snapshot & 0x02) ? 1 : 0,
-                              JOY_ADC_PIN, (snapshot & 0x04) ? 1 : 0);
+                              JOY_ADC_PIN, (snapshot & 0x04) ? 1 : 0, rawAdcVal);
             }
         }
 #endif
@@ -169,24 +181,31 @@ void InputMgr::inputTask(void* parameter) {
 
                 if (pressDuration >= BUTTON_DEBOUNCE_MIN_MS && !joyLongPressSent) {
                     BatteryMgr::getInstance().resetIdleTimer();
+                    const char* dirNames[] = {"NONE", "UP", "DOWN", "LEFT", "RIGHT", "CENTER"};
+                    InputAction act = INPUT_NONE;
                     switch (lastJoyDirection) {
                         case JOY_UP:
-                            self->enqueueAction(INPUT_PREV);
+                            act = INPUT_PREV;
                             break;
                         case JOY_DOWN:
-                            self->enqueueAction(INPUT_NEXT);
+                            act = INPUT_NEXT;
                             break;
                         case JOY_LEFT:
-                            self->enqueueAction(INPUT_LEFT);
+                            act = INPUT_LEFT;
                             break;
                         case JOY_RIGHT:
-                            self->enqueueAction(INPUT_RIGHT);
+                            act = INPUT_RIGHT;
                             break;
                         case JOY_CENTER:
-                            self->enqueueAction(INPUT_SELECT);
+                            act = INPUT_SELECT;
                             break;
                         default:
                             break;
+                    }
+                    if (act != INPUT_NONE) {
+                        Serial.printf("INPUT: JOY Click -> dir=%s (held=%lu ms) -> action=%d\n",
+                                      dirNames[(int)lastJoyDirection], pressDuration, (int)act);
+                        self->enqueueAction(act);
                     }
                 }
 
