@@ -172,6 +172,9 @@ void AppSettings::activate(int index) {
         case ROW_JOYSTICK:
             _screen = SCREEN_JOYCAL;
             _joyCalStep = 0;
+            _joyCalHoldStart = millis();
+            _joyCalLastRaw = 4095;
+            _joyCalWaitingRelease = true; // Wait for clean stick release before starting Step 0
             break;
         case ROW_SAVE:
             if (applyAndSave()) {
@@ -448,14 +451,23 @@ void AppSettings::update() {
         int raw = JoystickMgr::getInstance().readAnalogAveraged();
 
         if (_joyCalWaitingRelease) {
-            if (raw > 3800) _joyCalWaitingRelease = false;
+            if (raw > 3800) {
+                _joyCalWaitingRelease = false;
+                Serial.printf("AppSettings: Joystick released. Ready for step %d\n", _joyCalStep);
+            }
         } else {
             if (raw < 3800) {
-                if (abs(raw - _joyCalLastRaw) < 150) {
-                    if (millis() - _joyCalHoldStart > 1200) {
+                if (abs(raw - _joyCalLastRaw) < 250) {
+                    unsigned long holdDuration = millis() - _joyCalHoldStart;
+                    if (holdDuration % 200 < 20) {
+                        Serial.printf("CALIB: Step %d holding... Raw=%d, Held=%lu ms\n", _joyCalStep, raw, holdDuration);
+                    }
+                    if (holdDuration > 500) {
                         _joyCalValues[_joyCalStep] = raw;
+                        Serial.printf("CALIB: Step %d COMPLETED with Raw=%d\n", _joyCalStep, raw);
                         _joyCalStep++;
                         _joyCalWaitingRelease = true;
+                        _selectionOnlyRedraw = true;
                         _needsRedraw = true;
 
                         if (_joyCalStep == 5) {
@@ -463,8 +475,8 @@ void AppSettings::update() {
                                                                        _joyCalValues[2], _joyCalValues[3],
                                                                        _joyCalValues[4]);
                             _statusUntil = millis() + 1000;
+                            _selectionOnlyRedraw = false;
                         }
-                        draw();
                     }
                 } else {
                     _joyCalLastRaw = raw;
