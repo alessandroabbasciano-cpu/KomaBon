@@ -75,7 +75,6 @@ class HtmlParser {
 
   private:
     static String extractAttribute(const String& tagHtml, const String& tagName, const String& attrName);
-    static String htmlUnescape(const String& encoded);
     static Table parseTable(const String& tableHtml);
     static TextStyle getStyleFromTag(String tag);
     static TextAlign getAlignFromStyle(String styleAttr);

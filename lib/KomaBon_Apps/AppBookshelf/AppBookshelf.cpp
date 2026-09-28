@@ -63,7 +63,7 @@ void AppBookshelf::scanBooks() {
     _books.clear();
 
     if (!SDMgr::getInstance().ensureReady()) {
-        Serial.println("AppReader: Cannot scan books, SD card bus not responding.");
+        Serial.println("AppBookshelf: Cannot scan books, SD card bus not responding.");
         return;
     }
 
@@ -490,6 +490,8 @@ const uint8_t* AppBookshelf::getIconImage() {
 
 void AppBookshelf::start() {
     _needsRedraw = true;
+    _booksScanned = false;
+    _librarySelectionOnlyRedraw = false;
     InputMgr::getInstance().setCallback(std::bind(&AppBookshelf::handleInput, this, std::placeholders::_1));
 }
 

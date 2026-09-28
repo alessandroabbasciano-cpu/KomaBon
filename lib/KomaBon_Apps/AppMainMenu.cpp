@@ -50,7 +50,7 @@ static MenuDirtyRect unionRect(MenuDirtyRect a, MenuDirtyRect b) {
 
 static bool isReaderActive() {
     App* current = AppMgr::getInstance().getCurrentApp();
-    return current && strcmp(current->getName(), "eReader") == 0;
+    return current && strcmp(current->getName(), "Reader") == 0;
 }
 
 void AppMainMenu::loadResumeData() {

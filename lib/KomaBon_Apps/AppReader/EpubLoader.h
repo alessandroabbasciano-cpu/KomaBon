@@ -42,9 +42,6 @@ class EpubLoader {
   private:
     String readFileFromZip(const char* path);
 
-    Table parseTable(const String& tableHtml);
-    TextStyle getStyleFromTag(String tag);
-    TextAlign getAlignFromStyle(String styleAttr);
     // Metadata
     String bookTitle;
     String bookAuthor;
@@ -72,8 +69,6 @@ class EpubLoader {
 
     // Helper to parse XML for specific attribute
     String extractAttribute(const String& xml, const String& tag, const String& attr);
-    // Helper to get text content of tag
-    String extractTagContent(const String& xml, const String& tag);
     // Helper to extract metadata from OPF
     String extractMetadata(const String& xml, const String& tag);
 

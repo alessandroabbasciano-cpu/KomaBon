@@ -36,6 +36,8 @@ AppReader::AppReader() {
 
     _overlaySelectedIndex = 0;
     _overlayScrollOffset = 0;
+    _settingsChanged = false;
+    _state = VIEW_READING;
 
     loadSettings();
 }
@@ -113,6 +115,7 @@ void AppReader::start() {
     }
 
     _needsRedraw = true;
+    _state = VIEW_READING;
     InputMgr::getInstance().setCallback(std::bind(&AppReader::handleInput, this, std::placeholders::_1));
     if (_resumeSavedBookOnStart) {
         _resumeSavedBookOnStart = false;
@@ -285,12 +288,12 @@ void AppReader::closeBook(bool markInactive) {
     if (markInactive) saveReadingProgress(false);
     _killPageCountTask = true;
     _countingActive = false;
-    if (_pageCountTaskHandle != nullptr) {
-        vTaskDelay(pdMS_TO_TICKS(30));
-        _pageCountTaskHandle = nullptr;
+    while (_pageCountTaskHandle != nullptr) {
+        vTaskDelay(pdMS_TO_TICKS(10));
     }
 
     flushProgress();
+    _currentBookPath = ""; // Prevent stale progress writes on double-calls
 
     KomaBonGuard guard(_epubMutex);
 
