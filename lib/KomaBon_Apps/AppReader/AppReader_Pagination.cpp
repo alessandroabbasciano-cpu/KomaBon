@@ -90,7 +90,7 @@ void AppReader::updateTotalPagesCount() {
         if (_killPageCountTask) return;
 
         // Parse WITHOUT the lock to avoid freezing the UI for seconds on large chapters!
-        _countChapterContent = _epubLoader->parseHtmlToRichContent(rawHtml, chapterDir, &_killPageCountTask);
+        _countChapterContent = HtmlParser::parseHtmlToRichContent(rawHtml, chapterDir, &_killPageCountTask);
         _countPointer = {0, 0};
 
         if (_countChapterContent.empty()) {
