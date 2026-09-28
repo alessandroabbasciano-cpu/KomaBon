@@ -35,6 +35,7 @@ class AppReader : public App {
     bool allowsSystemStatusIndicator() override {
         return false;
     }
+    bool isVisibleInMenu() override { return false; }
 
     void handleInput(InputAction action);
     bool hasBootResume();

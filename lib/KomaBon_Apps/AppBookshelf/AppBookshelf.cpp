@@ -12,6 +12,7 @@
 #include <ArduinoJson.h>
 #include <map>
 #include <vector>
+#include "../AppReader/icon_reader.h"
 #include "SettingsStore.h"
 #include "CoverExtractor.h"
 
@@ -484,7 +485,7 @@ AppBookshelf::AppBookshelf()
       _libraryScrollOffset(0), _needsRedraw(true) {}
 
 const uint8_t* AppBookshelf::getIconImage() {
-    return nullptr;
+    return icon_reader_160x160;
 }
 
 void AppBookshelf::start() {
@@ -519,6 +520,10 @@ void AppBookshelf::forceRedraw() {
 #include "../AppReader/AppReader.h"
 
 void AppBookshelf::handleInput(InputAction action) {
+    if (action == INPUT_GO_TO_MAIN_MENU) {
+        AppMgr::getInstance().switchTo(0);
+        return;
+    }
     if (action == INPUT_BACK || action == INPUT_LEFT) {
         AppMgr::getInstance().switchTo(0);
         return;

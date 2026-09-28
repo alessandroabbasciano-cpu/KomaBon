@@ -47,6 +47,7 @@ class App {
     virtual const char* getIcon() {
         return "";
     }
+    virtual bool isVisibleInMenu() { return true; }
     // Returns bitmap icon (if using bitmap) or nullptr
     virtual const uint8_t* getIconImage() {
         return nullptr;
