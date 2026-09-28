@@ -10,6 +10,7 @@
 #include <ArduinoJson.h>
 
 AppReader::AppReader() {
+    _resumeSavedBookOnStart = false;
     _epubLoader = nullptr;
     _textRenderer = nullptr;
     _kbReader = nullptr;
@@ -74,7 +75,9 @@ bool AppReader::hasBootResume() {
     ProgressStore& store = ProgressStore::getInstance();
     return store.resumeOnBoot() && (store.lastBook().length() > 0);
 }
-void AppReader::resumeSavedBookOnStart() {}
+void AppReader::resumeSavedBookOnStart() {
+    _resumeSavedBookOnStart = true;
+}
 
 bool AppReader::handleSleep() {
     if (_state == VIEW_READING) {
@@ -111,6 +114,10 @@ void AppReader::start() {
 
     _needsRedraw = true;
     InputMgr::getInstance().setCallback(std::bind(&AppReader::handleInput, this, std::placeholders::_1));
+    if (_resumeSavedBookOnStart) {
+        _resumeSavedBookOnStart = false;
+        if (!openSavedProgress()) markProgressInactive();
+    }
 }
 
 void AppReader::stop() {

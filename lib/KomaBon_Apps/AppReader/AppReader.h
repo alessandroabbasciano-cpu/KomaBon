@@ -59,6 +59,7 @@ class AppReader : public App {
 
     // Settings
     int _refreshEveryNPages;
+    bool _resumeSavedBookOnStart;
     int _pageTurnsSinceRefresh;
     int _fontSizePt;
     int _fontFamily;

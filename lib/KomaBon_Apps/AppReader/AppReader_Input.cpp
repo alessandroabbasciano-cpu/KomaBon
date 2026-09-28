@@ -9,8 +9,6 @@ void AppReader::handleInput(InputAction action) {
         if (_state == VIEW_READING || _state == VIEW_OVERLAY_SETTINGS || _state == VIEW_OVERLAY_TOC) {
             closeBook();
         }
-        AppMgr::getInstance().switchTo("Bookshelf");
-
         markProgressInactive();
         AppMgr::getInstance().switchTo(0);
         return;
