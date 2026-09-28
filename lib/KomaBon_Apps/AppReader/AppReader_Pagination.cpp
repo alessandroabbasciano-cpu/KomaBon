@@ -68,20 +68,29 @@ void AppReader::updateTotalPagesCount() {
     String key = getOriginalFilename(normalizedBookName(_currentBookPath));
 
     if (_countChapterContent.empty()) {
-        KomaBonGuard guard(_epubMutex);
-        if (!_epubLoader) return;
-
-        if (_countChapter >= _epubLoader->getChapterCount()) {
-            int total = std::max(1, _countPagesSoFar);
-            _totalPages = total;
-            PageCountStore::getInstance().set(key, _fontSizePt, _fontFamily, total);
-            _countingActive = false;
-            delete _countRenderer;
-            _countRenderer = nullptr;
-            return;
+        String rawHtml;
+        String chapterDir;
+        {
+            KomaBonGuard guard(_epubMutex);
+            if (!_epubLoader) return;
+    
+            if (_countChapter >= _epubLoader->getChapterCount()) {
+                int total = std::max(1, _countPagesSoFar);
+                _totalPages = total;
+                PageCountStore::getInstance().set(key, _fontSizePt, _fontFamily, total);
+                _countingActive = false;
+                delete _countRenderer;
+                _countRenderer = nullptr;
+                return;
+            }
+    
+            rawHtml = _epubLoader->getChapterRawHtml(_countChapter, chapterDir);
         }
 
-        _countChapterContent = _epubLoader->getChapterContentRich(_countChapter);
+        if (_killPageCountTask) return;
+
+        // Parse WITHOUT the lock to avoid freezing the UI for seconds on large chapters!
+        _countChapterContent = _epubLoader->parseHtmlToRichContent(rawHtml, chapterDir, &_killPageCountTask);
         _countPointer = {0, 0};
 
         if (_countChapterContent.empty()) {

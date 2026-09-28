@@ -595,7 +595,7 @@ static void decodeHtmlEntities(String& text) {
     text = out;
 }
 
-std::vector<ContentNode> EpubLoader::parseHtmlToRichContent(const String& html, const String& chapterDir) {
+std::vector<ContentNode> EpubLoader::parseHtmlToRichContent(const String& html, const String& chapterDir, volatile bool* abortFlag) {
     std::vector<ContentNode> nodes;
     std::vector<TextStyle> styleStack;
     styleStack.push_back(STYLE_NORMAL);
@@ -606,6 +606,8 @@ std::vector<ContentNode> EpubLoader::parseHtmlToRichContent(const String& html, 
     String currentText;
     int i = 0;
     while (i < (int)html.length()) {
+        if (abortFlag && *abortFlag) break; // Check for task abort request
+        
         char c = html.charAt(i);
         if (c == '<') {
             if (currentText.length() > 0) {
@@ -820,18 +822,25 @@ std::vector<ContentNode> EpubLoader::parseHtmlToRichContent(const String& html, 
     return nodes;
 }
 
-std::vector<ContentNode> EpubLoader::getChapterContentRich(int index) {
+std::vector<ContentNode> EpubLoader::getChapterContentRich(int index, volatile bool* abortFlag) {
     if (index < 0 || index >= (int)spine.size()) return std::vector<ContentNode>();
+    String chapterDir;
+    String content = getChapterRawHtml(index, chapterDir);
+    return parseHtmlToRichContent(content, chapterDir, abortFlag);
+}
+
+String EpubLoader::getChapterRawHtml(int index, String& outChapterDir) {
+    if (index < 0 || index >= (int)spine.size()) return "";
     String href = spine[index].href;
     String fullPath = rootDir + href;
     if (fullPath.startsWith("./")) fullPath = fullPath.substring(2);
     String content = readFileFromZip(fullPath.c_str());
 
-    String chapterDir = "";
+    outChapterDir = "";
     int slash = href.lastIndexOf('/');
-    if (slash != -1) chapterDir = href.substring(0, slash + 1);
+    if (slash != -1) outChapterDir = href.substring(0, slash + 1);
 
-    return parseHtmlToRichContent(content, chapterDir);
+    return content;
 }
 
 uint8_t* EpubLoader::getFileData(String path, size_t* outSize) {
