@@ -427,6 +427,3 @@ std::vector<ContentNode> HtmlParser::parseHtmlToRichContent(const String& html, 
                 nodes.end());
     return nodes;
 }
-
-
-
