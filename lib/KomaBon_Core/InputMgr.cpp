@@ -82,17 +82,8 @@ void InputMgr::inputTask(void* parameter) {
             rawJoyDir = JOY_NONE;
         }
 
-        // 2-sample consecutive filter to prevent single-sample ADC spikes (e.g. from USB power ripple)
-        // from causing premature releases or spurious clicks.
-        static JoyDirection prevJoyDir = JOY_NONE;
-        JoyDirection currentJoyDir = JOY_NONE;
-        if (rawJoyDir == prevJoyDir) {
-            currentJoyDir = rawJoyDir;
-        } else {
-            // Keep previous stable state while candidate settles
-            currentJoyDir = (joyPressTime != 0) ? lastJoyDirection : JOY_NONE;
-        }
-        prevJoyDir = rawJoyDir;
+        // Direction is sampled directly without artificial latency filter
+        JoyDirection currentJoyDir = rawJoyDir;
 
         // Real-time ADC / Button Diagnostics via Serial USB
         static JoyDirection s_lastReportedJoy = JOY_NONE;
@@ -159,11 +150,6 @@ void InputMgr::inputTask(void* parameter) {
                 if (heldTime < 30) {
                     // Lock the direction to prevent thumb rolling errors
                     lastJoyDirection = currentJoyDir;
-                } else if (heldTime >= 1000 && lastJoyDirection == JOY_DOWN) {
-                    Serial.println("INPUT: JOY Down Long Press -> SLEEP");
-                    BatteryMgr::getInstance().resetIdleTimer();
-                    self->enqueueAction(INPUT_SLEEP);
-                    joyLongPressSent = true;
                 } else if (heldTime >= JOY_MENU_LONG_PRESS_MS && lastJoyDirection == JOY_CENTER) {
                     Serial.println("INPUT: JOY Center Long Press -> GO TO MAIN MENU");
                     BatteryMgr::getInstance().resetIdleTimer();

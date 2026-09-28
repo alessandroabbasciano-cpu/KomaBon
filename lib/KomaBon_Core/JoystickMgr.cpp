@@ -44,9 +44,7 @@ JoyDirection JoystickMgr::getDirectionWithRaw(int& outRawVal) {
         dir = JOY_RIGHT;
     }
 
-    // Increased tolerance window from 500 to 650 to comfortably absorb
-    // USB charging ripple and VBUS ground shifts without dropping movements.
-    if (minD > 650) return JOY_NONE;
+    if (minD > 500) return JOY_NONE;
     return dir;
 }
 

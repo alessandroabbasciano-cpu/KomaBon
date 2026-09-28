@@ -103,10 +103,6 @@ void AppReader::enterSleepMode() {
 }
 
 void AppReader::start() {
-    // Dynamic Frequency Scaling: Scale CPU down to 80 MHz for reading power savings
-    setCpuFrequencyMhz(80);
-    Serial.println("AppReader: CPU scaled to 80 MHz for power efficiency.");
-
     // Force offline mode to guarantee battery efficiency
     if (WiFi.getMode() != WIFI_OFF) {
         delay(50);
@@ -138,10 +134,6 @@ void AppReader::start() {
 void AppReader::stop() {
     closeBook();
     InputMgr::getInstance().clearCallback();
-
-    // Restore CPU clock back to 240 MHz for system menus and high-speed Wi-Fi
-    setCpuFrequencyMhz(240);
-    Serial.println("AppReader: CPU restored to 240 MHz.");
 }
 
 void AppReader::update() {
