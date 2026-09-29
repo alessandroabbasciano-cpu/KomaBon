@@ -27,6 +27,8 @@ static unsigned long gBootTimestamp = 0;
 static bool gOtaConfirmedValid = false;
 
 void setup() {
+    esp_ota_mark_app_valid_cancel_rollback(); // Must be early: USB-CDC reset handshake requires valid OTA
+                                              // state
     Serial.begin(115200);
     Serial.setTxTimeoutMs(
         0); // Non-blocking Serial. Prevents complete OS freeze if Web Serial host stops reading
