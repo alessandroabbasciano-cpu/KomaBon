@@ -131,7 +131,7 @@ void AppMainMenu::handleInput(InputAction action) {
         if (a->isVisibleInMenu()) apps.push_back(a);
 
     int minSelectable = _hasResume ? 0 : 1;
-    int maxSelectable = apps.size() - 1;
+    int maxSelectable = (int)apps.size(); // items 1..N map to apps[0..N-1]
 
     if (action == INPUT_SLEEP) {
         stopHotspot();
