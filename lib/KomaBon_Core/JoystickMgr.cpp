@@ -16,7 +16,15 @@ JoyDirection JoystickMgr::getDirection() {
 JoyDirection JoystickMgr::getDirectionWithRaw(int& outRawVal) {
     int val = readAnalogAveraged();
     outRawVal = val;
-    if (val > 3800) return JOY_NONE;
+
+    // Calculate adaptive deadzone exactly halfway between Center and the 4095 ceiling.
+    // This prevents E-Ink display power spikes (which cause the 3.3V rail to sag) from
+    // dipping the ADC reading below the threshold and causing phantom JOY_CENTER holds,
+    // which previously starved the Lazy Render loop and froze the UI.
+    int deadzone = _cal.center + ((4095 - _cal.center) / 2);
+    if (deadzone < 3600) deadzone = 3600; // Floor it just in case of weird calibrations
+
+    if (val > deadzone) return JOY_NONE;
 
     int dCenter = abs(val - _cal.center);
     int dUp = abs(val - _cal.up);
