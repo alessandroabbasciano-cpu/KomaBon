@@ -30,9 +30,9 @@ void setup() {
     esp_ota_mark_app_valid_cancel_rollback(); // Must be early: USB-CDC reset handshake requires valid OTA
                                               // state
     Serial.begin(115200);
-    Serial.setTxTimeoutMs(
-        0); // Non-blocking Serial. Prevents complete OS freeze if Web Serial host stops reading
-    delay(50);
+    // NOTE: Serial.setTxTimeoutMs(0) is applied in loop() on first iteration.
+    // Setting it here breaks the USB-CDC auto-reset handshake needed for upload.
+    delay(250); // Allow USB CDC to fully enumerate with host before proceeding
 
     bool isDeepSleepWakeup = (esp_sleep_get_wakeup_cause() != ESP_SLEEP_WAKEUP_UNDEFINED);
 
@@ -182,6 +182,13 @@ void setup() {
 }
 
 void loop() {
+    // Apply non-blocking Serial on first loop iteration (not setup) to preserve USB-CDC upload handshake
+    static bool sSerialConfigured = false;
+    if (!sSerialConfigured) {
+        Serial.setTxTimeoutMs(0); // Prevents OS freeze if Web Serial host stops reading
+        sSerialConfigured = true;
+    }
+
     InputMgr::getInstance().update();
     AppMgr::getInstance().update();
 
