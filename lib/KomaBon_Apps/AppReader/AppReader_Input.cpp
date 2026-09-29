@@ -6,6 +6,8 @@ void AppReader::handleInput(InputAction action) {
 
     // Global override: Long pressing Center/KEY1 instantly exits the Reader from any state
     if (action == INPUT_GO_TO_MAIN_MENU) {
+        closeBook();
+        markProgressInactive();
         AppMgr::getInstance().switchTo(0);
         return;
     }
@@ -23,8 +25,8 @@ void AppReader::handleInput(InputAction action) {
         else if (action == INPUT_SLEEP)
             enterSleepMode();
         else if (action == INPUT_BACK) {
+            closeBook();
             AppMgr::getInstance().switchTo("Bookshelf");
-
             _needsRedraw = true;
         }
     } else if (_state == VIEW_OVERLAY_SETTINGS) {
