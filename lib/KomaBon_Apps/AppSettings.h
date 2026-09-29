@@ -61,6 +61,7 @@ class AppSettings : public App {
 
     int _joyCalStep = 0;
     unsigned long _joyCalHoldStart = 0;
+    unsigned long _joyCalReleaseStart = 0;
     int _joyCalLastRaw = 4095;
     bool _joyCalWaitingRelease = false;
     int _joyCalValues[5];

@@ -16,7 +16,17 @@ void AppReader::pageCountTask(void* param) {
 void AppReader::startTotalPagesCounting() {
     if (_pageCountTaskHandle != nullptr) {
         _killPageCountTask = true;
-        vTaskDelay(pdMS_TO_TICKS(30));
+        // Wait up to 500ms for the task to cleanly exit and null its own handle
+        int timeout = 50;
+        while (_pageCountTaskHandle != nullptr && timeout > 0) {
+            vTaskDelay(pdMS_TO_TICKS(10));
+            timeout--;
+        }
+        if (_pageCountTaskHandle != nullptr) {
+            // Force kill if it's deadlocked
+            vTaskDelete(_pageCountTaskHandle);
+            _pageCountTaskHandle = nullptr;
+        }
     }
 
     _killPageCountTask = false;
@@ -81,6 +91,7 @@ void AppReader::updateTotalPagesCount() {
                 _countingActive = false;
                 delete _countRenderer;
                 _countRenderer = nullptr;
+                _needsRedraw = true; // NEW: Update the footer in the UI
                 return;
             }
 
@@ -270,26 +281,30 @@ void AppReader::prevChapter() {
 }
 
 void AppReader::applyFontSize(int pt) {
-    KomaBonGuard guard(_epubMutex);
     int normalized = (pt >= 18) ? 18 : (pt >= 12 ? 12 : 9);
-    _fontSizePt = normalized;
-    if (_textRenderer) _textRenderer->setFontSize(normalized);
-    _currentPageRenderValid = false;
-    _readingFirstDraw = true;
-    _pageTurnsSinceRefresh = 0;
-    _needsRedraw = true;
+    {
+        KomaBonGuard guard(_epubMutex);
+        _fontSizePt = normalized;
+        if (_textRenderer) _textRenderer->setFontSize(normalized);
+        _currentPageRenderValid = false;
+        _readingFirstDraw = true;
+        _pageTurnsSinceRefresh = 0;
+        _needsRedraw = true;
+    }
     startTotalPagesCounting();
 }
 
 void AppReader::applyFontFamily(int family) {
-    KomaBonGuard guard(_epubMutex);
     int normalized =
         (family >= READER_FONT_SANS && family <= READER_FONT_OPEN_SANS) ? family : READER_FONT_SANS;
-    _fontFamily = normalized;
-    if (_textRenderer) _textRenderer->setFontFamily(normalized);
-    _currentPageRenderValid = false;
-    _readingFirstDraw = true;
-    _pageTurnsSinceRefresh = 0;
-    _needsRedraw = true;
+    {
+        KomaBonGuard guard(_epubMutex);
+        _fontFamily = normalized;
+        if (_textRenderer) _textRenderer->setFontFamily(normalized);
+        _currentPageRenderValid = false;
+        _readingFirstDraw = true;
+        _pageTurnsSinceRefresh = 0;
+        _needsRedraw = true;
+    }
     startTotalPagesCounting();
 }

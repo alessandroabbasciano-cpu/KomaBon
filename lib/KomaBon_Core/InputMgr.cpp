@@ -62,7 +62,7 @@ void InputMgr::update() {
 void InputMgr::inputTask(void* parameter) {
     InputMgr* self = static_cast<InputMgr*>(parameter);
 
-    static const unsigned long JOY_COOLDOWN_MS = 80;
+    static const unsigned long JOY_COOLDOWN_MS = 30;
     static const unsigned long JOY_MENU_LONG_PRESS_MS = 800;
     JoyDirection lastJoyDirection = JOY_NONE;
     unsigned long joyPressTime = 0;
@@ -82,21 +82,41 @@ void InputMgr::inputTask(void* parameter) {
             rawJoyDir = JOY_NONE;
         }
 
-        // 2-sample consecutive filter to prevent single-sample ADC spikes (e.g. from USB power ripple)
-        // from causing premature releases or spurious clicks.
-        static JoyDirection prevJoyDir = JOY_NONE;
-        JoyDirection currentJoyDir = JOY_NONE;
-        if (rawJoyDir == prevJoyDir) {
-            currentJoyDir = rawJoyDir;
+        // SLIDING WINDOW VOTER: Tolerates micro-bounces while rejecting RC decay glides.
+        // A glide might spend ~10ms (2 samples) in a false zone. A bounce might drop a sample.
+        // By requiring 3 out of 5 votes, we guarantee robust detection without demanding perfect stability.
+        static JoyDirection window[5] = {JOY_NONE, JOY_NONE, JOY_NONE, JOY_NONE, JOY_NONE};
+        static int windowIdx = 0;
+
+        window[windowIdx] = rawJoyDir;
+        windowIdx = (windowIdx + 1) % 5;
+
+        int counts[6] = {0};
+        for (int i = 0; i < 5; i++) {
+            counts[(int)window[i]]++;
+        }
+
+        JoyDirection votedDir = JOY_NONE;
+        int maxCount = 0;
+        for (int i = 0; i < 6; i++) {
+            if (counts[i] > maxCount) {
+                maxCount = counts[i];
+                votedDir = (JoyDirection)i;
+            }
+        }
+
+        static JoyDirection currentJoyDir = JOY_NONE;
+        if (maxCount >= 3) {
+            currentJoyDir = votedDir;
         } else {
-            // Keep previous stable state while candidate settles
+            // No clear majority (noise or glide zone), hold the previous stable state
             currentJoyDir = (joyPressTime != 0) ? lastJoyDirection : JOY_NONE;
         }
-        prevJoyDir = rawJoyDir;
 
         // Real-time ADC / Button Diagnostics via Serial USB
         static JoyDirection s_lastReportedJoy = JOY_NONE;
         static int s_lastReportedAdc = -1;
+
         if (currentJoyDir != s_lastReportedJoy ||
             (currentJoyDir != JOY_NONE && abs(rawAdcVal - s_lastReportedAdc) > 60)) {
             s_lastReportedJoy = currentJoyDir;

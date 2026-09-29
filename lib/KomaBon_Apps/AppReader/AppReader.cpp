@@ -289,8 +289,15 @@ void AppReader::closeBook(bool markInactive) {
     _killPageCountTask = true;
     _countingActive = false;
     if (_pageCountTaskHandle != nullptr) {
-        vTaskDelay(pdMS_TO_TICKS(30));  // Signal kill and give task brief window to exit
-        _pageCountTaskHandle = nullptr; // Force-clear: task will self-null when it exits
+        int timeout = 50;
+        while (_pageCountTaskHandle != nullptr && timeout > 0) {
+            vTaskDelay(pdMS_TO_TICKS(10));
+            timeout--;
+        }
+        if (_pageCountTaskHandle != nullptr) {
+            vTaskDelete(_pageCountTaskHandle);
+            _pageCountTaskHandle = nullptr;
+        }
     }
 
     flushProgress();

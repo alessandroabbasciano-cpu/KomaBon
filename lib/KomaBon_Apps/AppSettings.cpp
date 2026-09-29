@@ -452,8 +452,14 @@ void AppSettings::update() {
 
         if (_joyCalWaitingRelease) {
             if (raw > 3800) {
-                _joyCalWaitingRelease = false;
-                Serial.printf("AppSettings: Joystick released. Ready for step %d\n", _joyCalStep);
+                if (_joyCalReleaseStart == 0) _joyCalReleaseStart = millis();
+                if (millis() - _joyCalReleaseStart > 100) {
+                    _joyCalWaitingRelease = false;
+                    _joyCalReleaseStart = 0;
+                    Serial.printf("AppSettings: Joystick released. Ready for step %d\n", _joyCalStep);
+                }
+            } else {
+                _joyCalReleaseStart = 0;
             }
         } else {
             if (raw < 3800) {
@@ -468,7 +474,6 @@ void AppSettings::update() {
                         Serial.printf("CALIB: Step %d COMPLETED with Raw=%d\n", _joyCalStep, raw);
                         _joyCalStep++;
                         _joyCalWaitingRelease = true;
-                        _selectionOnlyRedraw = true;
                         _needsRedraw = true;
 
                         if (_joyCalStep == 5) {
@@ -476,8 +481,12 @@ void AppSettings::update() {
                                                                        _joyCalValues[2], _joyCalValues[3],
                                                                        _joyCalValues[4]);
                             _statusUntil = millis() + 1000;
-                            _selectionOnlyRedraw = false;
                         }
+
+                        // FORCE IMMEDIATE DRAW TO PREVENT INPUT STARVATION
+                        // If we wait for the main loop, spamming the button resets getLastInputTime()
+                        // and prevents the screen from ever updating, leading to blind auto-completion.
+                        this->draw();
                     }
                 } else {
                     _joyCalLastRaw = raw;

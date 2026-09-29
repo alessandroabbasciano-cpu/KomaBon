@@ -150,6 +150,20 @@ void setup() {
     appMgr.registerApp(settingsApp);
 
     if (!isDeepSleepWakeup) {
+        // EMERGENCY CALIBRATION RESET
+        // If the user got locked out with a bad calibration (e.g. all buttons mapped to DOWN),
+        // they can hold KEY2 (PIN_BUTTON_SLEEP) while resetting the device to wipe the calibration.
+        if (digitalRead(PIN_BUTTON_SLEEP) == LOW) {
+            Serial.println("[BOOT] EMERGENCY RESET: Wiping joystick calibration...");
+            if (SystemFS.exists("/joy_cal.json")) SystemFS.remove("/joy_cal.json");
+            if (EbookFS.exists("/joy_cal.json")) EbookFS.remove("/joy_cal.json");
+
+            // Wait for release so the button press doesn't trigger UI events immediately
+            while (digitalRead(PIN_BUTTON_SLEEP) == LOW) {
+                delay(10);
+            }
+        }
+
         // Compile post-boot diagnostic report
         char bootReport[64];
         snprintf(bootReport, sizeof(bootReport), "SD: %s | Joy: %s | Bat: %d%%",
@@ -167,7 +181,7 @@ void setup() {
 
     if (!SystemFS.exists("/joy_cal.json") && !EbookFS.exists("/joy_cal.json")) {
         Serial.println("[BOOT] Missing calibration. Starting wizard.");
-        appMgr.switchTo(3);
+        appMgr.switchTo("Settings");
         settingsApp->startCalibrationWizard();
     } else if (readerApp->hasBootResume()) {
         Serial.println("[BOOT] Resuming last opened book.");

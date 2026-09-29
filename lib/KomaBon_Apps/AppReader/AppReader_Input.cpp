@@ -14,9 +14,9 @@ void AppReader::handleInput(InputAction action) {
 
     if (_state == VIEW_READING) {
 
-        if (action == INPUT_RIGHT)
+        if (action == INPUT_RIGHT || action == INPUT_NEXT)
             nextPage();
-        else if (action == INPUT_LEFT)
+        else if (action == INPUT_LEFT || action == INPUT_PREV)
             prevPage();
         else if (action == INPUT_SELECT)
             openSettingsOverlay();
