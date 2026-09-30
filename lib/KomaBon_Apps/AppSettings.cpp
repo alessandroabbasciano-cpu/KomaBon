@@ -80,10 +80,11 @@ void AppSettings::forceRedraw() {
 }
 
 void AppSettings::recomputeDirty() {
+    SleepSettings loadedSleep = SettingsStore::getInstance().loadSleep();
     _dirty = _reader.fontSize != _readerSaved.fontSize || _reader.fontFamily != _readerSaved.fontFamily ||
              _reader.refreshFrequency != _readerSaved.refreshFrequency ||
-             _display.rotation != _displaySaved.rotation ||
-             _sleep.timeout != SettingsStore::getInstance().loadSleep().timeout;
+             _display.rotation != _displaySaved.rotation || _sleep.timeout != loadedSleep.timeout ||
+             _sleep.screenMode != loadedSleep.screenMode;
 }
 
 bool AppSettings::rowChanged(int index) const {
@@ -96,6 +97,10 @@ bool AppSettings::rowChanged(int index) const {
             return _display.rotation != _displaySaved.rotation;
         case ROW_REFRESH:
             return _reader.refreshFrequency != _readerSaved.refreshFrequency;
+        case ROW_SLEEP:
+            return _sleep.timeout != SettingsStore::getInstance().loadSleep().timeout;
+        case ROW_SLEEP_SCREEN:
+            return _sleep.screenMode != SettingsStore::getInstance().loadSleep().screenMode;
         default:
             return false;
     }
@@ -145,6 +150,9 @@ void AppSettings::cycleValue(int index, bool forward) {
             _sleep.timeout = forward ? cycleIntForward(SLEEP_TIMEOUTS, 5, _sleep.timeout)
                                      : cycleIntBackward(SLEEP_TIMEOUTS, 5, _sleep.timeout);
             break;
+        case ROW_SLEEP_SCREEN:
+            _sleep.screenMode = forward ? (_sleep.screenMode + 1) % 3 : (_sleep.screenMode + 2) % 3;
+            break;
         default:
             return;
     }
@@ -164,6 +172,9 @@ void AppSettings::activate(int index) {
         case ROW_JOYSTICK:
             _screen = SCREEN_JOYCAL;
             _joyCalStep = 0;
+            _joyCalHoldStart = millis();
+            _joyCalLastRaw = 4095;
+            _joyCalWaitingRelease = true; // Wait for clean stick release before starting Step 0
             break;
         case ROW_SAVE:
             if (applyAndSave()) {
@@ -440,12 +451,27 @@ void AppSettings::update() {
         int raw = JoystickMgr::getInstance().readAnalogAveraged();
 
         if (_joyCalWaitingRelease) {
-            if (raw > 3800) _joyCalWaitingRelease = false;
+            if (raw > 3800) {
+                if (_joyCalReleaseStart == 0) _joyCalReleaseStart = millis();
+                if (millis() - _joyCalReleaseStart > 100) {
+                    _joyCalWaitingRelease = false;
+                    _joyCalReleaseStart = 0;
+                    Serial.printf("AppSettings: Joystick released. Ready for step %d\n", _joyCalStep);
+                }
+            } else {
+                _joyCalReleaseStart = 0;
+            }
         } else {
             if (raw < 3800) {
-                if (abs(raw - _joyCalLastRaw) < 150) {
-                    if (millis() - _joyCalHoldStart > 1200) {
+                if (abs(raw - _joyCalLastRaw) < 250) {
+                    unsigned long holdDuration = millis() - _joyCalHoldStart;
+                    if (holdDuration % 200 < 20) {
+                        Serial.printf("CALIB: Step %d holding... Raw=%d, Held=%lu ms\n", _joyCalStep, raw,
+                                      holdDuration);
+                    }
+                    if (holdDuration > 500) {
                         _joyCalValues[_joyCalStep] = raw;
+                        Serial.printf("CALIB: Step %d COMPLETED with Raw=%d\n", _joyCalStep, raw);
                         _joyCalStep++;
                         _joyCalWaitingRelease = true;
                         _needsRedraw = true;
@@ -456,7 +482,11 @@ void AppSettings::update() {
                                                                        _joyCalValues[4]);
                             _statusUntil = millis() + 1000;
                         }
-                        draw();
+
+                        // FORCE IMMEDIATE DRAW TO PREVENT INPUT STARVATION
+                        // If we wait for the main loop, spamming the button resets getLastInputTime()
+                        // and prevents the screen from ever updating, leading to blind auto-completion.
+                        this->draw();
                     }
                 } else {
                     _joyCalLastRaw = raw;

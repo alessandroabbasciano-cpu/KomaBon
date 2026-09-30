@@ -11,6 +11,7 @@
 #include "../KomaBon_OTA/GitHubMgr.h"
 #include "../KomaBon_Core/AppMgr.h"
 #include "../KomaBon_Core/DisplayMgr.h"
+#include "../KomaBon_Apps/AppBookshelf/AppBookshelf.h"
 #include <SD.h>
 #include <stdarg.h>
 #include "../../include/NetworkState.h"
@@ -198,6 +199,51 @@ void WebMgr::update() {
                 ESP.restart();
             },
             "OTA_Task", 16384, nullptr, 1, nullptr, 1);
+    }
+
+    // Apply deferred display/reader changes requested by the Web UI.
+    // These flags are set by async HTTP handlers on a different task,
+    // so we consume them here on the main loop where drawing is safe.
+    if (_pendingRotation >= 0) {
+        int rot = _pendingRotation;
+        _pendingRotation = -1;
+        Serial.printf("WebMgr: Applying deferred rotation %d from Web UI\n", rot);
+        DisplayMgr::getInstance().setRotation(rot);
+        for (App* app : AppMgr::getInstance().getApps()) {
+            if (app) app->forceRedraw();
+        }
+    }
+
+    if (_pendingReaderFontSize > 0) {
+        int size = _pendingReaderFontSize;
+        _pendingReaderFontSize = 0;
+        Serial.printf("WebMgr: Applying deferred font size %d from Web UI\n", size);
+        for (App* app : AppMgr::getInstance().getApps()) {
+            if (app) app->applyFontSize(size);
+        }
+    }
+
+    if (_pendingReaderFontFamily >= 0) {
+        int family = _pendingReaderFontFamily;
+        _pendingReaderFontFamily = -1;
+        Serial.printf("WebMgr: Applying deferred font family %d from Web UI\n", family);
+        for (App* app : AppMgr::getInstance().getApps()) {
+            if (app) app->applyFontFamily(family);
+        }
+    }
+
+    if (_pendingAppSwitch >= 0) {
+        int idx = _pendingAppSwitch;
+        _pendingAppSwitch = -1;
+        Serial.printf("WebMgr: Applying deferred app switch to index %d from Web UI\n", idx);
+        AppMgr::getInstance().switchTo(idx);
+    }
+
+    if (_pendingLibraryInvalidate) {
+        _pendingLibraryInvalidate = false;
+        Serial.println("WebMgr: Library changed via Web UI, invalidating Bookshelf cache");
+        AppBookshelf* shelf = static_cast<AppBookshelf*>(AppMgr::getInstance().getAppByName("Bookshelf"));
+        if (shelf) shelf->invalidateLibrary();
     }
 }
 

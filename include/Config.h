@@ -4,7 +4,7 @@
 // Major.Minor.Patch, always with all three components: release.yml only triggers
 // on v[0-9]+.[0-9]+.[0-9]+ tags and compares the tag with this value character
 // by character. "1.10" here (or a v1.10 tag) would not publish any release.
-#define SYSTEM_VERSION "0.6.0"
+#define SYSTEM_VERSION "0.7.0"
 #define DEVICE_NAME "KomaBon"
 
 // Offline management hotspot (SoftAP). When the device can't reach a known
@@ -62,14 +62,14 @@
 // Set to 1 when debugging partition/filesystem issues. Keeping this off makes
 // normal startup quieter and avoids walking the ebook filesystem every boot.
 #define KOMABON_VERBOSE_BOOT_LOG 0
-#define KOMABON_PIN_DIAG 0
+#define KOMABON_PIN_DIAG 1
 
 // Manual standby (KEY2 long press, ~1.5s — see StandbyGuard.h). At 0, only
 // the automatic idle sleep stays active (BatteryMgr's inactivity timeout,
 // configurable in Settings); holding KEY2 no longer puts the device to
 // sleep, but a short click still triggers a full refresh. Set to 1 to bring
 // the manual long-press standby back.
-#define KOMABON_KEY2_STANDBY_ENABLED 0
+#define KOMABON_KEY2_STANDBY_ENABLED 1
 
 // Battery calibration
 // Fully charged LiPo cells should read 4.20V. The previous value here (1.075)

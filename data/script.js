@@ -37,6 +37,8 @@ function showTab(tabId) {
         getReaderProgress();
         getWifiStatus();
         getDisplaySettings();
+        getSleepSettings();
+        checkScreensaverStatus();
     }
 }
 
@@ -97,8 +99,60 @@ async function fetchStatus() {
         } else {
             batIcon.classList.remove('charging');
         }
+
+        // Check FAT32 cluster alignment diagnostics
+        const clusterWarn = document.getElementById('sd-cluster-warning');
+        if (clusterWarn) {
+            if (data.sdClusterSize && !data.sdClusterOptimal) {
+                const kb = Math.round(data.sdClusterSize / 1024);
+                clusterWarn.textContent = `⚡ Note: MicroSD cluster size is ${kb} KB. Formatting with 32 KB clusters is recommended to improve manga reading speed.`;
+                clusterWarn.classList.remove('hidden');
+            } else {
+                clusterWarn.classList.add('hidden');
+            }
+        }
+
+        // Check crash log diagnostics
+        const crashCard = document.getElementById('crash-log-card');
+        if (crashCard) {
+            if (data.hasCrashLog) {
+                crashCard.classList.remove('hidden');
+                fetchCrashLog();
+            } else {
+                crashCard.classList.add('hidden');
+            }
+        }
     } catch (e) {
         console.error("Failed to fetch status", e);
+    }
+}
+
+async function fetchCrashLog() {
+    try {
+        const res = await fetch('/api/system/crash_log');
+        const data = await res.json();
+        const content = document.getElementById('crash-log-content');
+        const reason = document.getElementById('crash-reset-reason');
+        if (content && data.log) {
+            content.textContent = data.log;
+        }
+        if (reason && data.lastResetReason) {
+            reason.textContent = `Last Reset Reason: ${data.lastResetReason} (Boot #${data.bootCount})`;
+        }
+    } catch (e) {
+        console.error("Failed to fetch crash log", e);
+    }
+}
+
+async function clearCrashLog() {
+    try {
+        const res = await fetch('/api/system/crash_log/clear', { method: 'POST' });
+        if (res.ok) {
+            const crashCard = document.getElementById('crash-log-card');
+            if (crashCard) crashCard.classList.add('hidden');
+        }
+    } catch (e) {
+        console.error("Failed to clear crash log", e);
     }
 }
 
@@ -288,6 +342,10 @@ function getSleepSettings() {
         .then(response => response.json())
         .then(data => {
             if (data.sleepTimeout !== undefined) document.getElementById('sleep-timeout').value = data.sleepTimeout;
+            if (data.screenMode !== undefined) {
+                const el = document.getElementById('sleep-screen-mode');
+                if (el) el.value = data.screenMode;
+            }
             if (data.sleepMessage !== undefined) document.getElementById('sleep-message').value = data.sleepMessage;
         })
         .catch(error => console.error('Error loading sleep settings:', error));
@@ -295,30 +353,271 @@ function getSleepSettings() {
 
 function saveSleepSettings() {
     const sleepTimeout = parseInt(document.getElementById('sleep-timeout').value);
+    const screenModeEl = document.getElementById('sleep-screen-mode');
+    const screenMode = screenModeEl ? parseInt(screenModeEl.value) : 0;
     const sleepMessage = document.getElementById('sleep-message').value;
     const statusDiv = document.getElementById('sleep-settings-status');
 
     fetch('/api/settings/sleep', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ sleepTimeout: sleepTimeout, sleepMessage: sleepMessage }),
+        body: JSON.stringify({ sleepTimeout: sleepTimeout, screenMode: screenMode, sleepMessage: sleepMessage }),
     })
         .then(response => response.json())
         .then(data => {
             if (data.status === 'ok') {
                 statusDiv.textContent = "Settings saved!";
-                statusDiv.style.color = "green";
+                statusDiv.style.color = "var(--success)";
                 setTimeout(() => statusDiv.textContent = "", 3000);
             } else {
                 statusDiv.textContent = "Error saving settings.";
-                statusDiv.style.color = "red";
+                statusDiv.style.color = "var(--danger)";
             }
         })
         .catch(error => {
             console.error('Error saving sleep settings:', error);
             statusDiv.textContent = "Connection error.";
-            statusDiv.style.color = "red";
+            statusDiv.style.color = "var(--danger)";
         });
+}
+
+// --- Custom Screensaver Management ---
+let g_preparedScreensaverBlob = null;
+
+function renderRawScreensaverToCanvas(canvas, arrayBuffer) {
+    const bytes = new Uint8Array(arrayBuffer);
+    const offset = (bytes.length === 48004) ? 4 : 0;
+    const w = 480;
+    const h = 800;
+    canvas.width = w;
+    canvas.height = h;
+    const ctx = canvas.getContext('2d');
+    const imgData = ctx.createImageData(w, h);
+    const data = imgData.data;
+    const bytesPerRow = 60;
+
+    for (let y = 0; y < h; y++) {
+        for (let x = 0; x < w; x++) {
+            const byteIdx = offset + (y * bytesPerRow) + Math.floor(x / 8);
+            const bitIdx = 7 - (x % 8);
+            const isBlack = (bytes[byteIdx] & (1 << bitIdx)) !== 0;
+            const pIdx = (y * w + x) * 4;
+            const val = isBlack ? 0 : 255;
+            data[pIdx] = val;
+            data[pIdx + 1] = val;
+            data[pIdx + 2] = val;
+            data[pIdx + 3] = 255;
+        }
+    }
+    ctx.putImageData(imgData, 0, 0);
+}
+
+async function handleScreensaverFileSelect(files) {
+    if (!files || files.length === 0) return;
+    const file = files[0];
+    const statusDiv = document.getElementById('screensaver-status');
+    const canvas = document.getElementById('screensaver-preview-canvas');
+    const emptyPreview = document.getElementById('screensaver-empty-preview');
+    const uploadBtn = document.getElementById('upload-screensaver-btn');
+
+    statusDiv.textContent = "Processing and dithering image...";
+    statusDiv.style.color = "var(--accent)";
+
+    try {
+        const img = new Image();
+        const objectUrl = URL.createObjectURL(file);
+
+        await new Promise((resolve, reject) => {
+            img.onload = () => resolve();
+            img.onerror = () => reject(new Error("Failed to decode image file"));
+            img.src = objectUrl;
+        });
+        URL.revokeObjectURL(objectUrl);
+
+        const TARGET_W = 480;
+        const TARGET_H = 800;
+
+        const convCanvas = document.createElement('canvas');
+        convCanvas.width = TARGET_W;
+        convCanvas.height = TARGET_H;
+        const ctx = convCanvas.getContext('2d', { willReadFrequently: true });
+
+        ctx.fillStyle = '#FFFFFF';
+        ctx.fillRect(0, 0, TARGET_W, TARGET_H);
+
+        const scale = Math.min(TARGET_W / img.width, TARGET_H / img.height);
+        const drawW = Math.round(img.width * scale);
+        const drawH = Math.round(img.height * scale);
+        const drawX = Math.round((TARGET_W - drawW) / 2);
+        const drawY = Math.round((TARGET_H - drawH) / 2);
+
+        ctx.drawImage(img, drawX, drawY, drawW, drawH);
+
+        const bytesPerRow = 60;
+        const buffer = new ArrayBuffer(4 + (bytesPerRow * TARGET_H));
+        const view = new DataView(buffer);
+        view.setUint16(0, TARGET_W, true);
+        view.setUint16(2, TARGET_H, true);
+        const bytes = new Uint8Array(buffer);
+
+        if (typeof applyDitheringAndPack === 'function') {
+            applyDitheringAndPack(ctx, bytes, 4, TARGET_W, TARGET_H, bytesPerRow);
+        } else {
+            const imgData = ctx.getImageData(0, 0, TARGET_W, TARGET_H);
+            const d = imgData.data;
+            for (let i = 0; i < d.length; i += 4) {
+                const lum = (d[i] * 0.299) + (d[i + 1] * 0.587) + (d[i + 2] * 0.114);
+                d[i] = d[i + 1] = d[i + 2] = lum;
+            }
+            for (let y = 0; y < TARGET_H; y++) {
+                for (let x = 0; x < TARGET_W; x++) {
+                    const idx = (y * TARGET_W + x) * 4;
+                    const oldPx = d[idx];
+                    const newPx = oldPx < 128 ? 0 : 255;
+                    d[idx] = d[idx + 1] = d[idx + 2] = newPx;
+                    const err = (oldPx - newPx) >> 3;
+                    if (x + 1 < TARGET_W) { d[idx + 4] += err; d[idx + 5] += err; d[idx + 6] += err; }
+                    if (x + 2 < TARGET_W) { d[idx + 8] += err; d[idx + 9] += err; d[idx + 10] += err; }
+                    if (y + 1 < TARGET_H) {
+                        if (x - 1 >= 0) { d[idx + (TARGET_W * 4) - 4] += err; d[idx + (TARGET_W * 4) - 3] += err; d[idx + (TARGET_W * 4) - 2] += err; }
+                        d[idx + (TARGET_W * 4)] += err; d[idx + (TARGET_W * 4) + 1] += err; d[idx + (TARGET_W * 4) + 2] += err;
+                        if (x + 1 < TARGET_W) { d[idx + (TARGET_W * 4) + 4] += err; d[idx + (TARGET_W * 4) + 5] += err; d[idx + (TARGET_W * 4) + 6] += err; }
+                    }
+                    if (y + 2 < TARGET_H) {
+                        d[idx + (TARGET_W * 8)] += err; d[idx + (TARGET_W * 8) + 1] += err; d[idx + (TARGET_W * 8) + 2] += err;
+                    }
+                }
+            }
+            for (let y = 0; y < TARGET_H; y++) {
+                for (let x = 0; x < TARGET_W; x++) {
+                    const idx = (y * TARGET_W + x) * 4;
+                    if (d[idx] === 0) {
+                        const byteIdx = 4 + (y * bytesPerRow) + Math.floor(x / 8);
+                        bytes[byteIdx] |= (1 << (7 - (x % 8)));
+                    }
+                }
+            }
+        }
+
+        g_preparedScreensaverBlob = new Blob([buffer], { type: 'application/octet-stream' });
+
+        renderRawScreensaverToCanvas(canvas, buffer);
+        canvas.style.display = 'inline-block';
+        if (emptyPreview) emptyPreview.style.display = 'none';
+        if (uploadBtn) uploadBtn.disabled = false;
+
+        statusDiv.textContent = `Preview ready (${file.name}). Click 'Apply Screensaver' to send to device.`;
+        statusDiv.style.color = "var(--success)";
+    } catch (err) {
+        console.error("Screensaver conversion error:", err);
+        statusDiv.textContent = `Conversion failed: ${err.message}`;
+        statusDiv.style.color = "var(--danger)";
+    }
+}
+
+async function uploadCustomScreensaver() {
+    if (!g_preparedScreensaverBlob) return;
+    const statusDiv = document.getElementById('screensaver-status');
+    const uploadBtn = document.getElementById('upload-screensaver-btn');
+    const deleteBtn = document.getElementById('delete-screensaver-btn');
+
+    uploadBtn.disabled = true;
+    statusDiv.textContent = "Uploading screensaver to device...";
+    statusDiv.style.color = "var(--accent)";
+
+    try {
+        const formData = new FormData();
+        formData.append("file", g_preparedScreensaverBlob, "screensaver.raw");
+
+        const response = await fetch('/api/settings/screensaver/upload', {
+            method: 'POST',
+            body: formData
+        });
+
+        const data = await response.json();
+        if (data.ok) {
+            statusDiv.textContent = "Screensaver uploaded and enabled!";
+            statusDiv.style.color = "var(--success)";
+            if (deleteBtn) deleteBtn.style.display = 'inline-block';
+            const screenModeEl = document.getElementById('sleep-screen-mode');
+            if (screenModeEl) screenModeEl.value = '1';
+        } else {
+            throw new Error(data.error || "Upload failed");
+        }
+    } catch (err) {
+        console.error("Upload screensaver error:", err);
+        statusDiv.textContent = `Upload error: ${err.message}`;
+        statusDiv.style.color = "var(--danger)";
+        uploadBtn.disabled = false;
+    }
+}
+
+async function deleteCustomScreensaver() {
+    if (!confirm("Are you sure you want to remove the custom screensaver?")) return;
+    const statusDiv = document.getElementById('screensaver-status');
+    const deleteBtn = document.getElementById('delete-screensaver-btn');
+    const uploadBtn = document.getElementById('upload-screensaver-btn');
+    const canvas = document.getElementById('screensaver-preview-canvas');
+    const emptyPreview = document.getElementById('screensaver-empty-preview');
+
+    statusDiv.textContent = "Removing screensaver...";
+    statusDiv.style.color = "var(--accent)";
+
+    try {
+        const response = await fetch('/api/settings/screensaver', { method: 'DELETE' });
+        const data = await response.json();
+        if (data.ok) {
+            statusDiv.textContent = "Screensaver removed. Default sleep cover will be used.";
+            statusDiv.style.color = "var(--success)";
+            if (deleteBtn) deleteBtn.style.display = 'none';
+            if (uploadBtn) uploadBtn.disabled = true;
+            if (canvas) canvas.style.display = 'none';
+            if (emptyPreview) emptyPreview.style.display = 'block';
+            g_preparedScreensaverBlob = null;
+            const screenModeEl = document.getElementById('sleep-screen-mode');
+            if (screenModeEl && screenModeEl.value === '1') screenModeEl.value = '0';
+        } else {
+            throw new Error(data.error || "Failed to remove screensaver");
+        }
+    } catch (err) {
+        console.error("Delete screensaver error:", err);
+        statusDiv.textContent = `Error: ${err.message}`;
+        statusDiv.style.color = "var(--danger)";
+    }
+}
+
+async function checkScreensaverStatus() {
+    const statusDiv = document.getElementById('screensaver-status');
+    const canvas = document.getElementById('screensaver-preview-canvas');
+    const emptyPreview = document.getElementById('screensaver-empty-preview');
+    const deleteBtn = document.getElementById('delete-screensaver-btn');
+    if (!canvas) return;
+
+    try {
+        const response = await fetch('/api/settings/screensaver');
+        const data = await response.json();
+
+        if (data.exists) {
+            if (deleteBtn) deleteBtn.style.display = 'inline-block';
+            const rawResp = await fetch('/api/settings/screensaver?raw=1');
+            if (rawResp.ok) {
+                const buf = await rawResp.arrayBuffer();
+                renderRawScreensaverToCanvas(canvas, buf);
+                canvas.style.display = 'inline-block';
+                if (emptyPreview) emptyPreview.style.display = 'none';
+                if (statusDiv) {
+                    statusDiv.textContent = `Custom screensaver active (${(data.size / 1024).toFixed(1)} KB)`;
+                    statusDiv.style.color = "var(--success)";
+                }
+            }
+        } else {
+            if (deleteBtn) deleteBtn.style.display = 'none';
+            if (canvas) canvas.style.display = 'none';
+            if (emptyPreview) emptyPreview.style.display = 'block';
+        }
+    } catch (err) {
+        console.error("Check screensaver error:", err);
+    }
 }
 
 // Display Orientation Configuration
@@ -500,3 +799,4 @@ getReaderProgress();
 getSleepSettings();
 getWifiStatus();
 getDisplaySettings();
+checkScreensaverStatus();

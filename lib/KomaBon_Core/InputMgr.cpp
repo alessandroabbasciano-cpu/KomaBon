@@ -62,7 +62,8 @@ void InputMgr::update() {
 void InputMgr::inputTask(void* parameter) {
     InputMgr* self = static_cast<InputMgr*>(parameter);
 
-    static const unsigned long JOY_COOLDOWN_MS = 80;
+    static const unsigned long JOY_COOLDOWN_MS = 30;
+    static const unsigned long JOY_MENU_LONG_PRESS_MS = 800;
     JoyDirection lastJoyDirection = JOY_NONE;
     unsigned long joyPressTime = 0;
     bool joyLongPressSent = false;
@@ -73,17 +74,83 @@ void InputMgr::inputTask(void* parameter) {
         bool key1Pressed = (digitalRead(PIN_BUTTON_BACK) == LOW);
         bool key2Pressed = (digitalRead(PIN_BUTTON_SLEEP) == LOW);
 
-        JoyDirection currentJoyDir = JoystickMgr::getInstance().getDirection();
+        int rawAdcVal = 0;
+        JoyDirection rawJoyDir = JoystickMgr::getInstance().getDirectionWithRaw(rawAdcVal);
 
         // SIGNAL INTEGRITY: Mask ADC transients caused by mechanical release and resistive ladder discharge
         if (now < joyCooldown) {
-            currentJoyDir = JOY_NONE;
+            rawJoyDir = JOY_NONE;
+        }
+
+        // SLIDING WINDOW VOTER: Tolerates micro-bounces while rejecting RC decay glides.
+        // A glide might spend ~10ms (2 samples) in a false zone. A bounce might drop a sample.
+        // By requiring 3 out of 5 votes, we guarantee robust detection without demanding perfect stability.
+        static JoyDirection window[5] = {JOY_NONE, JOY_NONE, JOY_NONE, JOY_NONE, JOY_NONE};
+        static int windowIdx = 0;
+
+        window[windowIdx] = rawJoyDir;
+        windowIdx = (windowIdx + 1) % 5;
+
+        int counts[6] = {0};
+        for (int i = 0; i < 5; i++) {
+            counts[(int)window[i]]++;
+        }
+
+        JoyDirection votedDir = JOY_NONE;
+        int maxCount = 0;
+        for (int i = 0; i < 6; i++) {
+            if (counts[i] > maxCount) {
+                maxCount = counts[i];
+                votedDir = (JoyDirection)i;
+            }
+        }
+
+        static JoyDirection currentJoyDir = JOY_NONE;
+        if (maxCount >= 3) {
+            currentJoyDir = votedDir;
+        } else {
+            // No clear majority (noise or glide zone), hold the previous stable state
+            currentJoyDir = (joyPressTime != 0) ? lastJoyDirection : JOY_NONE;
+        }
+
+        // Real-time ADC / Button Diagnostics via Serial USB
+        static JoyDirection s_lastReportedJoy = JOY_NONE;
+        static int s_lastReportedAdc = -1;
+
+        if (currentJoyDir != s_lastReportedJoy ||
+            (currentJoyDir != JOY_NONE && abs(rawAdcVal - s_lastReportedAdc) > 60)) {
+            s_lastReportedJoy = currentJoyDir;
+            s_lastReportedAdc = rawAdcVal;
+            const char* dirNames[] = {"NONE", "UP", "DOWN", "LEFT", "RIGHT", "CENTER"};
+            Serial.printf("JOYDIAG: rawADC=%d  dir=%s  held=%lu ms\n", rawAdcVal,
+                          dirNames[(int)currentJoyDir], joyPressTime ? (now - joyPressTime) : 0);
+        }
+
+        // Handle initial wakeup release suppression:
+        // Hold through the wake press and swallow its release to prevent ghost clicks.
+        if (self->_suppressWakeRelease) {
+            if (rawJoyDir == JOY_NONE && !key1Pressed && !key2Pressed) {
+                self->_suppressWakeRelease = false;
+                joyPressTime = 0;
+                joyLongPressSent = false;
+                lastJoyDirection = JOY_NONE;
+                self->_btnBackPressTime = 0;
+                self->_btnBackLongPressSent = false;
+                self->_btnSleepPressTime = 0;
+                self->_btnSleepLongPressSent = false;
+                joyCooldown = now + 100;
+            }
+            vTaskDelay(pdMS_TO_TICKS(5));
+            continue;
         }
 
         bool key3Pressed = (currentJoyDir == JOY_CENTER);
         bool joyActive = (currentJoyDir != JOY_NONE);
 
         self->_isInteracting = (key1Pressed || key2Pressed || joyActive);
+        if (self->_isInteracting) {
+            self->_lastPhysicalInputTime = now;
+        }
 
 #if KOMABON_PIN_DIAG
         {
@@ -91,9 +158,9 @@ void InputMgr::inputTask(void* parameter) {
                 (uint8_t)((key1Pressed ? 0 : 0x01) | (key2Pressed ? 0 : 0x02) | (key3Pressed ? 0 : 0x04));
             if (snapshot != self->_lastPinSnapshot) {
                 self->_lastPinSnapshot = snapshot;
-                Serial.printf("PINDIAG: KEY1/GPIO%d=%d  KEY2/GPIO%d=%d  KEY3/GPIO%d=%d\n", PIN_BUTTON_BACK,
-                              (snapshot & 0x01) ? 1 : 0, PIN_BUTTON_SLEEP, (snapshot & 0x02) ? 1 : 0,
-                              JOY_ADC_PIN, (snapshot & 0x04) ? 1 : 0);
+                Serial.printf("PINDIAG: KEY1/GPIO%d=%d  KEY2/GPIO%d=%d  KEY3/GPIO%d=%d  (rawADC=%d)\n",
+                              PIN_BUTTON_BACK, (snapshot & 0x01) ? 1 : 0, PIN_BUTTON_SLEEP,
+                              (snapshot & 0x02) ? 1 : 0, JOY_ADC_PIN, (snapshot & 0x04) ? 1 : 0, rawAdcVal);
             }
         }
 #endif
@@ -115,18 +182,21 @@ void InputMgr::inputTask(void* parameter) {
                 if (heldTime < 30) {
                     // Lock the direction to prevent thumb rolling errors
                     lastJoyDirection = currentJoyDir;
-                } else if (heldTime >= BUTTON_LONG_PRESS_MS) {
-                    if (lastJoyDirection == JOY_CENTER) {
-                        Serial.println("INPUT: JOY Center Long Press -> GO TO MAIN MENU");
-                        BatteryMgr::getInstance().resetIdleTimer();
-                        self->enqueueAction(INPUT_GO_TO_MAIN_MENU);
-                        joyLongPressSent = true;
-                    } else if (lastJoyDirection == JOY_LEFT) {
-                        Serial.println("INPUT: JOY Left Long Press -> BACK");
-                        BatteryMgr::getInstance().resetIdleTimer();
-                        self->enqueueAction(INPUT_BACK);
-                        joyLongPressSent = true;
-                    }
+                } else if (heldTime >= 1000 && lastJoyDirection == JOY_DOWN) {
+                    Serial.println("INPUT: JOY Down Long Press -> SLEEP");
+                    BatteryMgr::getInstance().resetIdleTimer();
+                    self->enqueueAction(INPUT_SLEEP);
+                    joyLongPressSent = true;
+                } else if (heldTime >= JOY_MENU_LONG_PRESS_MS && lastJoyDirection == JOY_CENTER) {
+                    Serial.println("INPUT: JOY Center Long Press -> GO TO MAIN MENU");
+                    BatteryMgr::getInstance().resetIdleTimer();
+                    self->enqueueAction(INPUT_GO_TO_MAIN_MENU);
+                    joyLongPressSent = true;
+                } else if (heldTime >= 600 && lastJoyDirection == JOY_LEFT) {
+                    Serial.println("INPUT: JOY Left Long Press -> BACK");
+                    BatteryMgr::getInstance().resetIdleTimer();
+                    self->enqueueAction(INPUT_BACK);
+                    joyLongPressSent = true;
                 }
             }
         } else {
@@ -135,24 +205,31 @@ void InputMgr::inputTask(void* parameter) {
 
                 if (pressDuration >= BUTTON_DEBOUNCE_MIN_MS && !joyLongPressSent) {
                     BatteryMgr::getInstance().resetIdleTimer();
+                    const char* dirNames[] = {"NONE", "UP", "DOWN", "LEFT", "RIGHT", "CENTER"};
+                    InputAction act = INPUT_NONE;
                     switch (lastJoyDirection) {
                         case JOY_UP:
-                            self->enqueueAction(INPUT_PREV);
+                            act = INPUT_PREV;
                             break;
                         case JOY_DOWN:
-                            self->enqueueAction(INPUT_NEXT);
+                            act = INPUT_NEXT;
                             break;
                         case JOY_LEFT:
-                            self->enqueueAction(INPUT_LEFT);
+                            act = INPUT_LEFT;
                             break;
                         case JOY_RIGHT:
-                            self->enqueueAction(INPUT_RIGHT);
+                            act = INPUT_RIGHT;
                             break;
                         case JOY_CENTER:
-                            self->enqueueAction(INPUT_SELECT);
+                            act = INPUT_SELECT;
                             break;
                         default:
                             break;
+                    }
+                    if (act != INPUT_NONE) {
+                        Serial.printf("INPUT: JOY Click -> dir=%s (held=%lu ms) -> action=%d\n",
+                                      dirNames[(int)lastJoyDirection], pressDuration, (int)act);
+                        self->enqueueAction(act);
                     }
                 }
 
@@ -251,9 +328,6 @@ void InputMgr::enterStandby() {
                   digitalRead(PIN_BUTTON_SLEEP),
                   (JoystickMgr::getInstance().getDirection() != JOY_NONE ? 1 : 0));
     Serial.flush();
-
-    App* current = AppMgr::getInstance().getCurrentApp();
-    if (current) current->stop();
 
     BatteryMgr::getInstance().enterIdleSleep("key2_long_press");
 }

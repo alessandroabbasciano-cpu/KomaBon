@@ -41,6 +41,7 @@ class AppSettings : public App {
         ROW_ROTATION,
         ROW_REFRESH,
         ROW_SLEEP,
+        ROW_SLEEP_SCREEN,
         ROW_NETWORK,
         ROW_SYSTEM,
         ROW_JOYSTICK,
@@ -60,6 +61,7 @@ class AppSettings : public App {
 
     int _joyCalStep = 0;
     unsigned long _joyCalHoldStart = 0;
+    unsigned long _joyCalReleaseStart = 0;
     int _joyCalLastRaw = 4095;
     bool _joyCalWaitingRelease = false;
     int _joyCalValues[5];

@@ -10,6 +10,9 @@ class AppMainMenu : public App {
     const char* getName() override {
         return "Main Menu";
     }
+    bool isVisibleInMenu() override {
+        return false;
+    }
 
     void start() override;
     void update() override;

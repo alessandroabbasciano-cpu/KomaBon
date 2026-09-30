@@ -1,4 +1,4 @@
-#include "AppReader.h"
+#include "AppBookshelf.h"
 #include "DisplayMgr.h"
 #include "FontMgr.h"
 #include "KomaBonFS.h"
@@ -12,6 +12,9 @@
 #include <ArduinoJson.h>
 #include <map>
 #include <vector>
+#include "../AppReader/icon_reader.h"
+#include "SettingsStore.h"
+#include "CoverExtractor.h"
 
 static String titleFromFilename(String name) {
     name = normalizedBookName(name);
@@ -56,11 +59,11 @@ static LibraryDirtyRect unionLibraryRect(LibraryDirtyRect a, LibraryDirtyRect b)
     return {x1, y1, x2 - x1, y2 - y1};
 }
 
-void AppReader::scanBooks() {
+void AppBookshelf::scanBooks() {
     _books.clear();
 
     if (!SDMgr::getInstance().ensureReady()) {
-        Serial.println("AppReader: Cannot scan books, SD card bus not responding.");
+        Serial.println("AppBookshelf: Cannot scan books, SD card bus not responding.");
         return;
     }
 
@@ -187,7 +190,9 @@ void AppReader::scanBooks() {
             String pathLower = b.path;
             pathLower.toLowerCase();
             if (!pathLower.endsWith(".kmb")) {
-                b.totalPages = PageCountStore::getInstance().get(b.originalName, _fontSizePt, _fontFamily);
+                b.totalPages = PageCountStore::getInstance().get(
+                    b.originalName, SettingsStore::getInstance().loadReader().fontSize,
+                    SettingsStore::getInstance().loadReader().fontFamily);
             }
         }
     }
@@ -213,8 +218,8 @@ void AppReader::scanBooks() {
     }
 }
 
-void AppReader::drawBookTile(KomaBonDisplay& display, const BookEntry& book, int x, int y, int w, int h,
-                             bool selected, const uint8_t* thumbData) {
+void AppBookshelf::drawBookTile(KomaBonDisplay& display, const BookEntry& book, int x, int y, int w, int h,
+                                bool selected, const uint8_t* thumbData) {
     if (thumbData) {
         display.drawBitmap(x, y, thumbData, 60, 80, GxEPD_BLACK);
     } else {
@@ -238,7 +243,7 @@ void AppReader::drawBookTile(KomaBonDisplay& display, const BookEntry& book, int
     }
 }
 
-void AppReader::updateLibraryScroll() {
+void AppBookshelf::updateLibraryScroll() {
     if (_selectedBookIndex < 0) return;
 
     DisplayMgr& dispMgr = DisplayMgr::getInstance();
@@ -255,7 +260,7 @@ void AppReader::updateLibraryScroll() {
     }
 }
 
-void AppReader::drawLibrary() {
+void AppBookshelf::drawLibrary() {
     if (!_booksScanned) {
         scanBooks();
         _booksScanned = true;
@@ -473,4 +478,87 @@ void AppReader::drawLibrary() {
         BatteryMgr::getInstance().drawStatusBar(display, display.width() - 105, 6);
 
     } while (display.nextPage());
+}
+
+AppBookshelf::AppBookshelf()
+    : _selectedBookIndex(0), _booksScanned(false), _librarySelectionOnlyRedraw(false), _previousBookIndex(0),
+      _libraryScrollOffset(0), _needsRedraw(true) {}
+
+const uint8_t* AppBookshelf::getIconImage() {
+    return icon_reader_160x160;
+}
+
+void AppBookshelf::start() {
+    _needsRedraw = true;
+    _booksScanned = false;
+    _librarySelectionOnlyRedraw = false;
+    InputMgr::getInstance().setCallback(std::bind(&AppBookshelf::handleInput, this, std::placeholders::_1));
+}
+
+void AppBookshelf::stop() {
+    InputMgr::getInstance().clearCallback();
+}
+
+void AppBookshelf::update() {
+    if (CoverExtractor::processNextCover(_books)) {
+        _librarySelectionOnlyRedraw = false;
+        _needsRedraw = true;
+    }
+}
+
+void AppBookshelf::draw() {
+    if (_needsRedraw) {
+        _needsRedraw = false;
+        drawLibrary();
+    }
+}
+
+void AppBookshelf::forceRedraw() {
+    _librarySelectionOnlyRedraw = false;
+    _needsRedraw = true;
+}
+
+void AppBookshelf::invalidateLibrary() {
+    _booksScanned = false;
+    _librarySelectionOnlyRedraw = false;
+    _needsRedraw = true;
+}
+
+#include "../../KomaBon_Core/AppMgr.h"
+#include "../AppReader/AppReader.h"
+
+void AppBookshelf::handleInput(InputAction action) {
+    if (action == INPUT_GO_TO_MAIN_MENU) {
+        AppMgr::getInstance().switchTo(0);
+        return;
+    }
+    if (action == INPUT_BACK || action == INPUT_LEFT) {
+        AppMgr::getInstance().switchTo(0);
+        return;
+    }
+    if (_books.empty()) return;
+    int maxIndex = (int)_books.size() - 1;
+    if (action == INPUT_NEXT) {
+        if (!_librarySelectionOnlyRedraw) _previousBookIndex = _selectedBookIndex;
+        _selectedBookIndex++;
+        if (_selectedBookIndex > maxIndex) _selectedBookIndex = 0;
+        _librarySelectionOnlyRedraw = _booksScanned;
+        updateLibraryScroll();
+        _needsRedraw = true;
+    } else if (action == INPUT_PREV) {
+        if (!_librarySelectionOnlyRedraw) _previousBookIndex = _selectedBookIndex;
+        _selectedBookIndex--;
+        if (_selectedBookIndex < 0) _selectedBookIndex = maxIndex;
+        _librarySelectionOnlyRedraw = _booksScanned;
+        updateLibraryScroll();
+        _needsRedraw = true;
+    } else if (action == INPUT_SELECT) {
+        if (_selectedBookIndex >= 0 && _selectedBookIndex <= maxIndex) {
+            AppReader* reader = (AppReader*)AppMgr::getInstance().getAppByName("Reader");
+            if (reader) {
+                reader->openBook(_books[_selectedBookIndex].path.c_str());
+                AppMgr::getInstance().switchTo("Reader");
+            }
+        }
+    }
 }

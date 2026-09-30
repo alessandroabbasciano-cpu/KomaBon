@@ -12,6 +12,16 @@
 
 // Uploads truncate filenames to 28 chars and may add an anti-collision suffix.
 // Returns the original long name, or `truncatedName` unchanged when there is no
+
+inline String normalizedBookName(const String& path) {
+    String name = path;
+    int slash = name.lastIndexOf('/');
+    if (slash >= 0) name = name.substring(slash + 1);
+    slash = name.lastIndexOf('\\');
+    if (slash >= 0) name = name.substring(slash + 1);
+    return name;
+}
+
 // metadata entry — which is what makes "original name" a safe key for books
 // that predate the metadata file.
 String getOriginalFilename(const String& truncatedName);

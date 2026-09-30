@@ -1,20 +1,22 @@
 :root {
-  --paper: #18181b;       
-  --surface: #27272a;     
-  --ink: #ffffff;         
-  --muted: #a1a1aa;       
-  --line: #3f3f46;        
-  
-  --primary: #3b82f6;     
-  --primary-hover: #60a5fa;   
-  --secondary: #2dd4bf; 
-  --yellow: #fbbf24;      
-  
+  --paper: #18181b;
+  --surface: #27272a;
+  --ink: #ffffff;
+  --muted: #a1a1aa;
+  --line: #3f3f46;
+
+  --primary: #3b82f6;
+  --primary-hover: #60a5fa;
+  --secondary: #2dd4bf;
+  --yellow: #fbbf24;
+
   --danger-bg: #7f1d1d;
   --danger-line: #ef4444;
 }
 
-* { box-sizing: border-box; }
+* {
+  box-sizing: border-box;
+}
 
 body {
   margin: 0;
@@ -25,11 +27,25 @@ body {
   line-height: 1.5;
 }
 
-button, input, select { font: inherit; letter-spacing: 0; }
-a { color: var(--primary); text-underline-offset: 4px; transition: color 0.2s; }
-a:hover { color: var(--secondary); }
+button,
+input,
+select {
+  font: inherit;
+  letter-spacing: 0;
+}
 
-main, footer {
+a {
+  color: var(--primary);
+  text-underline-offset: 4px;
+  transition: color 0.2s;
+}
+
+a:hover {
+  color: var(--secondary);
+}
+
+main,
+footer {
   width: min(1040px, calc(100% - 40px));
   margin-inline: auto;
 }
@@ -45,10 +61,18 @@ main, footer {
   white-space: nowrap;
 }
 
-main { padding: 58px 0 76px; }
+main {
+  padding: 58px 0 76px;
+}
 
-.intro { max-width: 720px; margin-bottom: 38px; }
-.eyebrow, .step-label, .mode-kicker {
+.intro {
+  max-width: 720px;
+  margin-bottom: 38px;
+}
+
+.eyebrow,
+.step-label,
+.mode-kicker {
   margin: 0 0 8px;
   color: var(--secondary);
   font-size: 13px;
@@ -64,11 +88,38 @@ main { padding: 58px 0 76px; }
   flex-wrap: wrap;
 }
 
-h1, h2, h3, p { letter-spacing: 0; }
-h1 { margin: 0; font-size: clamp(42px, 7vw, 72px); line-height: 1; color: var(--ink); }
-.intro > p:last-child { margin: 20px 0 0; color: var(--muted); font-size: 19px; max-width: 650px; }
-h2 { margin: 0; font-size: 27px; line-height: 1.2; }
-h3 { margin: 0 0 10px; font-size: 22px; color: var(--primary); }
+h1,
+h2,
+h3,
+p {
+  letter-spacing: 0;
+}
+
+h1 {
+  margin: 0;
+  font-size: clamp(42px, 7vw, 72px);
+  line-height: 1;
+  color: var(--ink);
+}
+
+.intro>p:last-child {
+  margin: 20px 0 0;
+  color: var(--muted);
+  font-size: 19px;
+  max-width: 650px;
+}
+
+h2 {
+  margin: 0;
+  font-size: 27px;
+  line-height: 1.2;
+}
+
+h3 {
+  margin: 0 0 10px;
+  font-size: 22px;
+  color: var(--primary);
+}
 
 .installer {
   border: 1px solid var(--line);
@@ -78,7 +129,8 @@ h3 { margin: 0 0 10px; font-size: 22px; color: var(--primary); }
   box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
 }
 
-.installer-heading, .section-heading {
+.installer-heading,
+.section-heading {
   display: flex;
   align-items: flex-end;
   justify-content: space-between;
@@ -92,7 +144,13 @@ h3 { margin: 0 0 10px; font-size: 22px; color: var(--primary); }
   color: var(--muted);
   font-size: 13px;
 }
-.compatibility span { width: 9px; height: 9px; background: var(--secondary); border-radius: 50%; }
+
+.compatibility span {
+  width: 9px;
+  height: 9px;
+  background: var(--secondary);
+  border-radius: 50%;
+}
 
 .mode-switch {
   display: grid;
@@ -115,10 +173,10 @@ h3 { margin: 0 0 10px; font-size: 22px; color: var(--primary); }
   transition: all 0.2s ease;
 }
 
-.mode-button.active { 
-  background: var(--surface); 
-  color: var(--ink); 
-  box-shadow: 0 1px 3px rgba(0,0,0,0.3);
+.mode-button.active {
+  background: var(--surface);
+  color: var(--ink);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
 }
 
 .mode-panel {
@@ -130,11 +188,20 @@ h3 { margin: 0 0 10px; font-size: 22px; color: var(--primary); }
   margin-top: 10px;
 }
 
-.mode-panel[hidden] { display: none; }
+.mode-panel[hidden] {
+  display: none;
+}
 
-.mode-copy p:last-child { margin: 0; color: var(--muted); max-width: 650px; }
+.mode-copy p:last-child {
+  margin: 0;
+  color: var(--muted);
+  max-width: 650px;
+}
 
-esp-web-install-button { display: block; min-width: 240px; }
+esp-web-install-button {
+  display: block;
+  min-width: 240px;
+}
 
 .install-button {
   width: 100%;
@@ -150,11 +217,16 @@ esp-web-install-button { display: block; min-width: 240px; }
   transition: all 0.2s ease;
 }
 
-.install-button:hover { 
-  background: var(--primary-hover); 
+.install-button:hover {
+  background: var(--primary-hover);
 }
 
-.browser-message { max-width: 270px; margin: 10px 0 0; color: var(--muted); font-size: 14px; }
+.browser-message {
+  max-width: 270px;
+  margin: 10px 0 0;
+  color: var(--muted);
+  font-size: 14px;
+}
 
 .installer-error {
   margin: 18px 0 0;
@@ -175,9 +247,18 @@ esp-web-install-button { display: block; min-width: 240px; }
   color: #fff;
   border-radius: 0 6px 6px 0;
 }
-.erase-warning strong { display: block; margin-bottom: 2px; color: var(--yellow); }
 
-.storage, .steps { padding-top: 58px; }
+.erase-warning strong {
+  display: block;
+  margin-bottom: 2px;
+  color: var(--yellow);
+}
+
+.storage,
+.steps {
+  padding-top: 58px;
+}
+
 .partition-map {
   display: grid;
   grid-template-columns: 1.1fr 2.4fr .8fr 4.7fr;
@@ -187,6 +268,7 @@ esp-web-install-button { display: block; min-width: 240px; }
   overflow: hidden;
   border: 1px solid var(--line);
 }
+
 .partition {
   min-width: 0;
   padding: 17px 14px;
@@ -195,14 +277,38 @@ esp-web-install-button { display: block; min-width: 240px; }
   flex-direction: column;
   justify-content: center;
 }
-.partition:last-child { border-right: 0; }
-.partition span { font-weight: 800; }
-.partition small { color: rgba(255,255,255,0.7); }
 
-.partition.system { background: #3f3f46; color: #fff; }
-.partition.firmware { background: #52525b; color: #fff; }
-.partition.web { background: var(--secondary); color: var(--paper); }
-.partition.ebooks { background: var(--primary); color: #fff; }
+.partition:last-child {
+  border-right: 0;
+}
+
+.partition span {
+  font-weight: 800;
+}
+
+.partition small {
+  color: rgba(255, 255, 255, 0.7);
+}
+
+.partition.system {
+  background: #3f3f46;
+  color: #fff;
+}
+
+.partition.firmware {
+  background: #52525b;
+  color: #fff;
+}
+
+.partition.web {
+  background: var(--secondary);
+  color: var(--paper);
+}
+
+.partition.ebooks {
+  background: var(--primary);
+  color: #fff;
+}
 
 .steps ol {
   list-style: none;
@@ -213,14 +319,47 @@ esp-web-install-button { display: block; min-width: 240px; }
   border-top: 1px solid var(--line);
   border-bottom: 1px solid var(--line);
 }
-.steps li { display: flex; gap: 14px; padding: 22px 20px 22px 0; }
-.steps li + li { border-left: 1px solid var(--line); padding-left: 20px; }
-.steps li > span { font-size: 18px; font-weight: 900; color: var(--primary); }
-.steps p { margin: 4px 0 0; color: var(--muted); font-size: 14px; }
 
-details { margin-top: 20px; border-bottom: 1px solid var(--line); padding-bottom: 14px; }
-summary { cursor: pointer; font-weight: 700; color: var(--ink); }
-details p { color: var(--muted); margin-bottom: 0; margin-top: 10px; }
+.steps li {
+  display: flex;
+  gap: 14px;
+  padding: 22px 20px 22px 0;
+}
+
+.steps li+li {
+  border-left: 1px solid var(--line);
+  padding-left: 20px;
+}
+
+.steps li>span {
+  font-size: 18px;
+  font-weight: 900;
+  color: var(--primary);
+}
+
+.steps p {
+  margin: 4px 0 0;
+  color: var(--muted);
+  font-size: 14px;
+}
+
+details {
+  margin-top: 20px;
+  border-bottom: 1px solid var(--line);
+  padding-bottom: 14px;
+}
+
+summary {
+  cursor: pointer;
+  font-weight: 700;
+  color: var(--ink);
+}
+
+details p {
+  color: var(--muted);
+  margin-bottom: 0;
+  margin-top: 10px;
+}
 
 footer {
   min-height: 88px;
@@ -233,18 +372,70 @@ footer {
 }
 
 @media (max-width: 720px) {
-  main, footer { width: min(100% - 28px, 1040px); }
-  .version { display: none; }
-  main { padding-top: 38px; }
-  h1 { font-size: 48px; }
-  .installer { padding: 20px; }
-  .installer-heading { align-items: flex-start; flex-direction: column; gap: 12px; }
-  .mode-panel { grid-template-columns: 1fr; gap: 22px; }
-  esp-web-install-button { min-width: 0; }
-  .partition-map { grid-template-columns: 1fr 1fr; border-radius: 6px; }
-  .partition:nth-child(2) { border-right: 0; }
-  .partition:nth-child(-n+2) { border-bottom: 1px solid var(--paper); }
-  .steps ol { grid-template-columns: 1fr; }
-  .steps li + li { border-left: 0; border-top: 1px solid var(--line); padding-left: 0; }
-  footer { align-items: flex-start; flex-direction: column; justify-content: center; gap: 8px; }
+
+  main,
+  footer {
+    width: min(100% - 28px, 1040px);
+  }
+
+  .version {
+    display: none;
+  }
+
+  main {
+    padding-top: 38px;
+  }
+
+  h1 {
+    font-size: 48px;
+  }
+
+  .installer {
+    padding: 20px;
+  }
+
+  .installer-heading {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 12px;
+  }
+
+  .mode-panel {
+    grid-template-columns: 1fr;
+    gap: 22px;
+  }
+
+  esp-web-install-button {
+    min-width: 0;
+  }
+
+  .partition-map {
+    grid-template-columns: 1fr 1fr;
+    border-radius: 6px;
+  }
+
+  .partition:nth-child(2) {
+    border-right: 0;
+  }
+
+  .partition:nth-child(-n+2) {
+    border-bottom: 1px solid var(--paper);
+  }
+
+  .steps ol {
+    grid-template-columns: 1fr;
+  }
+
+  .steps li+li {
+    border-left: 0;
+    border-top: 1px solid var(--line);
+    padding-left: 0;
+  }
+
+  footer {
+    align-items: flex-start;
+    flex-direction: column;
+    justify-content: center;
+    gap: 8px;
+  }
 }

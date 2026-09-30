@@ -56,6 +56,12 @@ class PageCountStore {
     void setCheckpoint(const String& originalName, int fontSize, int fontFamily,
                        const PageCountCheckpoint& checkpoint);
 
+    // Removes a book from the cache (called when a book is deleted).
+    void remove(const String& originalName);
+
+    // Clears the entire cache (called during bulk delete or cache reset).
+    void clearAll();
+
   private:
     PageCountStore() {}
     void load();

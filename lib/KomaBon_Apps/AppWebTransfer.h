@@ -3,6 +3,7 @@
 
 #include "../KomaBon_Core/BaseApp.h"
 #include "../KomaBon_Core/InputMgr.h"
+#include "../KomaBon_Core/DisplayMgr.h"
 
 enum class WebTransferState { Init, WaitingForInitScreen, StartingRadio, WaitingForReadyScreen, Ready };
 
@@ -35,6 +36,7 @@ class AppWebTransfer : public App {
     void handleInput(InputAction action);
     void drawConnecting();
     void drawReady();
+    void drawQRCode(KomaBonDisplay& display, const char* text, int topY, int scale);
 };
 
 #endif // APP_WEB_TRANSFER_H

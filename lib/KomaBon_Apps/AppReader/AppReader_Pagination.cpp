@@ -16,7 +16,17 @@ void AppReader::pageCountTask(void* param) {
 void AppReader::startTotalPagesCounting() {
     if (_pageCountTaskHandle != nullptr) {
         _killPageCountTask = true;
-        vTaskDelay(pdMS_TO_TICKS(30));
+        // Wait up to 500ms for the task to cleanly exit and null its own handle
+        int timeout = 50;
+        while (_pageCountTaskHandle != nullptr && timeout > 0) {
+            vTaskDelay(pdMS_TO_TICKS(10));
+            timeout--;
+        }
+        if (_pageCountTaskHandle != nullptr) {
+            // Force kill if it's deadlocked
+            vTaskDelete(_pageCountTaskHandle);
+            _pageCountTaskHandle = nullptr;
+        }
     }
 
     _killPageCountTask = false;
@@ -68,20 +78,30 @@ void AppReader::updateTotalPagesCount() {
     String key = getOriginalFilename(normalizedBookName(_currentBookPath));
 
     if (_countChapterContent.empty()) {
-        KomaBonGuard guard(_epubMutex);
-        if (!_epubLoader) return;
+        String rawHtml;
+        String chapterDir;
+        {
+            KomaBonGuard guard(_epubMutex);
+            if (!_epubLoader) return;
 
-        if (_countChapter >= _epubLoader->getChapterCount()) {
-            int total = std::max(1, _countPagesSoFar);
-            _totalPages = total;
-            PageCountStore::getInstance().set(key, _fontSizePt, _fontFamily, total);
-            _countingActive = false;
-            delete _countRenderer;
-            _countRenderer = nullptr;
-            return;
+            if (_countChapter >= _epubLoader->getChapterCount()) {
+                int total = std::max(1, _countPagesSoFar);
+                _totalPages = total;
+                PageCountStore::getInstance().set(key, _fontSizePt, _fontFamily, total);
+                _countingActive = false;
+                delete _countRenderer;
+                _countRenderer = nullptr;
+                _needsRedraw = true; // NEW: Update the footer in the UI
+                return;
+            }
+
+            rawHtml = _epubLoader->getChapterRawHtml(_countChapter, chapterDir);
         }
 
-        _countChapterContent = _epubLoader->getChapterContentRich(_countChapter);
+        if (_killPageCountTask) return;
+
+        // Parse WITHOUT the lock to avoid freezing the UI for seconds on large chapters!
+        _countChapterContent = HtmlParser::parseHtmlToRichContent(rawHtml, chapterDir, &_killPageCountTask);
         _countPointer = {0, 0};
 
         if (_countChapterContent.empty()) {
@@ -206,8 +226,9 @@ void AppReader::prevPage() {
     } else if (_currentChapter > 0) {
         int prevChap = _currentChapter - 1;
 
+        String dummy;
         while (prevChap >= 0) {
-            if (!_epubLoader->getChapterContentRich(prevChap).empty()) break;
+            if (_epubLoader->getChapterRawHtml(prevChap, dummy).length() > 0) break;
             prevChap--;
         }
 
@@ -250,9 +271,9 @@ void AppReader::prevChapter() {
     if (!_epubLoader) return;
     if (_currentChapter > 0) {
         int tryChapter = _currentChapter - 1;
+        String dummy;
         while (tryChapter >= 0) {
-            String chapterText = _epubLoader->getChapterContent(tryChapter);
-            if (chapterText.length() > 0) {
+            if (_epubLoader->getChapterRawHtml(tryChapter, dummy).length() > 0) {
                 loadChapter(tryChapter);
                 return;
             }
@@ -262,26 +283,30 @@ void AppReader::prevChapter() {
 }
 
 void AppReader::applyFontSize(int pt) {
-    KomaBonGuard guard(_epubMutex);
     int normalized = (pt >= 18) ? 18 : (pt >= 12 ? 12 : 9);
-    _fontSizePt = normalized;
-    if (_textRenderer) _textRenderer->setFontSize(normalized);
-    _currentPageRenderValid = false;
-    _readingFirstDraw = true;
-    _pageTurnsSinceRefresh = 0;
-    _needsRedraw = true;
+    {
+        KomaBonGuard guard(_epubMutex);
+        _fontSizePt = normalized;
+        if (_textRenderer) _textRenderer->setFontSize(normalized);
+        _currentPageRenderValid = false;
+        _readingFirstDraw = true;
+        _pageTurnsSinceRefresh = 0;
+        _needsRedraw = true;
+    }
     startTotalPagesCounting();
 }
 
 void AppReader::applyFontFamily(int family) {
-    KomaBonGuard guard(_epubMutex);
     int normalized =
         (family >= READER_FONT_SANS && family <= READER_FONT_OPEN_SANS) ? family : READER_FONT_SANS;
-    _fontFamily = normalized;
-    if (_textRenderer) _textRenderer->setFontFamily(normalized);
-    _currentPageRenderValid = false;
-    _readingFirstDraw = true;
-    _pageTurnsSinceRefresh = 0;
-    _needsRedraw = true;
+    {
+        KomaBonGuard guard(_epubMutex);
+        _fontFamily = normalized;
+        if (_textRenderer) _textRenderer->setFontFamily(normalized);
+        _currentPageRenderValid = false;
+        _readingFirstDraw = true;
+        _pageTurnsSinceRefresh = 0;
+        _needsRedraw = true;
+    }
     startTotalPagesCounting();
 }

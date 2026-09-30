@@ -18,8 +18,9 @@ The true beating heart of KomaBon is its **Universal Conversion Pipeline**, impl
 1. **Archive & Document Ingestion:** The engine unpacks CBZ/ZIP comic archives, parses PDF pages, or extracts text/images from ODT and EPUB files directly inside the browser.
 2. **Smart Bounding-Box Cropping:** Automatically detects active image bounds (`getCropBounds`), stripping away unnecessary white margins to maximize the usable display area on the 7.5-inch panel.
 3. **Aspect Ratio & Orientation Alignment:** Automatically handles landscape-to-portrait rotation or centers panels to fit the native **800x480** resolution.
-4. **Atkinson Dithering & 1-Bit Packing:** Converts grayscale or full-color images into pure 1-bit black/white bitmaps using **Atkinson dithering**, packing pixels efficiently into custom binary payloads (`.kmb` raw comic files or optimized zero-decoding `.epub` archives).
-5. **Native Dual-Thumbnails Injection:** Automatically extracts or generates high-performance 60x80 and 120x160 thumbnails (`cover_thumb.raw`, `cover_main.raw`) for instant library rendering and main menu hero cards without runtime decoding overhead.
+4. **Smart Panel Focus Mode (AI & Gutter Detection):** In addition to full-page mode, an integrated client-side YOLO26-nano neural model (with geometric gutter fallback) detects individual manga panels and automatically sequences them in genuine reading order (RTL for manga, LTR for comics), zooming each panel to full screen for maximum readability.
+5. **Atkinson Dithering & 1-Bit Packing:** Converts grayscale or full-color images into pure 1-bit black/white bitmaps using **Atkinson dithering**, packing pixels efficiently into custom binary payloads (`.kmb` raw comic files or optimized zero-decoding `.epub` archives).
+6. **Native Dual-Thumbnails Injection:** Automatically extracts or generates high-performance 60x80 and 120x160 thumbnails (`cover_thumb.raw`, `cover_main.raw`) for instant library rendering and main menu hero cards without runtime decoding overhead.
 
 ## 🚀 Key Hardware Specifications
 
@@ -104,16 +105,18 @@ To monitor real-time serial output for debugging:
 4. Select your local network and provide credentials.
 5. Access the device's local web interface at `http://<KOMABON_IP>/` to upload books and manage settings.
 
-## ✨ Core Features & Architecture (v0.6.0)
+## ✨ Core Features & Architecture
 
-* **Rapid Navigation & Lazy Rendering (v0.6.0):** Decoupled 80ms deadzone filter combined with a 250ms debounced quiet window. Multi-item menu jumps and rapid page flips execute seamlessly in RAM, triggering only a single, final E-Ink partial refresh.
+* **Rapid Navigation & Lazy Rendering:** Decoupled 80ms deadzone filter combined with a 250ms debounced quiet window. Multi-item menu jumps and rapid page flips execute seamlessly in RAM, triggering only a single, final E-Ink partial refresh.
 * **Storage Auto-Recovery & Remount Card:** Dedicated SD Bus recovery trigger in Web UI Dashboard and automated bus re-negotiation on failed uploads.
 * **Ghost Node Architecture:** Protects reading state and book ordering if a MicroSD card is swapped or missing, displaying an orange *FILE MISSING* badge while keeping progress safe.
 * **Zero-Latency SWR Cache & Chunked Rendering:** Instant 0ms library tab switching powered by `sessionStorage` and `IntersectionObserver` virtual chunking (30 items) for massive libraries.
 * **Hardware Calibration Wizard:** Built-in routine to map and calibrate the 5-way analog joystick thresholds accurately.
 * **Dual-Filesystem Integrity:** Decouples system firmware from user books, ensuring seamless OTA updates without data loss.
 * **Universal In-Browser Pipeline:** Converts CBZ, ZIP, PDF, ODT, and EPUB files directly into lightning-fast 1-bit E-Ink formats with Atkinson dithering and auto white-margin crop.
-* **Robust Power States:** Intelligent sleep management and battery level indicators tailored for extended reading sessions.
+* **Robust Power States & Deep Sleep:** Intelligent sleep management with prolonged center-press wake. When idle, the device goes into deep sleep and displays either the **cover of the current book** or a **custom user wallpaper** uploaded via the Web UI, overlaid with a sleek reading progress bar.
+* **Instant Phone Pairing (Web UI):** Activating the Web Transfer app now displays the active Wi-Fi SSID and a dynamic QR code for one-scan smartphone pairing to access the Web UI.
+* **System Diagnostics & Safety:** Built-in hardware safe-boot, automatic FAT32 cluster alignment checking for the SD card, and a persistent crash logger visible in the Web UI to debug hardware/brownout faults.
 
 ## 📚 Documentation & Wiki
 
@@ -122,3 +125,13 @@ For the complete technical manual, circuit schematics, eFuse burning instruction
 ## 📦 Partition Notes
 
 KomaBon uses a custom partition table (`partitions_16MB.csv`). The ebook partition is mounted separately from the firmware and web UI filesystem, so normal firmware and `uploadfs` updates do not overwrite user ebook storage.
+
+## ⚖️ License & Acknowledgements
+
+KomaBon is licensed under the **GNU Lesser General Public License v2.1** (LGPL-2.1). See the [LICENSE](LICENSE) file for the full license text.
+
+### Upstream & Community Credits
+
+* **[Book32](https://github.com/rolohaun/Book32)** (by rolohaun) — Foundational firmware architecture, memory management, and EbookFS design upon which KomaBon was originally branched and evolved.
+* **[Matcha Reader](https://github.com/eszter007/matcha-reader)** (by eszter007, MIT License) — Algorithmic and conceptual inspiration for the panel focus pipeline, speech balloon expansion heuristics, and topological manga reading-order DAG sorting.
+* **Typography:** Embedded reader fonts (Merriweather, Literata, Source Serif 4, Gelasio, Open Sans) are licensed under the **SIL Open Font License 1.1** (see [Fonts/OFL.txt](lib/KomaBon_Core/Fonts/OFL.txt)); FreeSans is licensed under **GNU GPLv3 with Font Exception**.

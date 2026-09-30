@@ -47,6 +47,11 @@ int SettingsStore::clampSleepTimeout(int minutes) {
     return minutes;
 }
 
+int SettingsStore::clampSleepScreenMode(int mode) {
+    if (mode < 0 || mode > 2) return (int)SLEEP_SCREEN_COVER;
+    return mode;
+}
+
 ReaderSettings SettingsStore::loadReader() {
     KomaBonGuard guard(_mutex);
     ReaderSettings s;
@@ -108,6 +113,7 @@ SleepSettings SettingsStore::loadSleep() {
         DynamicJsonDocument doc(512);
         if (!deserializeJson(doc, file)) {
             s.timeout = clampSleepTimeout(doc["sleepTimeout"] | 0);
+            s.screenMode = clampSleepScreenMode(doc["screenMode"] | (int)SLEEP_SCREEN_COVER);
             s.message = doc["sleepMessage"] | "Press button to wake";
         }
         file.close();
@@ -184,6 +190,7 @@ bool SettingsStore::saveSleep(const SleepSettings& s) {
     KomaBonGuard guard(_mutex);
     DynamicJsonDocument doc(512);
     doc["sleepTimeout"] = clampSleepTimeout(s.timeout);
+    doc["screenMode"] = clampSleepScreenMode(s.screenMode);
     doc["sleepMessage"] = s.message;
 
     String tmpPath = String(SLEEP_CONFIG_PATH) + ".tmp";

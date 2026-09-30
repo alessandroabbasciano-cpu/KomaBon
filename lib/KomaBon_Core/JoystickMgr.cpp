@@ -2,14 +2,29 @@
 #include "Config.h"
 #include "KomaBonFS.h"
 #include <ArduinoJson.h>
+#include <driver/rtc_io.h>
 
 JoystickMgr::JoystickMgr() {
     _cal = {0, 3350, 1250, 2650, 1950};
 }
 
 JoyDirection JoystickMgr::getDirection() {
+    int unused;
+    return getDirectionWithRaw(unused);
+}
+
+JoyDirection JoystickMgr::getDirectionWithRaw(int& outRawVal) {
     int val = readAnalogAveraged();
-    if (val > 3800) return JOY_NONE;
+    outRawVal = val;
+
+    // Calculate adaptive deadzone exactly halfway between Center and the 4095 ceiling.
+    // This prevents E-Ink display power spikes (which cause the 3.3V rail to sag) from
+    // dipping the ADC reading below the threshold and causing phantom JOY_CENTER holds,
+    // which previously starved the Lazy Render loop and froze the UI.
+    int deadzone = _cal.center + ((4095 - _cal.center) / 2);
+    if (deadzone < 3600) deadzone = 3600; // Floor it just in case of weird calibrations
+
+    if (val > deadzone) return JOY_NONE;
 
     int dCenter = abs(val - _cal.center);
     int dUp = abs(val - _cal.up);
@@ -105,12 +120,20 @@ int JoystickMgr::readAnalogAveraged() {
 }
 
 void JoystickMgr::init() {
-    pinMode(JOY_ADC_PIN, ANALOG); // explicitly disable digital I/O buffer to prevent leakage
+    // Explicitly disconnect and disable any RTC pull-up / pull-down latch left by deep sleep
+    rtc_gpio_pullup_dis((gpio_num_t)JOY_ADC_PIN);
+    rtc_gpio_pulldown_dis((gpio_num_t)JOY_ADC_PIN);
+    rtc_gpio_deinit((gpio_num_t)JOY_ADC_PIN);
+
+    pinMode(JOY_ADC_PIN,
+            ANALOG); // explicitly disable digital I/O buffer to prevent CMOS shoot-through leakage
     analogSetPinAttenuation(JOY_ADC_PIN, ADC_11db);
     analogReadResolution(12);
-    Serial.println("JoystickMgr: ADC1 initialized safely on JOY_ADC_PIN.");
+    Serial.println("JoystickMgr: ADC1 initialized safely on JOY_ADC_PIN (RTC pullups cleared).");
 
     if (!loadCalibration()) {
         Serial.println("JoystickMgr: No calibration file found, using defaults.");
     }
+    Serial.printf("JoystickMgr: Calibration targets -> Center: %d, Up: %d, Down: %d, Left: %d, Right: %d\n",
+                  _cal.center, _cal.up, _cal.down, _cal.left, _cal.right);
 }

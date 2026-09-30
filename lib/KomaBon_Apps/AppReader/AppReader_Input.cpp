@@ -6,52 +6,14 @@ void AppReader::handleInput(InputAction action) {
 
     // Global override: Long pressing Center/KEY1 instantly exits the Reader from any state
     if (action == INPUT_GO_TO_MAIN_MENU) {
-        if (_state == VIEW_READING || _state == VIEW_OVERLAY_SETTINGS || _state == VIEW_OVERLAY_TOC) {
-            closeBook();
-        }
-        _state = VIEW_LIBRARY;
-        _booksScanned = false;
-        _librarySelectionOnlyRedraw = false;
+        closeBook();
         markProgressInactive();
         AppMgr::getInstance().switchTo(0);
         return;
     }
 
-    if (_state == VIEW_LIBRARY) {
-        if (action == INPUT_BACK || action == INPUT_LEFT) {
-            markProgressInactive();
-            AppMgr::getInstance().switchTo(0);
-            return;
-        }
+    if (_state == VIEW_READING) {
 
-        if (_books.empty()) return;
-
-        int maxIndex = (int)_books.size() - 1;
-
-        if (action == INPUT_NEXT) {
-            if (!_librarySelectionOnlyRedraw) {
-                _previousBookIndex = _selectedBookIndex;
-            }
-            _selectedBookIndex++;
-            if (_selectedBookIndex > maxIndex) _selectedBookIndex = 0;
-            _librarySelectionOnlyRedraw = _booksScanned;
-            updateLibraryScroll();
-            _needsRedraw = true;
-        } else if (action == INPUT_PREV) {
-            if (!_librarySelectionOnlyRedraw) {
-                _previousBookIndex = _selectedBookIndex;
-            }
-            _selectedBookIndex--;
-            if (_selectedBookIndex < 0) _selectedBookIndex = maxIndex;
-            _librarySelectionOnlyRedraw = _booksScanned;
-            updateLibraryScroll();
-            _needsRedraw = true;
-        } else if (action == INPUT_SELECT) {
-            if (_selectedBookIndex >= 0 && _selectedBookIndex <= maxIndex) {
-                openBook(_books[_selectedBookIndex].path.c_str());
-            }
-        }
-    } else if (_state == VIEW_READING) {
         if (action == INPUT_RIGHT)
             nextPage();
         else if (action == INPUT_LEFT)
@@ -60,11 +22,11 @@ void AppReader::handleInput(InputAction action) {
             openSettingsOverlay();
         else if (action == INPUT_PREV)
             openTOCOverlay();
+        else if (action == INPUT_SLEEP)
+            enterSleepMode();
         else if (action == INPUT_BACK) {
             closeBook();
-            _state = VIEW_LIBRARY;
-            _booksScanned = false;
-            _librarySelectionOnlyRedraw = false;
+            AppMgr::getInstance().switchTo("Bookshelf");
             _needsRedraw = true;
         }
     } else if (_state == VIEW_OVERLAY_SETTINGS) {

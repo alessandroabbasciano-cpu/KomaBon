@@ -29,8 +29,11 @@ struct DisplaySettings {
     int rotation = 3; // 0..3 for 360-degree display rotation support
 };
 
+enum SleepScreenMode { SLEEP_SCREEN_COVER = 0, SLEEP_SCREEN_CUSTOM = 1, SLEEP_SCREEN_MINIMAL = 2 };
+
 struct SleepSettings {
-    int timeout = 0; // Idle sleep timeout in minutes; 0 = disabled
+    int timeout = 0;                     // Idle sleep timeout in minutes; 0 = disabled
+    int screenMode = SLEEP_SCREEN_COVER; // 0=Cover, 1=Custom, 2=Minimal
     String message = "Press button to wake";
 };
 
@@ -56,6 +59,7 @@ class SettingsStore {
     static int clampRotation(int rotation); // -> 0..3
     static int clampRefreshFrequency(int n);
     static int clampSleepTimeout(int minutes);
+    static int clampSleepScreenMode(int mode); // -> 0..2
 
     // Read-modify-write as a single operation. HTTP handlers do exactly that
     // (load, modify a key, save) on the same files as the on-device settings

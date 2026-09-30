@@ -1,7 +1,7 @@
 #include "CoverExtractor.h"
-#include "AppReader.h"
-#include "KBReader.h"
-#include "EpubLoader.h"
+#include "AppBookshelf.h"
+#include "../AppReader/KBReader.h"
+#include "../AppReader/EpubLoader.h"
 #include "KomaBonFS.h"
 #include "SDMgr.h"
 

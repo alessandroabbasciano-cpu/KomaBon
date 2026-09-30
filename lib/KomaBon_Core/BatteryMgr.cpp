@@ -9,6 +9,11 @@
 #include "SDMgr.h"
 #include <WiFi.h>
 #include "../../include/NetworkState.h"
+#include "AppMgr.h"
+#include "FontMgr.h"
+#include "JoystickMgr.h"
+#include <driver/rtc_io.h>
+#include "SettingsStore.h"
 
 const float BatteryMgr::CHARGE_THRESHOLD = 0.03f;
 const float BatteryMgr::CRITICAL_VOLTAGE = 3.0f;
@@ -26,8 +31,8 @@ static int voltageToPercentage(float voltage) {
 
 BatteryMgr::BatteryMgr()
     : _lastReadTime(0), _historyIndex(0), _lastHistoryUpdate(0), _previousVoltage(0.0f),
-      _sleepTimeoutMinutes(0), _sleepMessage("Press button to wake"), _lastActivityTime(0),
-      _lastValidVoltage(0.0f), _criticalCount(0), _lastChargingTime(0) {
+      _sleepTimeoutMinutes(0), _sleepScreenMode(SLEEP_SCREEN_COVER), _sleepMessage("Press button to wake"),
+      _lastActivityTime(0), _lastValidVoltage(0.0f), _criticalCount(0), _lastChargingTime(0) {
     _cachedStatus = {0.0f, 0, false};
     for (int i = 0; i < 5; i++) {
         _voltageHistory[i] = 0.0f;
@@ -227,8 +232,7 @@ void BatteryMgr::shutdownLowBattery() {
     Serial.println("Battery critically low - entering deep sleep");
     Serial.printf("Voltage: %.2fV\n", _cachedStatus.voltage);
     Serial.flush();
-    delay(100);
-    esp_deep_sleep_start();
+    enterIdleSleep("low_battery");
 }
 
 BatteryStatus BatteryMgr::getStatus() {
@@ -247,20 +251,10 @@ BatteryStatus BatteryMgr::refreshNow() {
 
 void BatteryMgr::loadSleepSettings() {
     KomaBonGuard guard(_mutex);
-    if (EbookFS.exists("/sleep_config.json")) {
-        File file = EbookFS.open("/sleep_config.json", "r");
-        if (file) {
-            DynamicJsonDocument doc(512);
-            if (!deserializeJson(doc, file)) {
-                _sleepTimeoutMinutes = doc.containsKey("sleepTimeout") ? doc["sleepTimeout"].as<int>() : 0;
-                _sleepMessage = doc["sleepMessage"] | "Press button to wake";
-            }
-            file.close();
-        }
-    } else {
-        _sleepTimeoutMinutes = 0;
-        _sleepMessage = "Press button to wake";
-    }
+    SleepSettings s = SettingsStore::getInstance().loadSleep();
+    _sleepTimeoutMinutes = s.timeout;
+    _sleepScreenMode = s.screenMode;
+    _sleepMessage = s.message;
 }
 
 void BatteryMgr::resetIdleTimer() {
@@ -268,37 +262,168 @@ void BatteryMgr::resetIdleTimer() {
     _lastActivityTime = millis();
 }
 
-void BatteryMgr::enterIdleSleep(const char* reason) {
-    String sleepMessage;
-    {
-        KomaBonGuard guard(_mutex);
-        sleepMessage = _sleepMessage;
+bool BatteryMgr::loadCustomScreensaver(uint8_t* buffer, size_t maxLen) {
+    if (!buffer || maxLen < 48000) return false;
+    if (!KomaBonStorage::ensureReady()) return false;
+
+    File f;
+    if (EbookFS.exists("/screensaver.raw")) {
+        f = EbookFS.open("/screensaver.raw", "r");
+    } else if (EbookFS.exists("/screensavers/sleep.raw")) {
+        f = EbookFS.open("/screensavers/sleep.raw", "r");
+    } else if (SystemFS.exists("/screensaver.raw")) {
+        f = SystemFS.open("/screensaver.raw", "r");
     }
 
+    if (!f) return false;
+
+    size_t fSize = f.size();
+    if (fSize == 48004) {
+        uint8_t hdr[4];
+        if (f.read(hdr, 4) != 4) {
+            f.close();
+            return false;
+        }
+        size_t bytesRead = f.read(buffer, 48000);
+        f.close();
+        return (bytesRead == 48000);
+    } else if (fSize == 48000) {
+        size_t bytesRead = f.read(buffer, 48000);
+        f.close();
+        return (bytesRead == 48000);
+    }
+
+    f.close();
+    return false;
+}
+
+void BatteryMgr::drawDefaultSleepScreen() {
     KomaBonDisplay& display = DisplayMgr::getInstance().getDisplay();
+    FontMgr& fontMgr = FontMgr::getInstance();
+
     display.setFullWindow();
+
+    bool drawnCustom = false;
+    uint8_t* customBuf = nullptr;
+    if (_sleepScreenMode == SLEEP_SCREEN_CUSTOM) {
+        customBuf = (uint8_t*)ps_malloc(48000);
+        if (!customBuf) customBuf = (uint8_t*)malloc(48000);
+        if (customBuf && loadCustomScreensaver(customBuf, 48000)) {
+            drawnCustom = true;
+        }
+    }
+
     display.firstPage();
     do {
         display.fillScreen(GxEPD_WHITE);
-        display.setFont(&FreeSans18pt8b);
-        display.setTextColor(GxEPD_BLACK);
 
-        int16_t tbx, tby;
-        uint16_t tbw, tbh;
-        display.getTextBounds(sleepMessage.c_str(), 0, 0, &tbx, &tby, &tbw, &tbh);
+        if (drawnCustom && customBuf) {
+            display.drawBitmap(0, 0, customBuf, 480, 800, GxEPD_BLACK);
+        } else {
+            // Elegant minimal KomaBon branding
+            fontMgr.drawTextCenteredBold(display, "KomaBon", 390, FONT_SIZE_HEADER, GxEPD_BLACK);
+        }
 
-        int16_t x = (display.width() - tbw) / 2 - tbx;
-        int16_t y = (display.height() - tbh) / 2 - tby;
+        // Status bar on top: Wi-Fi, SD, and Battery icon + %
+        drawStatusBar(display, display.width() - 105, 10);
 
-        display.setCursor(x, y);
-        display.print(sleepMessage);
     } while (display.nextPage());
 
-    delay(100);
-    esp_sleep_enable_ext0_wakeup((gpio_num_t)PIN_BUTTON_BACK, 0);
+    if (customBuf) free(customBuf);
+}
 
+void BatteryMgr::prepareAndEnterDeepSleep() {
+    Serial.println("BatteryMgr: Preparing hardware for deep sleep (<20uA)...");
+    Serial.flush();
+
+    // 1. Put E-Ink display controller into hibernate mode
+    // Sends deep sleep command and turns off high-voltage PREVGH / PREVGL charge pumps
+    DisplayMgr::getInstance().getDisplay().hibernate();
+
+    // 2. Shut down MicroSD and SPI bus to eliminate parasitic leakage
+    SDMgr::getInstance().end();
+
+    // 3. Ensure Wi-Fi radio is completely powered off
+    WiFi.disconnect(true);
+    WiFi.mode(WIFI_OFF);
+
+    // 4. Wait for user to release all physical inputs (joystick and buttons)
+    // to prevent immediate spurious wakeup from the held gesture
+    unsigned long releaseStart = millis();
+    while ((digitalRead(PIN_BUTTON_BACK) == LOW || digitalRead(PIN_BUTTON_SLEEP) == LOW ||
+            JoystickMgr::getInstance().getDirection() != JOY_NONE) &&
+           (millis() - releaseStart < 3000)) {
+        delay(20);
+    }
+    delay(100); // Debounce physical switch release
+
+    // 5. Configure RTC pullups and EXT1 wakeup on ESP32-S3:
+    // JOY_ADC_PIN (GPIO 2, any joystick movement), PIN_BUTTON_SLEEP (GPIO 3), PIN_BUTTON_BACK (GPIO 5)
+    pinMode(JOY_ADC_PIN, INPUT_PULLUP);
+    pinMode(PIN_BUTTON_SLEEP, INPUT_PULLUP);
+    pinMode(PIN_BUTTON_BACK, INPUT_PULLUP);
+
+    rtc_gpio_pullup_en((gpio_num_t)JOY_ADC_PIN);
+    rtc_gpio_pulldown_dis((gpio_num_t)JOY_ADC_PIN);
+
+    rtc_gpio_pullup_en((gpio_num_t)PIN_BUTTON_SLEEP);
+    rtc_gpio_pulldown_dis((gpio_num_t)PIN_BUTTON_SLEEP);
+
+    rtc_gpio_pullup_en((gpio_num_t)PIN_BUTTON_BACK);
+    rtc_gpio_pulldown_dis((gpio_num_t)PIN_BUTTON_BACK);
+
+    esp_sleep_enable_ext1_wakeup((1ULL << JOY_ADC_PIN) | (1ULL << PIN_BUTTON_BACK), ESP_EXT1_WAKEUP_ANY_LOW);
+
+    Serial.println("BatteryMgr: Entering ESP32 Deep Sleep now. Zzz...");
+    Serial.flush();
     delay(50);
     esp_deep_sleep_start();
+}
+
+void BatteryMgr::reenterDeepSleep() {
+    // Abort sequence when wake-up conditions (e.g. 900ms hold) are not met.
+    // Wait for physical contacts to be released to avoid immediate wake loops.
+    unsigned long releaseStart = millis();
+    while ((digitalRead(PIN_BUTTON_BACK) == LOW || digitalRead(PIN_BUTTON_SLEEP) == LOW ||
+            analogRead(JOY_ADC_PIN) < 3800) &&
+           (millis() - releaseStart < 2000)) {
+        delay(20);
+    }
+    delay(50);
+
+    pinMode(JOY_ADC_PIN, INPUT_PULLUP);
+    pinMode(PIN_BUTTON_SLEEP, INPUT_PULLUP);
+    pinMode(PIN_BUTTON_BACK, INPUT_PULLUP);
+
+    rtc_gpio_pullup_en((gpio_num_t)JOY_ADC_PIN);
+    rtc_gpio_pulldown_dis((gpio_num_t)JOY_ADC_PIN);
+    rtc_gpio_pullup_en((gpio_num_t)PIN_BUTTON_SLEEP);
+    rtc_gpio_pulldown_dis((gpio_num_t)PIN_BUTTON_SLEEP);
+    rtc_gpio_pullup_en((gpio_num_t)PIN_BUTTON_BACK);
+    rtc_gpio_pulldown_dis((gpio_num_t)PIN_BUTTON_BACK);
+
+    esp_sleep_enable_ext1_wakeup((1ULL << JOY_ADC_PIN) | (1ULL << PIN_BUTTON_SLEEP) |
+                                     (1ULL << PIN_BUTTON_BACK),
+                                 ESP_EXT1_WAKEUP_ANY_LOW);
+
+    Serial.println("BatteryMgr: Re-entering deep sleep (unconfirmed wake).");
+    Serial.flush();
+    delay(20);
+    esp_deep_sleep_start();
+}
+
+void BatteryMgr::enterIdleSleep(const char* reason) {
+    Serial.printf("BatteryMgr: Entering sleep (reason: %s)...\n", reason);
+    App* current = AppMgr::getInstance().getCurrentApp();
+    bool handled = false;
+    if (current) {
+        handled = current->handleSleep();
+    }
+    if (!handled) {
+        if (current) current->stop();
+        drawDefaultSleepScreen();
+    }
+    prepareAndEnterDeepSleep();
 }
 
 void BatteryMgr::drawStatusBar(KomaBonDisplay& display, int startX, int startY) {

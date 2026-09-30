@@ -26,7 +26,7 @@ struct MenuDirtyRect {
 static MenuDirtyRect menuItemRect(int index, int screenW, int screenH, int numApps) {
     bool isPortrait = screenH > screenW;
     int ROW_HEIGHT = isPortrait ? 80 : 50;
-    int numAppItems = numApps - 1;
+    int numAppItems = numApps;
     int START_Y = screenH - 70 - (numAppItems * ROW_HEIGHT); // Anchored to bottom above footer
 
     if (index == 0) {
@@ -50,7 +50,7 @@ static MenuDirtyRect unionRect(MenuDirtyRect a, MenuDirtyRect b) {
 
 static bool isReaderActive() {
     App* current = AppMgr::getInstance().getCurrentApp();
-    return current && strcmp(current->getName(), "eReader") == 0;
+    return current && strcmp(current->getName(), "Reader") == 0;
 }
 
 void AppMainMenu::loadResumeData() {
@@ -126,10 +126,18 @@ void AppMainMenu::forceRedraw() {
 
 void AppMainMenu::handleInput(InputAction action) {
     AppMgr& appMgr = AppMgr::getInstance();
-    std::vector<App*>& apps = appMgr.getApps();
+    std::vector<App*> apps;
+    for (App* a : appMgr.getApps())
+        if (a->isVisibleInMenu()) apps.push_back(a);
 
     int minSelectable = _hasResume ? 0 : 1;
-    int maxSelectable = apps.size() - 1;
+    int maxSelectable = (int)apps.size(); // items 1..N map to apps[0..N-1]
+
+    if (action == INPUT_SLEEP) {
+        stopHotspot();
+        BatteryMgr::getInstance().enterIdleSleep("manual_main_menu");
+        return;
+    }
 
     if (action == INPUT_NEXT || action == INPUT_RIGHT) {
         selectedIndex++;
@@ -143,16 +151,12 @@ void AppMainMenu::handleInput(InputAction action) {
         _needsRedraw = true;
     } else if (action == INPUT_SELECT) {
         if (selectedIndex == 0 && _hasResume) {
-            for (App* app : apps) {
-                if (app && strcmp(app->getName(), "Bookshelf") == 0) {
-                    AppReader* reader = static_cast<AppReader*>(app);
-                    reader->resumeSavedBookOnStart();
-                }
-            }
+            AppReader* reader = static_cast<AppReader*>(appMgr.getAppByName("Reader"));
+            if (reader) reader->resumeSavedBookOnStart();
             ProgressStore::getInstance().setResumeOnBoot(true);
-            appMgr.switchTo(1);
-        } else if (selectedIndex > 0 && selectedIndex < (int)apps.size()) {
-            appMgr.switchTo(selectedIndex);
+            appMgr.switchTo("Reader");
+        } else if (selectedIndex > 0 && selectedIndex <= (int)apps.size()) {
+            appMgr.switchTo(apps[selectedIndex - 1]->getName());
         }
     }
 }
@@ -183,7 +187,9 @@ void AppMainMenu::draw() {
     KomaBonDisplay& display = dispMgr.getDisplay();
     FontMgr& fontMgr = FontMgr::getInstance();
     AppMgr& appMgr = AppMgr::getInstance();
-    std::vector<App*>& apps = appMgr.getApps();
+    std::vector<App*> apps;
+    for (App* a : appMgr.getApps())
+        if (a->isVisibleInMenu()) apps.push_back(a);
 
     int16_t screenW = display.width();
     int16_t screenH = display.height();
@@ -407,11 +413,12 @@ void AppMainMenu::draw() {
 
         // --- 3. VERTICAL LIST APPS (Bottom Anchored) ---
         int ROW_HEIGHT = isPortrait ? 80 : 50;
-        int numAppItems = apps.size() - 1;
+        int numAppItems = apps.size();
         int START_Y = screenH - 70 - (numAppItems * ROW_HEIGHT);
 
-        for (size_t i = 1; i < apps.size(); i++) {
-            App* app = apps[i];
+        int numApps = apps.size() + 1;
+        for (size_t i = 1; i < numApps; i++) {
+            App* app = apps[i - 1];
             int idx = i - 1;
             int y = START_Y + idx * ROW_HEIGHT;
             int x = 35;
