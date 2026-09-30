@@ -6,8 +6,12 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>KomaBon OS</title>
     <link rel="stylesheet" href="style.css">
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js" integrity="sha512-XMVd28F1oH/O71fzwBnV7HucLxVwtxf26XV8P4wPk26EDxuGZ91N8bsOttmnomcCD3CS5ZMRL50H0GgOHvegtg==" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js" integrity="sha512-q+4liFwdPC/bNdhUpZx6aXDx/h77yEQtn4I1slHydcbZK34nLaR3cAeYSJshoxIOq3mjEf7xJE8YWIUHMn+oCQ==" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"
+        integrity="sha512-XMVd28F1oH/O71fzwBnV7HucLxVwtxf26XV8P4wPk26EDxuGZ91N8bsOttmnomcCD3CS5ZMRL50H0GgOHvegtg=="
+        crossorigin="anonymous" referrerpolicy="no-referrer"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"
+        integrity="sha512-q+4liFwdPC/bNdhUpZx6aXDx/h77yEQtn4I1slHydcbZK34nLaR3cAeYSJshoxIOq3mjEf7xJE8YWIUHMn+oCQ=="
+        crossorigin="anonymous" referrerpolicy="no-referrer"></script>
 </head>
 
 <body>
@@ -52,8 +56,10 @@
                     <div id="bulk-bar" class="bulk-action-bar hidden">
                         <span id="bulk-count">0 selected</span>
                         <div class="bulk-btns">
-                            <button type="button" class="btn-bulk-delete" onclick="executeBulkDelete()">Delete Selected</button>
-                            <button type="button" class="btn-bulk-cancel" onclick="clearBulkSelection()">Deselect All</button>
+                            <button type="button" class="btn-bulk-delete" onclick="executeBulkDelete()">Delete
+                                Selected</button>
+                            <button type="button" class="btn-bulk-cancel" onclick="clearBulkSelection()">Deselect
+                                All</button>
                         </div>
                     </div>
                     <div id="book-list" class="book-list-container">
@@ -73,7 +79,8 @@
                                 <summary>Conversion &amp; Panel Options</summary>
                                 <div class="setting-row compact-row">
                                     <label for="panel-mode">Mode:</label>
-                                    <select id="panel-mode" class="input-micro" style="width: auto; min-width: 140px;" onchange="togglePanelOptions()">
+                                    <select id="panel-mode" class="input-micro" style="width: auto; min-width: 140px;"
+                                        onchange="togglePanelOptions()">
                                         <option value="full">Full Page</option>
                                         <option value="panel_ai">Panel Focus (AI)</option>
                                         <option value="panel_gutter">Panel Focus (Gutter)</option>
@@ -89,12 +96,15 @@
                                     </div>
                                     <div class="setting-row compact-row" style="margin-top: 6px;">
                                         <label for="panel-padding">Padding:</label>
-                                        <input type="number" id="panel-padding" value="3" min="0" max="15" class="input-micro" title="Margin padding around panels (%)">
+                                        <input type="number" id="panel-padding" value="3" min="0" max="15"
+                                            class="input-micro" title="Margin padding around panels (%)">
                                         <span style="font-size: 11px; color: var(--muted); margin-left: -4px;">%</span>
                                         <label for="panel-overview" style="margin-left: 8px;">Overview:</label>
-                                        <input type="checkbox" id="panel-overview" title="Include full page overview before panels">
+                                        <input type="checkbox" id="panel-overview"
+                                            title="Include full page overview before panels">
                                         <label for="panel-rotate" style="margin-left: 8px;">Rotate Wide:</label>
-                                        <input type="checkbox" id="panel-rotate" title="Rotate wide panels 90 degrees to fill screen (requires turning device)">
+                                        <input type="checkbox" id="panel-rotate"
+                                            title="Rotate wide panels 90 degrees to fill screen (requires turning device)">
                                     </div>
                                 </div>
                                 <div class="setting-row compact-row" style="margin-top: 8px;">
@@ -120,7 +130,8 @@
                     </div>
                     <div id="comic-status" class="status-msg"></div>
                     <div id="comic-retry-container" class="hidden" style="margin-top: 10px; text-align: center;">
-                        <button id="retry-upload-btn" type="button" class="btn warning btn-micro" onclick="retryFailedUpload()">Retry Transfer</button>
+                        <button id="retry-upload-btn" type="button" class="btn warning btn-micro"
+                            onclick="retryFailedUpload()">Retry Transfer</button>
                     </div>
                     <div id="terminal-log" class="terminal-log hidden"></div>
                 </div>
@@ -132,7 +143,8 @@
                             <h3>Storage Recovery</h3>
                             <p class="hint">Use this if the MicroSD disconnects during high Wi-Fi activity.</p>
                             <div id="sd-remount-status" class="status-msg"></div>
-                            <div id="sd-cluster-warning" class="status-msg hidden" style="font-size:0.85rem;margin-top:6px;color:#f59e0b;"></div>
+                            <div id="sd-cluster-warning" class="status-msg hidden"
+                                style="font-size:0.85rem;margin-top:6px;color:#f59e0b;"></div>
                         </div>
                         <div class="card-action">
                             <button id="btn-remount-sd" class="btn btn-action-large warning"
@@ -210,20 +222,27 @@
 
                 <div class="card" id="screensaver-card">
                     <h3>Custom Screensaver</h3>
-                    <p class="hint">Upload any image (PNG, JPG, WEBP). It will be scaled to 480&times;800 and dithered to 1-bit native RAW.</p>
-                    
+                    <p class="hint">Upload any image (PNG, JPG, WEBP). It will be scaled to 480&times;800 and dithered
+                        to 1-bit native RAW.</p>
+
                     <div style="text-align: center; margin: 14px 0;">
-                        <canvas id="screensaver-preview-canvas" width="240" height="400" style="border: 1px solid var(--line); border-radius: 6px; background: #fff; max-width: 100%; height: auto; display: none;"></canvas>
-                        <div id="screensaver-empty-preview" style="padding: 28px 12px; border: 2px dashed var(--line); border-radius: 6px; color: var(--text-muted); font-size: 0.85rem;">
+                        <canvas id="screensaver-preview-canvas" width="240" height="400"
+                            style="border: 1px solid var(--line); border-radius: 6px; background: #fff; max-width: 100%; height: auto; display: none;"></canvas>
+                        <div id="screensaver-empty-preview"
+                            style="padding: 28px 12px; border: 2px dashed var(--line); border-radius: 6px; color: var(--text-muted); font-size: 0.85rem;">
                             No custom screensaver active on device
                         </div>
                     </div>
 
                     <div class="btn-row" style="margin-top: 10px; gap: 8px;">
-                        <input type="file" id="screensaver-file-input" accept="image/*" class="hidden-input" onchange="handleScreensaverFileSelect(this.files)">
-                        <button class="btn secondary" onclick="document.getElementById('screensaver-file-input').click()">Choose Image…</button>
-                        <button class="btn primary" id="upload-screensaver-btn" onclick="uploadCustomScreensaver()" disabled>Apply Screensaver</button>
-                        <button class="btn danger" id="delete-screensaver-btn" onclick="deleteCustomScreensaver()" style="display: none;">Remove</button>
+                        <input type="file" id="screensaver-file-input" accept="image/*" class="hidden-input"
+                            onchange="handleScreensaverFileSelect(this.files)">
+                        <button class="btn secondary"
+                            onclick="document.getElementById('screensaver-file-input').click()">Choose Image…</button>
+                        <button class="btn primary" id="upload-screensaver-btn" onclick="uploadCustomScreensaver()"
+                            disabled>Apply Screensaver</button>
+                        <button class="btn danger" id="delete-screensaver-btn" onclick="deleteCustomScreensaver()"
+                            style="display: none;">Remove</button>
                     </div>
                     <div id="screensaver-status" class="status-msg"></div>
                 </div>
@@ -324,8 +343,10 @@
                         <div class="card-info">
                             <h3>⚠️ Crash Diagnostics</h3>
                             <p class="hint" id="crash-reset-reason">Abnormal restart recorded on boot.</p>
-                            <pre id="crash-log-content" style="background:#09090b;padding:10px;border-radius:6px;overflow-x:auto;font-size:0.8rem;color:#38bdf8;max-height:160px;margin:8px 0;white-space:pre-wrap;"></pre>
-                            <button type="button" class="btn btn-micro danger" onclick="clearCrashLog()">Clear Crash Log</button>
+                            <pre id="crash-log-content"
+                                style="background:#09090b;padding:10px;border-radius:6px;overflow-x:auto;font-size:0.8rem;color:#38bdf8;max-height:160px;margin:8px 0;white-space:pre-wrap;"></pre>
+                            <button type="button" class="btn btn-micro danger" onclick="clearCrashLog()">Clear Crash
+                                Log</button>
                         </div>
                     </div>
                 </div>

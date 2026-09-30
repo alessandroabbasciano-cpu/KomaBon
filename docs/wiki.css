@@ -18,7 +18,7 @@
   --yellow: #fbbf24;
   --orange: #fb923c;
   --orange-glow: rgba(251, 146, 60, 0.15);
-  
+
   --danger-bg: #2a1515;
   --danger-line: #ef4444;
   --tip-bg: #13271f;
@@ -33,7 +33,9 @@
   --header-h: 64px;
 }
 
-* { box-sizing: border-box; }
+* {
+  box-sizing: border-box;
+}
 
 html {
   scroll-behavior: smooth;
@@ -83,7 +85,9 @@ body {
   letter-spacing: -0.5px;
 }
 
-.brand-logo:hover { color: var(--primary); }
+.brand-logo:hover {
+  color: var(--primary);
+}
 
 .version-tag {
   padding: 2px 8px;
@@ -130,6 +134,7 @@ body {
   border: 1px solid var(--line);
   color: #fff;
 }
+
 .github-btn:hover {
   background: var(--surface-hover);
   border-color: var(--muted-light);
@@ -308,7 +313,8 @@ p {
   color: #d4d4d8;
 }
 
-ul, ol {
+ul,
+ol {
   margin: 0 0 20px;
   padding-left: 24px;
   color: #d4d4d8;
@@ -350,28 +356,40 @@ a:hover {
   border-color: var(--tip-line);
   color: #d1fae5;
 }
-.alert-tip .alert-title { color: #34d399; }
+
+.alert-tip .alert-title {
+  color: #34d399;
+}
 
 .alert-note {
   background: var(--note-bg);
   border-color: var(--note-line);
   color: #dbeafe;
 }
-.alert-note .alert-title { color: #60a5fa; }
+
+.alert-note .alert-title {
+  color: #60a5fa;
+}
 
 .alert-warn {
   background: var(--warn-bg);
   border-color: var(--warn-line);
   color: #fef3c7;
 }
-.alert-warn .alert-title { color: #fbbf24; }
+
+.alert-warn .alert-title {
+  color: #fbbf24;
+}
 
 .alert-danger {
   background: var(--danger-bg);
   border-color: var(--danger-line);
   color: #fee2e2;
 }
-.alert-danger .alert-title { color: #f87171; }
+
+.alert-danger .alert-title {
+  color: #f87171;
+}
 
 /* --- CODE BLOCKS --- */
 code {
@@ -489,10 +507,29 @@ tr:hover td {
   font-weight: 600;
 }
 
-.badge-blue { background: rgba(59, 130, 246, 0.15); color: #60a5fa; border: 1px solid rgba(59, 130, 246, 0.3); }
-.badge-teal { background: rgba(45, 212, 191, 0.15); color: #2dd4bf; border: 1px solid rgba(45, 212, 191, 0.3); }
-.badge-orange { background: rgba(251, 146, 60, 0.15); color: #fb923c; border: 1px solid rgba(251, 146, 60, 0.3); }
-.badge-green { background: rgba(16, 185, 129, 0.15); color: #34d399; border: 1px solid rgba(16, 185, 129, 0.3); }
+.badge-blue {
+  background: rgba(59, 130, 246, 0.15);
+  color: #60a5fa;
+  border: 1px solid rgba(59, 130, 246, 0.3);
+}
+
+.badge-teal {
+  background: rgba(45, 212, 191, 0.15);
+  color: #2dd4bf;
+  border: 1px solid rgba(45, 212, 191, 0.3);
+}
+
+.badge-orange {
+  background: rgba(251, 146, 60, 0.15);
+  color: #fb923c;
+  border: 1px solid rgba(251, 146, 60, 0.3);
+}
+
+.badge-green {
+  background: rgba(16, 185, 129, 0.15);
+  color: #34d399;
+  border: 1px solid rgba(16, 185, 129, 0.3);
+}
 
 /* --- GRID CARDS --- */
 .feature-grid {
@@ -553,18 +590,20 @@ tr:hover td {
 }
 
 @media (max-width: 860px) {
-  .menu-toggle { display: block; }
-  
+  .menu-toggle {
+    display: block;
+  }
+
   .wiki-sidebar {
     position: fixed;
     top: var(--header-h);
     left: -100%;
     width: 280px;
     z-index: 99;
-    box-shadow: 4px 0 24px rgba(0,0,0,0.5);
+    box-shadow: 4px 0 24px rgba(0, 0, 0, 0.5);
     transition: left 0.25s ease;
   }
-  
+
   .wiki-sidebar.open {
     left: 0;
   }
@@ -576,7 +615,7 @@ tr:hover td {
     left: 0;
     right: 0;
     bottom: 0;
-    background: rgba(0,0,0,0.6);
+    background: rgba(0, 0, 0, 0.6);
     z-index: 98;
   }
 
@@ -584,5 +623,7 @@ tr:hover td {
     display: block;
   }
 
-  .header-nav .nav-link span { display: none; }
+  .header-nav .nav-link span {
+    display: none;
+  }
 }

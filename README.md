@@ -117,6 +117,7 @@ To monitor real-time serial output for debugging:
 * **Robust Power States & Deep Sleep:** Intelligent sleep management with prolonged center-press wake. When idle, the device goes into deep sleep and displays either the **cover of the current book** or a **custom user wallpaper** uploaded via the Web UI, overlaid with a sleek reading progress bar.
 * **Instant Phone Pairing (Web UI):** Activating the Web Transfer app now displays the active Wi-Fi SSID and a dynamic QR code for one-scan smartphone pairing to access the Web UI.
 * **System Diagnostics & Safety:** Built-in hardware safe-boot, automatic FAT32 cluster alignment checking for the SD card, and a persistent crash logger visible in the Web UI to debug hardware/brownout faults.
+
 ## 📚 Documentation & Wiki
 
 For the complete technical manual, circuit schematics, eFuse burning instructions, Web UI guide, and troubleshooting, visit the **[KomaBon Official Wiki](https://alessandroabbasciano-cpu.github.io/KomaBon/wiki.html)**.

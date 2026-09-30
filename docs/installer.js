@@ -103,7 +103,7 @@ async function init() {
     updateInstaller.manifest = updateManifestUrl;
     updateInstaller.hidden = false;
   }
-  
+
   if (factoryInstaller) {
     factoryInstaller.setAttribute('manifest', factoryManifestUrl);
     factoryInstaller.manifest = factoryManifestUrl;

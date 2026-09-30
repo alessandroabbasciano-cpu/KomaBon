@@ -489,7 +489,7 @@ function moveBook(filename, dir) {
     [currentBooks[a], currentBooks[b]] = [currentBooks[b], currentBooks[a]];
     try {
         sessionStorage.setItem(STORAGE_KEY_BOOKS, JSON.stringify(currentBooks));
-    } catch (e) {}
+    } catch (e) { }
 
     const bookList = document.getElementById('book-list');
     if (bookList) {

@@ -566,13 +566,11 @@ details.inline-details .compact-row {
    ========================================================================== */
 .book-item.ghost-node {
     opacity: 0.65;
-    background: repeating-linear-gradient(
-        45deg,
-        transparent,
-        transparent 10px,
-        rgba(128, 128, 128, 0.05) 10px,
-        rgba(128, 128, 128, 0.05) 20px
-    );
+    background: repeating-linear-gradient(45deg,
+            transparent,
+            transparent 10px,
+            rgba(128, 128, 128, 0.05) 10px,
+            rgba(128, 128, 128, 0.05) 20px);
     border-left: 3px dashed var(--muted);
 }
 
@@ -632,7 +630,7 @@ details.inline-details .compact-row {
     color: var(--muted);
 }
 
-.series-group[open] > .series-header::before {
+.series-group[open]>.series-header::before {
     transform: rotate(90deg);
 }
 
@@ -795,7 +793,8 @@ details.inline-details .compact-row {
     border-color: var(--muted);
 }
 
-.book-select-check, .series-select-check {
+.book-select-check,
+.series-select-check {
     width: 17px;
     height: 17px;
     accent-color: var(--primary);
