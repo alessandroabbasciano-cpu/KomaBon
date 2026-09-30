@@ -226,8 +226,9 @@ void AppReader::prevPage() {
     } else if (_currentChapter > 0) {
         int prevChap = _currentChapter - 1;
 
+        String dummy;
         while (prevChap >= 0) {
-            if (_epubLoader->getChapterContentRich(prevChap).size() > 0) break;
+            if (_epubLoader->getChapterRawHtml(prevChap, dummy).length() > 0) break;
             prevChap--;
         }
 
@@ -270,8 +271,9 @@ void AppReader::prevChapter() {
     if (!_epubLoader) return;
     if (_currentChapter > 0) {
         int tryChapter = _currentChapter - 1;
+        String dummy;
         while (tryChapter >= 0) {
-            if (_epubLoader->getChapterContentRich(tryChapter).size() > 0) {
+            if (_epubLoader->getChapterRawHtml(tryChapter, dummy).length() > 0) {
                 loadChapter(tryChapter);
                 return;
             }
