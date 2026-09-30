@@ -11,6 +11,7 @@
 #include "../KomaBon_OTA/GitHubMgr.h"
 #include "../KomaBon_Core/AppMgr.h"
 #include "../KomaBon_Core/DisplayMgr.h"
+#include "../KomaBon_Apps/AppBookshelf/AppBookshelf.h"
 #include <SD.h>
 #include <stdarg.h>
 #include "../../include/NetworkState.h"
@@ -236,6 +237,13 @@ void WebMgr::update() {
         _pendingAppSwitch = -1;
         Serial.printf("WebMgr: Applying deferred app switch to index %d from Web UI\n", idx);
         AppMgr::getInstance().switchTo(idx);
+    }
+
+    if (_pendingLibraryInvalidate) {
+        _pendingLibraryInvalidate = false;
+        Serial.println("WebMgr: Library changed via Web UI, invalidating Bookshelf cache");
+        AppBookshelf* shelf = static_cast<AppBookshelf*>(AppMgr::getInstance().getAppByName("Bookshelf"));
+        if (shelf) shelf->invalidateLibrary();
     }
 }
 

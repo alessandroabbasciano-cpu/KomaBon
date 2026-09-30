@@ -42,6 +42,9 @@ class AppBookshelf : public App {
     }
     void handleInput(InputAction action);
 
+    // Allow external callers (e.g. WebMgr) to force a rescan on next draw
+    void invalidateLibrary();
+
   private:
     std::vector<BookEntry> _books;
     int _selectedBookIndex;

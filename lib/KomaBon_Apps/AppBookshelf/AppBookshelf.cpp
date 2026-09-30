@@ -518,6 +518,12 @@ void AppBookshelf::forceRedraw() {
     _needsRedraw = true;
 }
 
+void AppBookshelf::invalidateLibrary() {
+    _booksScanned = false;
+    _librarySelectionOnlyRedraw = false;
+    _needsRedraw = true;
+}
+
 #include "../../KomaBon_Core/AppMgr.h"
 #include "../AppReader/AppReader.h"
 

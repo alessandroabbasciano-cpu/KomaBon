@@ -32,6 +32,7 @@ class WebMgr {
     volatile int _pendingReaderFontSize = 0;
     volatile int _pendingReaderFontFamily = -1;
     volatile int _pendingAppSwitch = -1;
+    volatile bool _pendingLibraryInvalidate = false;
 
   private:
     WebMgr();
