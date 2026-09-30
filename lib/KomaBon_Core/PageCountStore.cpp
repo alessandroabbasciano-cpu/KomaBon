@@ -141,3 +141,19 @@ void PageCountStore::setCheckpoint(const String& originalName, int fontSize, int
     _checkpoints[originalName] = checkpoint;
     save();
 }
+
+void PageCountStore::remove(const String& originalName) {
+    load();
+    bool changed = false;
+    if (_totals.erase(originalName)) changed = true;
+    if (_checkpoints.erase(originalName)) changed = true;
+    if (changed) save();
+}
+
+void PageCountStore::clearAll() {
+    load();
+    if (_totals.empty() && _checkpoints.empty()) return;
+    _totals.clear();
+    _checkpoints.clear();
+    save();
+}

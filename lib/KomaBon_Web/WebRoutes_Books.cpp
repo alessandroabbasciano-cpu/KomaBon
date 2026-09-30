@@ -265,6 +265,7 @@ static bool deleteSingleBookInternal(const String& filename) {
     removeBookProgress(filename);
     removeFromBookOrder(filename);
     removeBookMetadata(filename);
+    PageCountStore::getInstance().remove(getOriginalFilename(filename));
 
     int dot = filename.lastIndexOf('.');
     String base = (dot > 0) ? filename.substring(0, dot) : filename;
@@ -658,7 +659,6 @@ void setupBookEndpoints(AsyncWebServer* server) {
 
         String filename = request->getParam("name")->value();
         if (deleteSingleBookInternal(filename)) {
-            if (EbookFS.exists("/page_totals.json")) EbookFS.remove("/page_totals.json");
             WebMgr::getInstance()._pendingLibraryInvalidate = true;
             request->send(200, "text/plain", "Deleted");
         } else {
@@ -690,9 +690,6 @@ void setupBookEndpoints(AsyncWebServer* server) {
                 yield();
             }
 
-            if (deleted > 0 && EbookFS.exists("/page_totals.json")) {
-                EbookFS.remove("/page_totals.json");
-            }
             if (deleted > 0) {
                 WebMgr::getInstance()._pendingLibraryInvalidate = true;
             }
