@@ -117,8 +117,7 @@ void InputMgr::inputTask(void* parameter) {
         static JoyDirection s_lastReportedJoy = JOY_NONE;
         static int s_lastReportedAdc = -1;
 
-        if (currentJoyDir != s_lastReportedJoy ||
-            (currentJoyDir != JOY_NONE && abs(rawAdcVal - s_lastReportedAdc) > 60)) {
+        if (currentJoyDir != s_lastReportedJoy || abs(rawAdcVal - s_lastReportedAdc) > 80) {
             s_lastReportedJoy = currentJoyDir;
             s_lastReportedAdc = rawAdcVal;
             const char* dirNames[] = {"NONE", "UP", "DOWN", "LEFT", "RIGHT", "CENTER"};
