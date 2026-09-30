@@ -105,9 +105,9 @@ To monitor real-time serial output for debugging:
 4. Select your local network and provide credentials.
 5. Access the device's local web interface at `http://<KOMABON_IP>/` to upload books and manage settings.
 
-## ✨ Core Features & Architecture (v0.6.0)
+## ✨ Core Features & Architecture
 
-* **Rapid Navigation & Lazy Rendering (v0.6.0):** Decoupled 80ms deadzone filter combined with a 250ms debounced quiet window. Multi-item menu jumps and rapid page flips execute seamlessly in RAM, triggering only a single, final E-Ink partial refresh.
+* **Rapid Navigation & Lazy Rendering:** Decoupled 80ms deadzone filter combined with a 250ms debounced quiet window. Multi-item menu jumps and rapid page flips execute seamlessly in RAM, triggering only a single, final E-Ink partial refresh.
 * **Storage Auto-Recovery & Remount Card:** Dedicated SD Bus recovery trigger in Web UI Dashboard and automated bus re-negotiation on failed uploads.
 * **Ghost Node Architecture:** Protects reading state and book ordering if a MicroSD card is swapped or missing, displaying an orange *FILE MISSING* badge while keeping progress safe.
 * **Zero-Latency SWR Cache & Chunked Rendering:** Instant 0ms library tab switching powered by `sessionStorage` and `IntersectionObserver` virtual chunking (30 items) for massive libraries.
