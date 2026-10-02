@@ -97,6 +97,7 @@ void AppMainMenu::stopHotspot() {
 }
 
 void AppMainMenu::start() {
+    DisplayMgr::getInstance().enableFastRefreshA2();
     loadResumeData();
     selectedIndex = _hasResume ? 0 : 1;
 

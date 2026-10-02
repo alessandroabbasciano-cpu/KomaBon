@@ -1,12 +1,13 @@
 #pragma once
 #include <Arduino.h>
 #include <GxEPD2_BW.h>
+#include "GxEPD2_Fast/GxEPD2_750_T7_Fast.h"
 #include <GxEPD2_3C.h>
 #include "Config.h"
 
 // Define the display class here to be used across the app
 // Using 800x480 BW (Waveshare 7.5 V2)
-typedef GxEPD2_BW<GxEPD2_750_T7, GxEPD2_750_T7::HEIGHT> KomaBonDisplay;
+typedef GxEPD2_BW<GxEPD2_750_T7_Fast, GxEPD2_750_T7_Fast::HEIGHT> KomaBonDisplay;
 
 class DisplayMgr {
   public:
@@ -21,6 +22,8 @@ class DisplayMgr {
 
     void clear();
     void fullRefresh();
+    void enableFastRefreshA2();
+    void disableFastRefreshA2();
     void showBootScreen(uint8_t progress, const char* status);
 
     // Display orientation (0, 1, 2, 3) for full 360-degree support.

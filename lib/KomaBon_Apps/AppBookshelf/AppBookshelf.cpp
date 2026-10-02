@@ -495,6 +495,7 @@ const uint8_t* AppBookshelf::getIconImage() {
 }
 
 void AppBookshelf::start() {
+    DisplayMgr::getInstance().enableFastRefreshA2();
     _needsRedraw = true;
     _booksScanned = false;
     _librarySelectionOnlyRedraw = false;

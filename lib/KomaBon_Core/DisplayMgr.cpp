@@ -38,7 +38,7 @@ static void drawBootProgress(KomaBonDisplay& display, uint8_t progress, const ch
     drawCenteredText(display, status, &FreeSans12pt8b, barY + 116, GxEPD_BLACK);
 }
 
-DisplayMgr::DisplayMgr() : display(GxEPD2_750_T7(EPD_CS, EPD_DC, EPD_RST, EPD_BUSY)) {}
+DisplayMgr::DisplayMgr() : display(GxEPD2_750_T7_Fast(EPD_CS, EPD_DC, EPD_RST, EPD_BUSY)) {}
 
 DisplayMgr& DisplayMgr::getInstance() {
     static DisplayMgr instance;
@@ -159,4 +159,10 @@ void DisplayMgr::showBootScreen(uint8_t progress, const char* status) {
 
 void DisplayMgr::update() {
     // E-ink usually updates on demand, not every loop
+}
+void DisplayMgr::enableFastRefreshA2() {
+    display.epd2.setFastRefresh(true);
+}
+void DisplayMgr::disableFastRefreshA2() {
+    display.epd2.setFastRefresh(false);
 }

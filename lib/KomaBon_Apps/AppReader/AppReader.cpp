@@ -99,6 +99,7 @@ void AppReader::enterSleepMode() {
 }
 
 void AppReader::start() {
+    DisplayMgr::getInstance().disableFastRefreshA2();
     // Force offline mode to guarantee battery efficiency
     if (WiFi.getMode() != WIFI_OFF) {
         delay(50);
