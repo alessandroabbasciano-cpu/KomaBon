@@ -68,6 +68,7 @@ class AppReader : public App {
 
     // Reading Engine
     bool _isComicMode;
+    bool _isRTL;
     KBReader* _kbReader;
     EpubLoader* _epubLoader;
     TextRenderer* _textRenderer;
@@ -120,7 +121,8 @@ class AppReader : public App {
   public:
     bool openBook(const String& path, bool restoreProgress = true);
     bool openSavedProgress();
-    bool loadBookProgress(const String& originalName, int& chapter, PagePointer& pointer, int& globalPage);
+    bool loadBookProgress(const String& originalName, int& chapter, PagePointer& pointer, int& globalPage,
+                          bool& rtl);
 
     void saveReadingProgress(bool resumeOnBoot);
     void flushProgress();

@@ -15,6 +15,7 @@ AppReader::AppReader() {
     _textRenderer = nullptr;
     _kbReader = nullptr;
     _isComicMode = false;
+    _isRTL = false;
     _currentChapter = 0;
     _needsRedraw = true;
     _totalPages = 0;
@@ -145,6 +146,7 @@ bool AppReader::openBook(const String& path, bool restoreProgress) {
     String fullPath = "/ebooks" + path;
     closeBook(false);
     _currentBookPath = path;
+    _isRTL = false;
 
     String pathLower = path;
     pathLower.toLowerCase();
@@ -199,9 +201,11 @@ bool AppReader::openBook(const String& path, bool restoreProgress) {
     int restoreChapter = 0;
     PagePointer restorePointer = {0, 0};
     int restorePage = 1;
+    bool restoreRtl = false;
     String progressKey = getOriginalFilename(normalizedBookName(path));
-    bool restored =
-        restoreProgress && loadBookProgress(progressKey, restoreChapter, restorePointer, restorePage);
+    bool restored = restoreProgress &&
+                    loadBookProgress(progressKey, restoreChapter, restorePointer, restorePage, restoreRtl);
+    if (restored) _isRTL = restoreRtl;
 
     if (_isComicMode) {
         if (restored) {
@@ -243,7 +247,7 @@ bool AppReader::openSavedProgress() {
 }
 
 bool AppReader::loadBookProgress(const String& originalName, int& chapter, PagePointer& pointer,
-                                 int& globalPage) {
+                                 int& globalPage, bool& rtl) {
     BookProgress saved;
     if (!ProgressStore::getInstance().get(originalName, saved)) return false;
 
@@ -251,6 +255,7 @@ bool AppReader::loadBookProgress(const String& originalName, int& chapter, PageP
     pointer.nodeIndex = saved.nodeIndex;
     pointer.charOffset = saved.charOffset;
     globalPage = saved.globalPage;
+    rtl = saved.rtl;
     return true;
 }
 
@@ -274,6 +279,7 @@ void AppReader::flushProgress() {
     p.nodeIndex = _currentPagePointer.nodeIndex;
     p.charOffset = _currentPagePointer.charOffset;
     p.globalPage = _globalPageNumber;
+    p.rtl = _isRTL;
 
     ProgressStore& store = ProgressStore::getInstance();
     store.set(key, p);

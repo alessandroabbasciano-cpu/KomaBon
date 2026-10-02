@@ -185,6 +185,7 @@ void AppBookshelf::scanBooks() {
             if (store.get(b.originalName, p)) {
                 b.hasProgress = true;
                 b.globalPage = p.globalPage;
+                b.rtl = p.rtl;
             }
 
             String pathLower = b.path;
@@ -430,7 +431,12 @@ void AppBookshelf::drawLibrary() {
                         if (progress > 1.0f) progress = 1.0f;
                         int fillW = (int)(progress * (barW - 2));
                         if (fillW > 0) {
-                            display.fillRect(barX + 1, barY + 1, fillW, barH - 2, GxEPD_BLACK);
+                            if (book.rtl) {
+                                display.fillRect(barX + barW - 1 - fillW, barY + 1, fillW, barH - 2,
+                                                 GxEPD_BLACK);
+                            } else {
+                                display.fillRect(barX + 1, barY + 1, fillW, barH - 2, GxEPD_BLACK);
+                            }
                         }
                         char infoStr[24];
                         snprintf(infoStr, sizeof(infoStr), "%d / %d", book.globalPage, book.totalPages);

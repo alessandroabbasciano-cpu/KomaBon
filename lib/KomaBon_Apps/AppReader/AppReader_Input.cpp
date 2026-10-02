@@ -15,9 +15,9 @@ void AppReader::handleInput(InputAction action) {
     if (_state == VIEW_READING) {
 
         if (action == INPUT_RIGHT)
-            nextPage();
+            _isRTL ? prevPage() : nextPage();
         else if (action == INPUT_LEFT)
-            prevPage();
+            _isRTL ? nextPage() : prevPage();
         else if (action == INPUT_SELECT)
             openSettingsOverlay();
         else if (action == INPUT_PREV)
@@ -31,10 +31,10 @@ void AppReader::handleInput(InputAction action) {
         }
     } else if (_state == VIEW_OVERLAY_SETTINGS) {
         if (action == INPUT_NEXT) {
-            _overlaySelectedIndex = (_overlaySelectedIndex + 1) % 4;
+            _overlaySelectedIndex = (_overlaySelectedIndex + 1) % 5;
             _needsRedraw = true;
         } else if (action == INPUT_PREV) {
-            _overlaySelectedIndex = (_overlaySelectedIndex - 1 + 4) % 4;
+            _overlaySelectedIndex = (_overlaySelectedIndex - 1 + 5) % 5;
             _needsRedraw = true;
         } else if (action == INPUT_SELECT) {
             if (_overlaySelectedIndex == 0) {
@@ -51,10 +51,15 @@ void AppReader::handleInput(InputAction action) {
                 _settingsChanged = true;
                 _needsRedraw = true;
             } else if (_overlaySelectedIndex == 2) {
+                _isRTL = !_isRTL;
+                _progressDirty = true;
+                _settingsChanged = true;
+                _needsRedraw = true;
+            } else if (_overlaySelectedIndex == 3) {
                 _readingFirstDraw = true;
                 _settingsChanged = true;
                 closeOverlay();
-            } else if (_overlaySelectedIndex == 3) {
+            } else if (_overlaySelectedIndex == 4) {
                 closeOverlay();
             }
         } else if (action == INPUT_LEFT || action == INPUT_BACK) {

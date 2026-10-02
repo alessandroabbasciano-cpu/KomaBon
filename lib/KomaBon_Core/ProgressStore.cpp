@@ -88,6 +88,7 @@ bool ProgressStore::load() {
             p.globalPage = entry["globalPage"] | 1;
             p.seq = entry["seq"] | 0UL;
             p.pending = entry["pending"] | false;
+            p.rtl = entry["rtl"] | false;
             if (p.seq > _seq) _seq = p.seq;
 
             auto existing = _books.find(key);
@@ -121,6 +122,7 @@ bool ProgressStore::save() {
         entry["globalPage"] = kv.second.globalPage;
         entry["seq"] = kv.second.seq;
         if (kv.second.pending) entry["pending"] = true;
+        if (kv.second.rtl) entry["rtl"] = true;
     }
 
     if (doc.overflowed()) return false;

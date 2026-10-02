@@ -16,9 +16,11 @@ struct BookEntry {
     int totalPages;
     bool hasCoverThumb;
     bool coverAttempted;
+    bool rtl;
 
     BookEntry()
-        : hasProgress(false), globalPage(1), totalPages(0), hasCoverThumb(false), coverAttempted(false) {}
+        : hasProgress(false), globalPage(1), totalPages(0), hasCoverThumb(false), coverAttempted(false),
+          rtl(false) {}
 };
 
 class AppBookshelf : public App {

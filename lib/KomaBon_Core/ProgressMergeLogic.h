@@ -28,6 +28,7 @@ struct BookProgress {
     // pruning so that importing state before uploading the files does not
     // silently throw the state away.
     bool pending = false;
+    bool rtl = false;
 };
 
 enum class MergeResult {
