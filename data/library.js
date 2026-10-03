@@ -5,6 +5,52 @@ const isKmb = f => f.toLowerCase().endsWith('.kmb');
 
 const STORAGE_KEY_BOOKS = 'komaBonLibrary';
 const CHUNK_SIZE = 30;
+
+const COVER_DB_NAME = 'KomaBonCovers';
+const COVER_STORE_NAME = 'covers';
+let coverDbPromise = null;
+
+function getCoverDb() {
+    if (!coverDbPromise) {
+        coverDbPromise = new Promise((resolve, reject) => {
+            const req = indexedDB.open(COVER_DB_NAME, 1);
+            req.onupgradeneeded = e => {
+                e.target.result.createObjectStore(COVER_STORE_NAME);
+            };
+            req.onsuccess = e => resolve(e.target.result);
+            req.onerror = () => reject('IDB Error');
+        });
+    }
+    return coverDbPromise;
+}
+
+window.loadCover = async function(filename, imgElement) {
+    if (!filename.toLowerCase().endsWith('.kmb')) return;
+    try {
+        const db = await getCoverDb();
+        const tx = db.transaction(COVER_STORE_NAME, 'readonly');
+        const store = tx.objectStore(COVER_STORE_NAME);
+        const req = store.get(filename);
+        req.onsuccess = async () => {
+            if (req.result) {
+                imgElement.src = URL.createObjectURL(req.result);
+            } else {
+                const dot = filename.lastIndexOf('.');
+                const base = dot > 0 ? filename.substring(0, dot) : filename;
+                const resp = await fetch(`/api/books/cover?name=${encodeURIComponent(filename)}`);
+                if (resp.ok) {
+                    const blob = await resp.blob();
+                    imgElement.src = URL.createObjectURL(blob);
+                    const tx2 = db.transaction(COVER_STORE_NAME, 'readwrite');
+                    tx2.objectStore(COVER_STORE_NAME).put(blob, filename);
+                }
+            }
+        };
+    } catch (e) {
+        console.error('Cover load error', e);
+    }
+}
+
 let currentBooks = [];
 let activeRenderedItems = [];
 let renderedChunkCount = 0;

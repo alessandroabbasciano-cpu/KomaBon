@@ -978,6 +978,7 @@ async function processArchive(file) {
         const pageBuffers = [];
 
         for (let i = 0; i < pageCount; i++) {
+            await new Promise(r => setTimeout(r, 0)); // Yield to unfreeze DOM
             progressBar.style.width = `${5 + (i / pageCount * 85)}%`;
             logMessage(`Processing source page ${i + 1}/${pageCount}...`);
 
@@ -1105,6 +1106,7 @@ async function processPDF(file) {
         const pageBuffers = [];
 
         for (let i = 1; i <= pageCount; i++) {
+            await new Promise(r => setTimeout(r, 0)); // Yield to unfreeze DOM
             progressBar.style.width = `${5 + (i / pageCount * 85)}%`;
             logMessage(`Rendering PDF page ${i}/${pageCount}...`);
 

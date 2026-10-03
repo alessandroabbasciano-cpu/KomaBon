@@ -278,7 +278,31 @@ static bool deleteSingleBookInternal(const String& filename) {
 }
 
 void setupBookEndpoints(AsyncWebServer* server) {
-    server->on("/api/books", HTTP_GET, [](AsyncWebServerRequest* request) {
+    
+    server->on("/api/books/cover", HTTP_GET, [](AsyncWebServerRequest* request) {
+        if (!request->hasParam("name")) {
+            request->send(400, "text/plain", "Missing name");
+            return;
+        }
+        String name = request->getParam("name")->value();
+        String basename = name;
+        int dot = basename.lastIndexOf('.');
+        if (dot > 0) basename = basename.substring(0, dot);
+        
+        String coverPath = "/covers/" + basename + ".thumb";
+        if (SystemFS.exists(coverPath)) {
+            request->send(SystemFS, coverPath, "image/bmp");
+        } else {
+            coverPath = "/covers/" + basename + ".cover";
+            if (SystemFS.exists(coverPath)) {
+                request->send(SystemFS, coverPath, "image/bmp");
+            } else {
+                request->send(404, "text/plain", "Cover not found");
+            }
+        }
+    });
+
+server->on("/api/books", HTTP_GET, [](AsyncWebServerRequest* request) {
         KomaBonStorage::ensureReady();
 
         // Safe download routing without duplicate disposition headers

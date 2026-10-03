@@ -1145,3 +1145,36 @@ select:focus {
         font-size: 16px;
     }
 }
+.book-cover-img {
+    width: 32px;
+    height: 44px;
+    object-fit: cover;
+    border-radius: 4px;
+    border: 1px solid var(--line);
+    margin-right: 12px;
+    background: #f0f0f0;
+    flex-shrink: 0;
+}
+.book-item-content {
+    display: flex;
+    align-items: center;
+    flex-grow: 1;
+    overflow: hidden;
+}
+
+.book-cover-img {
+    width: 32px;
+    height: 44px;
+    object-fit: cover;
+    border-radius: 4px;
+    border: 1px solid var(--line);
+    margin-right: 12px;
+    background: #f0f0f0;
+    flex-shrink: 0;
+}
+.book-item-content {
+    display: flex;
+    align-items: center;
+    flex-grow: 1;
+    overflow: hidden;
+}
