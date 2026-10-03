@@ -26,6 +26,8 @@ function getCoverDb() {
 
 
 
+
+
 async function rawBlobToDataUrl(blob) {
     let width, height;
     if (blob.size === 640) { width = 60; height = 80; }
@@ -45,7 +47,7 @@ async function rawBlobToDataUrl(blob) {
             const bitIdx = 7 - (x % 8);
             // Invert colors? 1 is black, 0 is white in E-ink (usually), let's check KomaBon. Usually 0 is black, 1 is white.
             // Let's assume 1 is white (255) and 0 is black (0) or vice versa.
-            const color = (bytes[byteIdx] & (1 << bitIdx)) ? 255 : 0;
+            const color = (bytes[byteIdx] & (1 << bitIdx)) ? 0 : 255;
             const idx = (y * width + x) * 4;
             imgData.data[idx] = color;
             imgData.data[idx+1] = color;
@@ -292,10 +294,7 @@ function renderBookItem(book, epubs) {
             </span>`;
     }
 
-    let displayIcon = '📖 ';
-    if (bookIsFont) displayIcon = '📂 [Font] ';
-    if (bookIsKmb) displayIcon = '🖼️ [Comic] ';
-
+    
     const progressHtml = renderProgressBar(book);
     const isChecked = selectedBooks.has(book.filename) ? 'checked' : '';
     const ghostBadge = isGhost ? '<span class="ghost-badge">File missing</span>' : '';
@@ -306,10 +305,13 @@ function renderBookItem(book, epubs) {
     <div class="book-item ${isGhost ? 'ghost-node' : ''}" data-filename="${nameAttr}">
         <input type="checkbox" class="book-select-check" data-filename="${nameAttr}" ${isChecked} onchange="onBookCheckChange(this)" title="Select">
         ${orderBtns}
-        <div class="book-info-col">
-            <span class="book-title">${displayIcon}${escapeHtml(book.name)}${ghostBadge}</span>
-            ${progressHtml}
-        </div>
+        <div class="book-item-content">
+              ${!bookIsFont ? `<img class="book-cover-img" id="cover-${nameAttr}" src="data:image/gif;base64,R0lGODlhAQABAAD/ACwAAAAAAQABAAACADs=" onload="window.loadCover('${nameAttr}', this); this.onload=null;">` : ''}
+              <div class="book-info-col">
+                  <span class="book-title">${escapeHtml(book.name)}${ghostBadge}</span>
+                  ${progressHtml}
+              </div>
+          </div>
         ${sizeHtml}
         ${dlBtn}
         <button class="btn-delete" data-action="delete" data-filename="${nameAttr}" data-name="${escapeAttr(book.name)}">Delete</button>
@@ -401,9 +403,9 @@ function renderItemHtml(item, epubs, isSearchActive = false) {
             <div class="book-item series-nested-item ${isGhost ? 'ghost-node' : ''}" data-filename="${nameAttr}">
                 <input type="checkbox" class="book-select-check" data-filename="${nameAttr}" ${isChecked} onchange="onBookCheckChange(this)" title="Select">
                 <div class="book-item-content">
-                    <img class="book-cover-img" id="cover-${nameAttr}" src="data:image/gif;base64,R0lGODlhAQABAAD/ACwAAAAAAQABAAACADs=" onload="window.loadCover(\'${nameAttr}\', this); this.onload=null;">
+                    <img class="book-cover-img" id="cover-${nameAttr}" src="data:image/gif;base64,R0lGODlhAQABAAD/ACwAAAAAAQABAAACADs=" onload="window.loadCover('${nameAttr}', this); this.onload=null;">
                     <div class="book-info-col">
-                        <span class="book-title">🖼️ ${escapeHtml(b.name)}${ghostBadge}</span>
+                        <span class="book-title">${escapeHtml(b.name)}${ghostBadge}</span>
                         ${progressHtml}
                     </div>
                 </div>
@@ -420,7 +422,7 @@ function renderItemHtml(item, epubs, isSearchActive = false) {
         <details class="series-group" data-series="${seriesNameAttr}" ${isOpen}>
             <summary class="series-header">
                 <input type="checkbox" class="series-select-check" data-series="${seriesNameAttr}" ${allChecked ? 'checked' : ''} title="Select all in series" onclick="event.stopPropagation()" onchange="onSeriesCheckChange(this, '${seriesNameAttr}')">
-                <span class="series-title">📚 <strong>${escapeHtml(item.name)}</strong></span>
+                <span class="series-title"><strong>${escapeHtml(item.name)}</strong></span>
                 <span class="series-badge">${item.books.length} volumes</span>
                 ${seriesProgressBadge}
                 ${missingBadge}

@@ -153,14 +153,26 @@ void setup() {
         // EMERGENCY CALIBRATION RESET
         // If the user got locked out with a bad calibration (e.g. all buttons mapped to DOWN),
         // they can hold KEY2 (PIN_BUTTON_SLEEP) while resetting the device to wipe the calibration.
-        if (digitalRead(PIN_BUTTON_SLEEP) == LOW) {
-            Serial.println("[BOOT] EMERGENCY RESET: Wiping joystick calibration...");
-            if (SystemFS.exists("/joy_cal.json")) SystemFS.remove("/joy_cal.json");
-            if (EbookFS.exists("/joy_cal.json")) EbookFS.remove("/joy_cal.json");
-
-            // Wait for release so the button press doesn't trigger UI events immediately
-            while (digitalRead(PIN_BUTTON_SLEEP) == LOW) {
+                if (digitalRead(PIN_BUTTON_SLEEP) == LOW) {
+            uint32_t holdStart = millis();
+            bool confirmedHold = true;
+            while (millis() - holdStart < 1500) {
+                if (digitalRead(PIN_BUTTON_SLEEP) == HIGH) {
+                    confirmedHold = false;
+                    break;
+                }
                 delay(10);
+            }
+
+            if (confirmedHold) {
+                Serial.println("[BOOT] EMERGENCY RESET: Wiping joystick calibration...");
+                if (SystemFS.exists("/joy_cal.json")) SystemFS.remove("/joy_cal.json");
+                if (EbookFS.exists("/joy_cal.json")) EbookFS.remove("/joy_cal.json");
+
+                // Wait for release so the button press doesn't trigger UI events immediately
+                while (digitalRead(PIN_BUTTON_SLEEP) == LOW) {
+                    delay(10);
+                }
             }
         }
 
