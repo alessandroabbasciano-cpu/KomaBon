@@ -155,7 +155,8 @@ function updateBulkBar() {
 
 function clearBulkSelection() {
     selectedBooks.clear();
-    document.querySelectorAll('.book-select-check, .series-select-check').forEach(c => c.checked = false);
+    document.querySelectorAll('.book-item.selected').forEach(el => el.classList.remove('selected'));
+    document.querySelectorAll('.series-dot.on').forEach(el => el.classList.remove('on'));
     updateBulkBar();
 }
 
@@ -289,7 +290,7 @@ function renderBookItem(book, epubs) {
     const sizeHtml = isGhost ? '<span class="book-size ghost-size">Missing</span>' : `<span class="book-size">${Math.round(book.size / 1024)} KB</span>`;
 
     return `
-    <div class="book-item ${isGhost ? 'ghost-node' : ''}" data-filename="${nameAttr}">
+    <div class="book-item ${isGhost ? 'ghost-node' : ''}${selectedBooks.has(book.filename) ? ' selected' : ''}" data-filename="${nameAttr}">
         <div class="book-item-content">
               ${!bookIsFont ? `<img class="book-cover-img" id="cover-${nameAttr}" src="data:image/gif;base64,R0lGODlhAQABAAD/ACwAAAAAAQABAAACADs=" onload="window.loadCover('${nameAttr}', this); this.onload=null;">` : ''}
               <div class="book-info-col">
@@ -302,13 +303,7 @@ function renderBookItem(book, epubs) {
         </div>
         <div class="book-actions-container">
             ${progressHtml}
-            <div class="k-dropdown" onclick="event.stopPropagation()">
-                <button class="btn-more" onclick="toggleDropdown(event, 'menu-${nameAttr}')">&#8942;</button>
-                <div id="menu-${nameAttr}" class="k-dropdown-menu">
-                    <a class="k-dropdown-item" href="/api/books/download?name=${nameAttr}" download="${escapeAttr(book.filename)}">Download</a>
-                    <button class="k-dropdown-item text-danger" onclick="deleteBook('${nameAttr}', '${escapeAttr(book.name)}')">Delete</button>
-                </div>
-            </div>
+            <div class="k-dropdown"><button class="btn-more" data-filename="${nameAttr}" data-name="${escapeAttr(book.name)}">&#8942;</button></div>
         </div>
     </div>
     `;
@@ -418,40 +413,40 @@ function renderItemHtml(item, epubs, isSearchActive = false) {
             missingBadge = `<span class="ghost-badge">${missingCount} missing</span>`;
         }
 
+        
         const renderNestedBook = (b) => {
-            const nameAttr = escapeAttr(b.filename);
             const progressHtml = renderProgressBar(b);
-            const isChecked = typeof selectedBooks !== 'undefined' && selectedBooks.has(b.filename) ? 'checked' : '';
             const isGhost = !!b.missing;
             const ghostBadge = isGhost ? '<span class="ghost-badge">File missing</span>' : '';
             const sizeHtml = isGhost ? '<span class="book-size ghost-size">Missing</span>' : `<span class="book-size">${Math.round(b.size / 1024)} KB</span>`;
-            const dlBtn = "";
             
             let displayName = escapeHtml(b.name);
             const prefix = item.name;
             if (displayName.startsWith(prefix)) {
                 displayName = displayName.substring(prefix.length).replace(/^[\s_.-]+/, '');
+                if (!displayName) displayName = escapeHtml(b.name);
             }
-
+            
+            const nameAttr = escapeAttr(b.filename);
+            const bookIsFont = isFont(b.filename);
+            const bookIsKmb = isKmb(b.filename);
+            
             return `
-            <div class="book-item series-nested-item ${isGhost ? 'ghost-node' : ''}" data-filename="${nameAttr}">
-<div class="book-item-content">
-                    <img class="book-cover-img" id="cover-${nameAttr}" src="data:image/gif;base64,R0lGODlhAQABAAD/ACwAAAAAAQABAAACADs=" onload="window.loadCover('${nameAttr}', this); this.onload=null;">
+            <div class="book-item series-nested-item ${isGhost ? 'ghost-node' : ''}${selectedBooks.has(b.filename) ? ' selected' : ''}" data-filename="${nameAttr}">
+                <div class="book-item-content">
+                    ${!bookIsFont ? `<img class="book-cover-img" id="cover-${nameAttr}" src="data:image/gif;base64,R0lGODlhAQABAAD/ACwAAAAAAQABAAACADs=" onload="window.loadCover('${nameAttr}', this); this.onload=null;">` : ''}
                     <div class="book-info-col">
                         <span class="book-title">${displayName}${ghostBadge}</span>
-                        ${progressHtml}
-                            <div class="k-dropdown" onclick="event.stopPropagation()">
-            <button class="btn-more" onclick="toggleDropdown(event, 'menu-${nameAttr}')">&#8942;</button>
-            <div id="menu-${nameAttr}" class="k-dropdown-menu">
-                <a class="k-dropdown-item" href="/api/books/download?name=${nameAttr}" download="${escapeAttr(book.filename)}">Download</a>
-                <button class="k-dropdown-item text-danger" onclick="deleteBook('${nameAttr}', '${escapeAttr(book.name)}')">Delete</button>
-            </div>
-        </div>
-    </div>
+                        <div class="book-meta">
+                            ${sizeHtml}
+                            ${bookIsKmb ? '<span class="format-badge format-kmb">KMB</span>' : (bookIsFont ? '<span class="format-badge format-font">FONT</span>' : '<span class="format-badge format-epub">EPUB</span>')}
+                        </div>
+                    </div>
                 </div>
-                ${sizeHtml}
-                ${dlBtn}
-                
+                <div class="book-actions-container">
+                    ${progressHtml}
+                    <div class="k-dropdown"><button class="btn-more" data-filename="${nameAttr}" data-name="${escapeAttr(b.name)}">&#8942;</button></div>
+                </div>
             </div>`;
         };
 
@@ -483,6 +478,7 @@ function renderItemHtml(item, epubs, isSearchActive = false) {
         return `
         <details class="series-group" data-series="${seriesNameAttr}" ${isOpen}>
             <summary class="series-header book-item">
+                <span class="sel-dot series-dot${allChecked ? ' on' : ''}" data-series="${seriesNameAttr}" title="Select entire series"></span>
                 
                 <div class="series-title"><strong>${escapeHtml(item.name)}</strong></div>
                 ${missingBadge}
@@ -913,3 +909,98 @@ function executeBulkDownload() {
     
     clearBulkSelection();
 }
+
+
+// ---- Selection (row highlight) + 3-dots context menu ----
+function syncSeriesDots() {
+    document.querySelectorAll('.series-group').forEach(g => {
+        const rows = g.querySelectorAll('.book-item[data-filename]');
+        const dot = g.querySelector('.series-dot');
+        if (!dot) return;
+        const all = rows.length > 0 && Array.from(rows).every(r => selectedBooks.has(r.dataset.filename));
+        dot.classList.toggle('on', all);
+    });
+}
+
+function toggleRowSelection(row) {
+    const fn = row.dataset.filename;
+    if (selectedBooks.has(fn)) {
+        selectedBooks.delete(fn);
+        row.classList.remove('selected');
+    } else {
+        selectedBooks.add(fn);
+        row.classList.add('selected');
+    }
+    syncSeriesDots();
+    updateBulkBar();
+}
+
+function closeBookMenu() {
+    const m = document.getElementById('book-menu');
+    if (m) m.remove();
+}
+
+function openBookMenu(btn) {
+    closeBookMenu();
+    const filename = btn.dataset.filename;
+    const name = btn.dataset.name;
+    const menu = document.createElement('div');
+    menu.id = 'book-menu';
+    const dl = document.createElement('button');
+    dl.className = 'k-dropdown-item';
+    dl.textContent = 'Download';
+    dl.onclick = () => { closeBookMenu(); window.location.href = '/api/books/download?name=' + encodeURIComponent(filename); };
+    const del = document.createElement('button');
+    del.className = 'k-dropdown-item text-danger';
+    del.textContent = 'Delete';
+    del.onclick = () => { closeBookMenu(); deleteBook(filename, name); };
+    menu.appendChild(dl);
+    menu.appendChild(del);
+    document.body.appendChild(menu);
+    const r = btn.getBoundingClientRect();
+    const mh = menu.offsetHeight, mw = menu.offsetWidth;
+    let top = r.bottom + 4;
+    if (top + mh > window.innerHeight - 8) top = Math.max(8, r.top - mh - 4);
+    menu.style.top = top + 'px';
+    menu.style.left = Math.max(8, r.right - mw) + 'px';
+}
+
+document.addEventListener('click', e => {
+    const more = e.target.closest('.btn-more');
+    if (more) {
+        e.preventDefault();
+        e.stopPropagation();
+        const open = document.getElementById('book-menu');
+        if (open && open._for === more) { closeBookMenu(); return; }
+        openBookMenu(more);
+        const m = document.getElementById('book-menu');
+        if (m) m._for = more;
+        return;
+    }
+    if (e.target.closest('#book-menu')) return;
+    closeBookMenu();
+
+    const sdot = e.target.closest('.series-dot');
+    if (sdot) {
+        e.preventDefault();
+        e.stopPropagation();
+        const g = sdot.closest('.series-group');
+        if (!g) return;
+        const rows = Array.from(g.querySelectorAll('.book-item[data-filename]'));
+        const select = !rows.every(r => selectedBooks.has(r.dataset.filename));
+        rows.forEach(r => {
+            if (select) selectedBooks.add(r.dataset.filename); else selectedBooks.delete(r.dataset.filename);
+            r.classList.toggle('selected', select);
+        });
+        syncSeriesDots();
+        updateBulkBar();
+        return;
+    }
+
+    const row = e.target.closest('#book-list .book-item[data-filename]');
+    if (row && !e.target.closest('a, button, summary')) {
+        toggleRowSelection(row);
+    }
+}, true);
+window.addEventListener('scroll', closeBookMenu, true);
+window.addEventListener('resize', closeBookMenu);
