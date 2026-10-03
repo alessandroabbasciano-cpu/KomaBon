@@ -24,6 +24,31 @@ function getCoverDb() {
     return coverDbPromise;
 }
 
+
+const coverQueue = [];
+let coverFetching = false;
+
+async function processCoverQueue() {
+    if (coverFetching) return;
+    coverFetching = true;
+    while (coverQueue.length > 0) {
+        const { filename, imgElement } = coverQueue.shift();
+        try {
+            const resp = await fetch(/api/books/cover?name=);
+            if (resp.ok) {
+                const blob = await resp.blob();
+                imgElement.src = URL.createObjectURL(blob);
+                const db = await getCoverDb();
+                const tx2 = db.transaction(COVER_STORE_NAME, 'readwrite');
+                tx2.objectStore(COVER_STORE_NAME).put(blob, filename);
+            }
+        } catch (e) {
+            console.error('Network error for cover', e);
+        }
+    }
+    coverFetching = false;
+}
+
 window.loadCover = async function(filename, imgElement) {
     if (!filename.toLowerCase().endsWith('.kmb')) return;
     try {
@@ -35,15 +60,8 @@ window.loadCover = async function(filename, imgElement) {
             if (req.result) {
                 imgElement.src = URL.createObjectURL(req.result);
             } else {
-                const dot = filename.lastIndexOf('.');
-                const base = dot > 0 ? filename.substring(0, dot) : filename;
-                const resp = await fetch(`/api/books/cover?name=${encodeURIComponent(filename)}`);
-                if (resp.ok) {
-                    const blob = await resp.blob();
-                    imgElement.src = URL.createObjectURL(blob);
-                    const tx2 = db.transaction(COVER_STORE_NAME, 'readwrite');
-                    tx2.objectStore(COVER_STORE_NAME).put(blob, filename);
-                }
+                coverQueue.push({ filename, imgElement });
+                processCoverQueue();
             }
         };
     } catch (e) {
