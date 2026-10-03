@@ -1,5 +1,6 @@
 #include <Arduino.h>
 #include <esp_ota_ops.h>
+#include <esp_system.h>
 #include <driver/rtc_io.h>
 #include "Config.h"
 #include "NetworkState.h"
@@ -153,7 +154,12 @@ void setup() {
         // EMERGENCY CALIBRATION RESET
         // If the user got locked out with a bad calibration (e.g. all buttons mapped to DOWN),
         // they can hold KEY2 (PIN_BUTTON_SLEEP) while resetting the device to wipe the calibration.
-        if (digitalRead(PIN_BUTTON_SLEEP) == LOW) {
+        // Only honour this on a genuine hardware reset (power-on / EN button). After flashing,
+        // esptool resets the chip over USB-Serial/JTAG and GPIO3 (a strapping pin) can read LOW,
+        // which used to wipe the calibration on every upload.
+        esp_reset_reason_t resetReason = esp_reset_reason();
+        Serial.printf("[BOOT] Reset reason: %d\n", (int)resetReason);
+        if (resetReason == ESP_RST_POWERON && digitalRead(PIN_BUTTON_SLEEP) == LOW) {
             uint32_t holdStart = millis();
             bool confirmedHold = true;
             while (millis() - holdStart < 1500) {

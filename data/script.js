@@ -81,6 +81,15 @@ async function fetchStatus() {
         }
         document.getElementById('header-voltage').innerText = voltageText;
 
+        const sdErrorBadge = document.getElementById('sd-error-badge');
+        if (sdErrorBadge) {
+            if (data.totalSpace === 0 && data.freeSpace === 0) {
+                sdErrorBadge.classList.remove('hidden');
+            } else {
+                sdErrorBadge.classList.add('hidden');
+            }
+        }
+
         const batIcon = document.getElementById('battery-icon');
         const level = parseInt(data.battery);
 
@@ -389,10 +398,13 @@ function renderRawScreensaverToCanvas(canvas, arrayBuffer) {
     const offset = (bytes.length === 48004) ? 4 : 0;
     const w = 480;
     const h = 800;
-    canvas.width = w;
-    canvas.height = h;
-    const ctx = canvas.getContext('2d');
-    const imgData = ctx.createImageData(w, h);
+
+    // Full-resolution 1-bit render on an offscreen canvas
+    const src = document.createElement('canvas');
+    src.width = w;
+    src.height = h;
+    const sctx = src.getContext('2d');
+    const imgData = sctx.createImageData(w, h);
     const data = imgData.data;
     const bytesPerRow = 60;
 
@@ -409,7 +421,15 @@ function renderRawScreensaverToCanvas(canvas, arrayBuffer) {
             data[pIdx + 3] = 255;
         }
     }
-    ctx.putImageData(imgData, 0, 0);
+    sctx.putImageData(imgData, 0, 0);
+
+    // Smooth downscale for the on-screen preview (300x500 shown at ~150px wide = crisp on hi-dpi)
+    canvas.width = 300;
+    canvas.height = 500;
+    const ctx = canvas.getContext('2d');
+    ctx.imageSmoothingEnabled = true;
+    ctx.imageSmoothingQuality = 'high';
+    ctx.drawImage(src, 0, 0, w, h, 0, 0, canvas.width, canvas.height);
 }
 
 async function handleScreensaverFileSelect(files) {

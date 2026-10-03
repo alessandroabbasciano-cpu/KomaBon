@@ -284,22 +284,14 @@ function renderBookItem(book, epubs) {
     const isGhost = !!book.missing;
     const nameAttr = escapeAttr(book.filename);
 
-    let orderBtns = '';
-    if (isEpub(book.filename) && epubs.length > 1) {
-        const idx = epubs.indexOf(book);
-        orderBtns = `
-            <span class="order-btns">
-                <button class="btn-order" ${idx === 0 ? 'disabled' : ''} data-action="move" data-dir="-1" data-filename="${nameAttr}" title="Move up">▲</button>
-                <button class="btn-order" ${idx === epubs.length - 1 ? 'disabled' : ''} data-action="move" data-dir="1" data-filename="${nameAttr}" title="Move down">▼</button>
-            </span>`;
-    }
+    const orderBtns = '';
 
     
     const progressHtml = renderProgressBar(book);
     const isChecked = selectedBooks.has(book.filename) ? 'checked' : '';
     const ghostBadge = isGhost ? '<span class="ghost-badge">File missing</span>' : '';
     const sizeHtml = isGhost ? '<span class="book-size ghost-size">Missing</span>' : `<span class="book-size">${Math.round(book.size / 1024)} KB</span>`;
-    const dlBtn = isGhost ? `<button class="btn-order" disabled title="File missing from storage">DL</button>` : `<button class="btn-order" data-action="download" data-filename="${nameAttr}" title="Download File">DL</button>`;
+    const dlBtn = "";
 
     return `
     <div class="book-item ${isGhost ? 'ghost-node' : ''}" data-filename="${nameAttr}">
@@ -314,7 +306,7 @@ function renderBookItem(book, epubs) {
           </div>
         ${sizeHtml}
         ${dlBtn}
-        <button class="btn-delete" data-action="delete" data-filename="${nameAttr}" data-name="${escapeAttr(book.name)}">Delete</button>
+        
     </div>`;
 }
 
@@ -429,7 +421,7 @@ function renderItemHtml(item, epubs, isSearchActive = false) {
             const isGhost = !!b.missing;
             const ghostBadge = isGhost ? '<span class="ghost-badge">File missing</span>' : '';
             const sizeHtml = isGhost ? '<span class="book-size ghost-size">Missing</span>' : `<span class="book-size">${Math.round(b.size / 1024)} KB</span>`;
-            const dlBtn = isGhost ? `<button class="btn-order" disabled title="File missing from storage">DL</button>` : `<button class="btn-order" data-action="download" data-filename="${nameAttr}" title="Download File">DL</button>`;
+            const dlBtn = "";
             
             let displayName = escapeHtml(b.name);
             const prefix = item.name;
@@ -449,7 +441,7 @@ function renderItemHtml(item, epubs, isSearchActive = false) {
                 </div>
                 ${sizeHtml}
                 ${dlBtn}
-                <button class="btn-delete" data-action="delete" data-filename="${nameAttr}" data-name="${escapeAttr(b.name)}">Delete</button>
+                
             </div>`;
         };
 
@@ -891,4 +883,23 @@ function importLibraryState(input) {
 // Filter books based on search input (reactive in-memory search with chunked rendering)
 function filterBooks() {
     renderBooks();
+}
+function executeBulkDownload() {
+    if (selectedBooks.size === 0) return;
+    if (!confirm(`Download ${selectedBooks.size} selected files?`)) return;
+    
+    let delay = 0;
+    selectedBooks.forEach(filename => {
+        setTimeout(() => {
+            const link = document.createElement('a');
+            link.href = '/api/books/download?name=' + encodeURIComponent(filename);
+            link.download = filename;
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+        }, delay);
+        delay += 1000;
+    });
+    
+    clearBulkSelection();
 }
