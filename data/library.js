@@ -284,30 +284,34 @@ function renderBookItem(book, epubs) {
     const isGhost = !!book.missing;
     const nameAttr = escapeAttr(book.filename);
 
-    const orderBtns = '';
-
-    
     const progressHtml = renderProgressBar(book);
-    const isChecked = selectedBooks.has(book.filename) ? 'checked' : '';
     const ghostBadge = isGhost ? '<span class="ghost-badge">File missing</span>' : '';
     const sizeHtml = isGhost ? '<span class="book-size ghost-size">Missing</span>' : `<span class="book-size">${Math.round(book.size / 1024)} KB</span>`;
-    const dlBtn = "";
 
     return `
     <div class="book-item ${isGhost ? 'ghost-node' : ''}" data-filename="${nameAttr}">
-        <input type="checkbox" class="book-select-check" data-filename="${nameAttr}" ${isChecked} onchange="onBookCheckChange(this)" title="Select">
-        ${orderBtns}
         <div class="book-item-content">
               ${!bookIsFont ? `<img class="book-cover-img" id="cover-${nameAttr}" src="data:image/gif;base64,R0lGODlhAQABAAD/ACwAAAAAAQABAAACADs=" onload="window.loadCover('${nameAttr}', this); this.onload=null;">` : ''}
               <div class="book-info-col">
                   <span class="book-title">${escapeHtml(book.name)}${ghostBadge}</span>
-                  ${progressHtml}
+                  <div class="book-meta">
+                      ${sizeHtml}
+                      ${bookIsKmb ? '<span class="format-badge format-kmb">KMB</span>' : (bookIsFont ? '<span class="format-badge format-font">FONT</span>' : '<span class="format-badge format-epub">EPUB</span>')}
+                  </div>
               </div>
-          </div>
-        ${sizeHtml}
-        ${dlBtn}
-        
-    </div>`;
+        </div>
+        <div class="book-actions-container">
+            ${progressHtml}
+            <div class="k-dropdown" onclick="event.stopPropagation()">
+                <button class="btn-more" onclick="toggleDropdown(event, 'menu-${nameAttr}')">&#8942;</button>
+                <div id="menu-${nameAttr}" class="k-dropdown-menu">
+                    <a class="k-dropdown-item" href="/api/books/download?name=${nameAttr}" download="${escapeAttr(book.filename)}">Download</a>
+                    <button class="k-dropdown-item text-danger" onclick="deleteBook('${nameAttr}', '${escapeAttr(book.name)}')">Delete</button>
+                </div>
+            </div>
+        </div>
+    </div>
+    `;
 }
 
 function buildGroupedStructure(books) {
@@ -431,13 +435,19 @@ function renderItemHtml(item, epubs, isSearchActive = false) {
 
             return `
             <div class="book-item series-nested-item ${isGhost ? 'ghost-node' : ''}" data-filename="${nameAttr}">
-                <input type="checkbox" class="book-select-check" data-filename="${nameAttr}" ${isChecked} onchange="onBookCheckChange(this)" title="Select">
-                <div class="book-item-content">
+<div class="book-item-content">
                     <img class="book-cover-img" id="cover-${nameAttr}" src="data:image/gif;base64,R0lGODlhAQABAAD/ACwAAAAAAQABAAACADs=" onload="window.loadCover('${nameAttr}', this); this.onload=null;">
                     <div class="book-info-col">
                         <span class="book-title">${displayName}${ghostBadge}</span>
                         ${progressHtml}
-                    </div>
+                            <div class="k-dropdown" onclick="event.stopPropagation()">
+            <button class="btn-more" onclick="toggleDropdown(event, 'menu-${nameAttr}')">&#8942;</button>
+            <div id="menu-${nameAttr}" class="k-dropdown-menu">
+                <a class="k-dropdown-item" href="/api/books/download?name=${nameAttr}" download="${escapeAttr(book.filename)}">Download</a>
+                <button class="k-dropdown-item text-danger" onclick="deleteBook('${nameAttr}', '${escapeAttr(book.name)}')">Delete</button>
+            </div>
+        </div>
+    </div>
                 </div>
                 ${sizeHtml}
                 ${dlBtn}
@@ -473,7 +483,7 @@ function renderItemHtml(item, epubs, isSearchActive = false) {
         return `
         <details class="series-group" data-series="${seriesNameAttr}" ${isOpen}>
             <summary class="series-header book-item">
-                <input type="checkbox" onchange="onSeriesCheckChange(this, '${seriesNameAttr}')" ${allChecked ? 'checked' : ''} title="Select entire series" onclick="event.stopPropagation()">
+                
                 <div class="series-title"><strong>${escapeHtml(item.name)}</strong></div>
                 ${missingBadge}
                 ${seriesProgressBadge}
