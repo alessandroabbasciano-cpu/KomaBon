@@ -42,7 +42,7 @@ class WebMgr {
 
     // Power management and watchdog
     unsigned long _lastActivityTime = 0;
-    const unsigned long WIFI_TIMEOUT_MS = 300000; // 5 minutes inactivity kill switch
+    const unsigned long WIFI_TIMEOUT_MS = 3600000; // 1 hour inactivity kill switch
 
     void setupEndpoints();
 };

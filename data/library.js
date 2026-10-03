@@ -319,6 +319,9 @@ function renderBookItem(book, epubs) {
 }
 
 function buildGroupedStructure(books) {
+    // Global alphabetical sort
+    books.sort((a, b) => a.filename.localeCompare(b.filename, undefined, { numeric: true, sensitivity: 'base' }));
+
     const seriesCounts = {};
     const bookSeriesMap = new Map();
 
@@ -344,17 +347,37 @@ function buildGroupedStructure(books) {
                     const s = bookSeriesMap.get(b.filename);
                     return s && s.series === info.series;
                 });
-                seriesBooks.sort((x, y) => {
-                    const sx = bookSeriesMap.get(x.filename);
-                    const sy = bookSeriesMap.get(y.filename);
-                    return (sx ? sx.volume : 0) - (sy ? sy.volume : 0);
+                
+                const volumesMap = new Map();
+                seriesBooks.forEach(b => {
+                    const s = bookSeriesMap.get(b.filename);
+                    const vol = s ? s.volume : 0;
+                    if (!volumesMap.has(vol)) volumesMap.set(vol, []);
+                    volumesMap.get(vol).push(b);
                 });
+                
+                const volumesList = Array.from(volumesMap.keys()).sort((a,b)=>a-b).map(vol => {
+                    const vBooks = volumesMap.get(vol);
+                    vBooks.sort((x, y) => {
+                        const sx = bookSeriesMap.get(x.filename);
+                        const sy = bookSeriesMap.get(y.filename);
+                        if (sx && sy && sx.chapter !== sy.chapter) {
+                            return sx.chapter - sy.chapter;
+                        }
+                        return x.filename.localeCompare(y.filename, undefined, { numeric: true, sensitivity: 'base' });
+                    });
+                    const volSize = vBooks.reduce((acc, b) => acc + (b.size || 0), 0);
+                    return { volume: vol, books: vBooks, size: volSize };
+                });
+                
                 const totalSize = seriesBooks.reduce((acc, b) => acc + (b.size || 0), 0);
+                
                 renderedItems.push({
                     type: 'series',
                     name: info.series,
-                    books: seriesBooks,
-                    totalSize
+                    volumes: volumesList,
+                    totalSize,
+                    totalBooks: seriesBooks.length
                 });
             }
         } else {
@@ -376,28 +399,43 @@ function renderItemHtml(item, epubs, isSearchActive = false) {
         const totalMb = (item.totalSize / (1024 * 1024)).toFixed(1);
         const sizeStr = item.totalSize >= 1024 * 1024 ? `${totalMb} MB` : `${Math.round(item.totalSize / 1024)} KB`;
 
-        const completedCount = item.books.filter(b => b.percent >= 100).length;
-        const ongoingCount = item.books.filter(b => b.percent > 0 && b.percent < 100).length;
-        const missingCount = item.books.filter(b => b.missing).length;
-        let seriesProgressBadge = '';
-        if (completedCount === item.books.length && item.books.length > 0) {
-            seriesProgressBadge = `<span class="series-progress-badge completed">✓ Completed (${completedCount}/${item.books.length})</span>`;
-        } else if (completedCount > 0 || ongoingCount > 0) {
-            seriesProgressBadge = `<span class="series-progress-badge ongoing">${completedCount}/${item.books.length} read</span>`;
+        let allBooks = [];
+        if (item.volumes) {
+            item.volumes.forEach(v => allBooks.push(...v.books));
+        } else {
+            allBooks = item.books;
         }
+
+        const completedCount = allBooks.filter(b => b.percent >= 100).length;
+        const ongoingCount = allBooks.filter(b => b.percent > 0 && b.percent < 100).length;
+        const missingCount = allBooks.filter(b => b.missing).length;
+        
+        let seriesProgressBadge = '';
+        if (completedCount === allBooks.length && allBooks.length > 0) {
+            seriesProgressBadge = `<span class="series-progress-badge completed">V Completed (${completedCount}/${allBooks.length})</span>`;
+        } else if (completedCount > 0 || ongoingCount > 0) {
+            seriesProgressBadge = `<span class="series-progress-badge ongoing">${completedCount}/${allBooks.length} read</span>`;
+        }
+        
         let missingBadge = '';
         if (missingCount > 0) {
             missingBadge = `<span class="ghost-badge">${missingCount} missing</span>`;
         }
 
-        const nestedHtml = item.books.map(b => {
+        const renderNestedBook = (b) => {
             const nameAttr = escapeAttr(b.filename);
             const progressHtml = renderProgressBar(b);
-            const isChecked = selectedBooks.has(b.filename) ? 'checked' : '';
+            const isChecked = typeof selectedBooks !== 'undefined' && selectedBooks.has(b.filename) ? 'checked' : '';
             const isGhost = !!b.missing;
             const ghostBadge = isGhost ? '<span class="ghost-badge">File missing</span>' : '';
             const sizeHtml = isGhost ? '<span class="book-size ghost-size">Missing</span>' : `<span class="book-size">${Math.round(b.size / 1024)} KB</span>`;
             const dlBtn = isGhost ? `<button class="btn-order" disabled title="File missing from storage">DL</button>` : `<button class="btn-order" data-action="download" data-filename="${nameAttr}" title="Download File">DL</button>`;
+            
+            let displayName = escapeHtml(b.name);
+            const prefix = item.name;
+            if (displayName.startsWith(prefix)) {
+                displayName = displayName.substring(prefix.length).replace(/^[\s_.-]+/, '');
+            }
 
             return `
             <div class="book-item series-nested-item ${isGhost ? 'ghost-node' : ''}" data-filename="${nameAttr}">
@@ -405,7 +443,7 @@ function renderItemHtml(item, epubs, isSearchActive = false) {
                 <div class="book-item-content">
                     <img class="book-cover-img" id="cover-${nameAttr}" src="data:image/gif;base64,R0lGODlhAQABAAD/ACwAAAAAAQABAAACADs=" onload="window.loadCover('${nameAttr}', this); this.onload=null;">
                     <div class="book-info-col">
-                        <span class="book-title">${escapeHtml(b.name)}${ghostBadge}</span>
+                        <span class="book-title">${displayName}${ghostBadge}</span>
                         ${progressHtml}
                     </div>
                 </div>
@@ -413,28 +451,49 @@ function renderItemHtml(item, epubs, isSearchActive = false) {
                 ${dlBtn}
                 <button class="btn-delete" data-action="delete" data-filename="${nameAttr}" data-name="${escapeAttr(b.name)}">Delete</button>
             </div>`;
-        }).join('');
+        };
 
-        const allChecked = item.books.length > 0 && item.books.every(b => selectedBooks.has(b.filename));
+        let volumesHtml = '';
+        if (item.volumes && item.volumes.length > 1) {
+            volumesHtml = item.volumes.map(vol => {
+                const volName = vol.volume === 0 ? 'Extras' : `Volume ${vol.volume}`;
+                const nestedBooks = vol.books.map(renderNestedBook).join('');
+                const volSizeStr = vol.size >= 1024 * 1024 ? `${(vol.size/(1024*1024)).toFixed(1)} MB` : `${Math.round(vol.size/1024)} KB`;
+                
+                return `
+                <details class="inline-details" open style="margin-left:8px; margin-bottom:8px;">
+                    <summary style="padding:4px 8px; font-weight:bold; color:var(--ink); border-bottom:1px solid var(--border); margin-bottom:4px; display:flex; justify-content:space-between;">
+                        <span>${volName}</span>
+                        <span style="opacity:0.5; font-size:10px; font-weight:normal;">${vol.books.length} files, ${volSizeStr}</span>
+                    </summary>
+                    <div>${nestedBooks}</div>
+                </details>`;
+            }).join('');
+        } else if (item.volumes && item.volumes.length === 1) {
+            volumesHtml = item.volumes[0].books.map(renderNestedBook).join('');
+        } else {
+            volumesHtml = allBooks.map(renderNestedBook).join('');
+        }
+
+        const allChecked = allBooks.length > 0 && allBooks.every(b => typeof selectedBooks !== 'undefined' && selectedBooks.has(b.filename));
         const isOpen = isSearchActive ? 'open' : '';
 
         return `
         <details class="series-group" data-series="${seriesNameAttr}" ${isOpen}>
-            <summary class="series-header">
-                <input type="checkbox" class="series-select-check" data-series="${seriesNameAttr}" ${allChecked ? 'checked' : ''} title="Select all in series" onclick="event.stopPropagation()" onchange="onSeriesCheckChange(this, '${seriesNameAttr}')">
-                <span class="series-title"><strong>${escapeHtml(item.name)}</strong></span>
-                <span class="series-badge">${item.books.length} volumes</span>
-                ${seriesProgressBadge}
+            <summary class="series-header book-item">
+                <input type="checkbox" onchange="onSeriesCheckChange(this, '${seriesNameAttr}')" ${allChecked ? 'checked' : ''} title="Select entire series" onclick="event.stopPropagation()">
+                <div class="series-title"><strong>${escapeHtml(item.name)}</strong></div>
                 ${missingBadge}
+                ${seriesProgressBadge}
+                <span class="series-badge">${allBooks.length} files</span>
                 <span class="book-size">${sizeStr}</span>
             </summary>
-            <div class="series-items">
-                ${nestedHtml}
+            <div class="series-items" style="padding-top: 8px;">
+                ${volumesHtml}
             </div>
         </details>`;
     }
 }
-
 function appendNextChunk() {
     const bookList = document.getElementById('book-list');
     if (!bookList || renderedChunkCount >= activeRenderedItems.length) {

@@ -1,4 +1,5 @@
 #include "WebMgr.h"
+#include "../KomaBon_Core/BatteryMgr.h"
 #include "../KomaBon_Core/SettingsStore.h"
 #include <ESPAsyncWebServer.h>
 #include <WiFi.h>
@@ -172,6 +173,10 @@ void WebMgr::resetIdleTimer() {
 
 void WebMgr::update() {
     // Wi-Fi Watchdog routine
+    if (_initialized) {
+        BatteryMgr::getInstance().resetIdleTimer(); // Inhibit device deep sleep while server is running
+    }
+
     if (_initialized && !_debugKeepWifi) {
         if (millis() - _lastActivityTime > WIFI_TIMEOUT_MS) {
             Serial.println("Inactivity timeout reached. Shutting down Wi-Fi.");

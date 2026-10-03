@@ -1569,49 +1569,62 @@ ${navMapItems}  </navMap>
     }
 }
 
-function uploadKMB(blob, filename, bar) {
-    return new Promise((resolve, reject) => {
-        const xhr = new XMLHttpRequest();
-        const formData = new FormData();
-        formData.append('file', blob, filename);
+async function uploadKMB(blob, filename, progressBar) {
+    const CHUNK_SIZE = 512 * 1024; // 512KB for maximum reliability over weak ESP32 WiFi
 
-        logMessage(`Standard transmission of ${filename} to KomaBon...`);
-
-        const retryContainer = document.getElementById('comic-retry-container');
-        if (retryContainer) retryContainer.classList.add('hidden');
-
-        xhr.upload.onprogress = e => {
-            if (e.lengthComputable) {
-                const pct = 95 + (e.loaded / e.total * 5);
-                bar.style.width = pct + '%';
+    const initResp = await fetch(`/api/books/upload_init?name=${encodeURIComponent(filename)}&size=${blob.size}`, { method: 'POST' });
+    if (!initResp.ok) throw new Error("Init failed: " + await initResp.text());
+    const initData = await initResp.json();
+    if (!initData.ok) throw new Error("Init error: " + initData.error);
+    
+    const safeName = initData.safeName;
+    logMessage(`Allocated server filename: ${safeName}`);
+    
+    let offset = 0;
+    while (offset < blob.size) {
+        const chunk = blob.slice(offset, offset + CHUNK_SIZE);
+        
+        let retries = 5;
+        while (retries > 0) {
+            try {
+                await new Promise((resolve, reject) => {
+                    const xhr = new XMLHttpRequest();
+                    xhr.upload.onprogress = (e) => {
+                        if (e.lengthComputable && progressBar) {
+                            const globalLoaded = offset + e.loaded;
+                            const percent = Math.round((globalLoaded / blob.size) * 100);
+                            progressBar.style.width = percent + '%';
+                        }
+                    };
+                    xhr.onload = () => {
+                        if (xhr.status >= 200 && xhr.status < 300) resolve();
+                        else reject(new Error(`HTTP ${xhr.status}`));
+                    };
+                    xhr.onerror = () => reject(new Error("Network Error"));
+                    
+                    xhr.open('POST', `/api/books/upload_chunk?name=${encodeURIComponent(safeName)}&offset=${offset}`);
+                    xhr.setRequestHeader('Content-Type', 'application/octet-stream');
+                    xhr.send(chunk);
+                });
+                break; // success
+            } catch (err) {
+                retries--;
+                logMessage(`Chunk at offset ${offset} failed, retrying... (${retries} left)`);
+                if (retries === 0) throw new Error("Upload failed after multiple chunk retries.");
+                await new Promise(r => setTimeout(r, 1500));
             }
-        };
-
-        xhr.onload = () => {
-            if (xhr.status === 200) {
-                bar.style.width = '100%';
-                logMessage(`Upload completed successfully!`);
-                lastFailedUpload = null;
-                const retryContainer = document.getElementById('comic-retry-container');
-                if (retryContainer) retryContainer.classList.add('hidden');
-                if (typeof fetchBooks === "function") fetchBooks();
-                resolve();
-            } else {
-                logMessage(`Upload failed. Server status: ${xhr.status}`, true);
-                setupRetryMechanism(blob, filename, bar);
-                resolve();
-            }
-        };
-
-        xhr.onerror = () => {
-            logMessage(`Network error: KomaBon unreachable.`, true);
-            setupRetryMechanism(blob, filename, bar);
-            resolve();
-        };
-
-        xhr.open('POST', '/api/books/upload');
-        xhr.send(formData);
-    });
+        }
+        offset += CHUNK_SIZE;
+    }
+    
+    // Commit
+    const commitResp = await fetch(`/api/books/upload_commit?name=${encodeURIComponent(safeName)}&orig=${encodeURIComponent(filename)}`, { method: 'POST' });
+    if (!commitResp.ok) throw new Error("Commit failed: " + await commitResp.text());
+    const commitData = await commitResp.json();
+    if (!commitData.ok) throw new Error("Commit error: " + commitData.error);
+    
+    logMessage("Upload completed successfully!");
+    if (typeof fetchBooks === "function") fetchBooks();
 }
 
 function setupRetryMechanism(blob, filename, bar) {

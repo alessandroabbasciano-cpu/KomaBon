@@ -675,6 +675,153 @@ void setupBookEndpoints(AsyncWebServer* server) {
             }
         });
 
+    server->on("/api/books/upload_init", HTTP_POST, [](AsyncWebServerRequest* request) {
+        if (!request->hasParam("name") || !request->hasParam("size")) {
+            request->send(400, "application/json", "{\"ok\":false,\"error\":\"missing params\"}");
+            return;
+        }
+        String filename = request->getParam("name")->value();
+        size_t size = request->getParam("size")->value().toInt();
+
+        String safeName = filename;
+        int lastSlash = safeName.lastIndexOf('/');
+        if (lastSlash >= 0) safeName = safeName.substring(lastSlash + 1);
+        lastSlash = safeName.lastIndexOf('\\');
+        if (lastSlash >= 0) safeName = safeName.substring(lastSlash + 1);
+
+        if (safeName.length() > 28) {
+            int dotPos = safeName.lastIndexOf('.');
+            String ext = (dotPos != -1) ? safeName.substring(dotPos) : "";
+            safeName = safeName.substring(0, 28 - ext.length()) + ext;
+        }
+
+        KomaBonStorage::ensureReady();
+        size_t totalBytes = KomaBonStorage::getTotalBytes();
+        size_t usedBytes = KomaBonStorage::getUsedBytes();
+        if (totalBytes == 0 && EbookFSPtr == &SD) {
+            SDMgr::getInstance().recover();
+            usedBytes = KomaBonStorage::getUsedBytes();
+            totalBytes = KomaBonStorage::getTotalBytes();
+        }
+
+        if (totalBytes == 0) {
+            request->send(500, "application/json", "{\"ok\":false,\"error\":\"Storage unavailable\"}");
+            return;
+        }
+
+        size_t freeBytes = (totalBytes > usedBytes) ? (totalBytes - usedBytes) : 0;
+        UploadVerdict verdict = UploadVerdict::Ok;
+        if (hasExtensionCI(safeName, ".kmb")) {
+            if (size > freeBytes)
+                verdict = UploadVerdict::NoSpace;
+            else if (!isSafeBookName(safeName))
+                verdict = UploadVerdict::UnsafeName;
+        } else {
+            verdict = checkUpload(safeName, size, freeBytes);
+        }
+
+        if (verdict == UploadVerdict::BadExtension) {
+            request->send(415, "application/json", "{\"ok\":false,\"error\":\"unsupported file type\"}");
+            return;
+        } else if (verdict == UploadVerdict::UnsafeName) {
+            request->send(400, "application/json", "{\"ok\":false,\"error\":\"invalid filename\"}");
+            return;
+        } else if (verdict == UploadVerdict::NoSpace) {
+            request->send(507, "application/json", "{\"ok\":false,\"error\":\"out of storage space\"}");
+            return;
+        }
+
+        String testPath = "/" + safeName;
+        if (EbookFS.exists(testPath) || EbookFS.exists(testPath + ".part")) {
+            int dotPos = safeName.lastIndexOf('.');
+            String baseName = (dotPos != -1) ? safeName.substring(0, dotPos) : safeName;
+            String ext = (dotPos != -1) ? safeName.substring(dotPos) : "";
+
+            if (baseName.length() > 20) baseName = baseName.substring(0, 20);
+
+            int suffix = 1;
+            while (suffix < 100) {
+                safeName = baseName + "_" + String(suffix) + ext;
+                testPath = "/" + safeName;
+                if (!EbookFS.exists(testPath) && !EbookFS.exists(testPath + ".part")) break;
+                suffix++;
+            }
+        }
+
+        // Wipe any existing stale part file just in case
+        if (EbookFS.exists("/" + safeName + ".part")) EbookFS.remove("/" + safeName + ".part");
+
+        String body = "{\"ok\":true,\"safeName\":\"" + jsonEscape(safeName) + "\"}";
+        request->send(200, "application/json", body);
+    });
+
+    server->on(
+        "/api/books/upload_chunk", HTTP_POST,
+        [](AsyncWebServerRequest* request) {
+            if (request->_tempObject != nullptr) {
+                File* f = (File*)request->_tempObject;
+                f->close();
+                delete f;
+                request->_tempObject = nullptr;
+            }
+            request->send(200, "application/json", "{\"ok\":true}");
+        },
+        NULL,
+        [](AsyncWebServerRequest* request, uint8_t* data, size_t len, size_t index, size_t total) {
+            if (!request->hasParam("name") || !request->hasParam("offset")) return;
+
+            String safeName = request->getParam("name")->value();
+            size_t chunkOffset = request->getParam("offset")->value().toInt();
+            String tempPath = "/" + safeName + ".part";
+
+            File* f = nullptr;
+            if (index == 0) {
+                if (chunkOffset == 0) {
+                    f = new File(EbookFS.open(tempPath, "w"));
+                } else {
+                    f = new File(EbookFS.open(tempPath, "r+"));
+                    if (f && *f) {
+                        f->seek(chunkOffset);
+                    }
+                }
+                request->_tempObject = f;
+            } else {
+                f = (File*)request->_tempObject;
+            }
+
+            if (f && *f && len > 0) {
+                size_t w = f->write(data, len);
+                if (w < len) {
+                    Serial.println("[HTTP] Chunk write failed! Disk full or IO error.");
+                }
+            }
+        });
+
+    server->on("/api/books/upload_commit", HTTP_POST, [](AsyncWebServerRequest* request) {
+        if (!request->hasParam("name") || !request->hasParam("orig")) {
+            request->send(400, "application/json", "{\"ok\":false,\"error\":\"missing params\"}");
+            return;
+        }
+        String safeName = request->getParam("name")->value();
+        String origName = request->getParam("orig")->value();
+        String tempPath = "/" + safeName + ".part";
+        String finalPath = "/" + safeName;
+
+        if (EbookFS.exists(tempPath)) {
+            if (EbookFS.rename(tempPath, finalPath)) {
+                saveBookMetadata(safeName, origName);
+                WebMgr::getInstance()._pendingLibraryInvalidate = true;
+                String body = "{\"ok\":true,\"name\":\"" + jsonEscape(safeName) + "\"}";
+                request->send(200, "application/json", body);
+            } else {
+                EbookFS.remove(tempPath);
+                request->send(500, "application/json", "{\"ok\":false,\"error\":\"Rename failed\"}");
+            }
+        } else {
+            request->send(404, "application/json", "{\"ok\":false,\"error\":\"Part file not found\"}");
+        }
+    });
+
     server->on("/api/books/delete", HTTP_DELETE, [](AsyncWebServerRequest* request) {
         if (!request->hasParam("name")) {
             request->send(400, "text/plain", "Missing name param");
