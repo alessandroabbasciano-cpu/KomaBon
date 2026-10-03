@@ -166,10 +166,12 @@ void AppWebTransfer::drawReady() {
                                  GxEPD_BLACK);
     }
 
-    int qrTopY = isSta ? 220 : 250;
+    int qrTopY = isSta ? 250 : 275;
     drawQRCode(display, url.c_str(), qrTopY, 7);
 
-    int textBelowY = qrTopY + 203 + 36;
+    // Bounding card bottom is: qrTopY + 203 + 14 = qrTopY + 217
+    // Spacing between card bottom and text baseline is increased for equal visual balance
+    int textBelowY = qrTopY + 217 + 60;
     fontMgr.drawTextCentered(display, "Scan with phone camera to open Web UI", textBelowY, FONT_SIZE_BODY,
                              GxEPD_BLACK);
     fontMgr.drawTextCentered(display, "Upload books, screensavers & settings", textBelowY + 28,

@@ -77,7 +77,16 @@ async function fetchStatus() {
         // Convert KB to MB for a cleaner UI
         const freeMB = (data.freeSpace / (1024 * 1024)).toFixed(1);
         const totalMB = (data.totalSpace / (1024 * 1024)).toFixed(1);
-        document.getElementById('freespace-val').innerText = freeMB + ' / ' + totalMB + ' MB';
+        const storageText = freeMB + ' / ' + totalMB + ' MB';
+        document.getElementById('freespace-val').innerText = storageText;
+        const sysStorageEl = document.getElementById('sys-storage-val');
+        if (sysStorageEl) sysStorageEl.innerText = storageText;
+
+        const sysBatteryEl = document.getElementById('sys-battery-val');
+        if (sysBatteryEl) sysBatteryEl.innerText = `${data.battery}% (${data.voltage.toFixed(2)}V${data.charging ? ' ⚡ Charging' : ''})`;
+
+        const sysUptimeEl = document.getElementById('sys-uptime-val');
+        if (sysUptimeEl) sysUptimeEl.innerText = data.uptime || '--';
 
         let voltageText = data.voltage.toFixed(2) + 'V';
         if (data.charging) {
@@ -750,23 +759,34 @@ function getWifiStatus() {
         .then(response => response.json())
         .then(data => {
             const el = document.getElementById('wifi-status');
+            const ssidEl = document.getElementById('wifi-ssid-badge');
             const modeEl = document.getElementById('wifi-mode-badge');
             const rssiEl = document.getElementById('wifi-rssi-badge');
             const ipEl = document.getElementById('wifi-ip-badge');
 
             if (data.sta_connected) {
                 if (el) el.textContent = `Connected to "${data.sta_ssid}".`;
+                if (ssidEl) ssidEl.textContent = data.sta_ssid || 'Connected';
                 if (modeEl) modeEl.textContent = 'Station (STA)';
-                if (rssiEl) rssiEl.textContent = `${data.rssi} dBm`;
+                
+                let quality = 'Good';
+                if (data.rssi >= -60) quality = 'Excellent';
+                else if (data.rssi >= -70) quality = 'Good';
+                else if (data.rssi >= -80) quality = 'Fair';
+                else quality = 'Weak';
+                
+                if (rssiEl) rssiEl.textContent = `${data.rssi} dBm (${quality})`;
                 if (ipEl) ipEl.textContent = data.sta_ip || '--';
             } else if (data.ap_active) {
                 if (el) el.textContent = `Hotspot active: "${data.ap_ssid}".`;
+                if (ssidEl) ssidEl.textContent = data.ap_ssid || 'KomaBon-AP';
                 if (modeEl) modeEl.textContent = 'Access Point (SoftAP)';
-                if (rssiEl) rssiEl.textContent = 'N/A (Host)';
+                if (rssiEl) rssiEl.textContent = 'Host Mode';
                 if (ipEl) ipEl.textContent = data.ap_ip || '--';
             } else {
                 if (el) el.textContent = 'Not connected.';
-                if (modeEl) modeEl.textContent = 'Disconnected';
+                if (ssidEl) ssidEl.textContent = 'Disconnected';
+                if (modeEl) modeEl.textContent = 'Inactive';
                 if (rssiEl) rssiEl.textContent = '--';
                 if (ipEl) ipEl.textContent = '--';
             }

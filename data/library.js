@@ -598,6 +598,30 @@ function renderBooks() {
 
     appendNextChunk();
     bindBookListActions();
+    renderCustomFontsList();
+}
+
+function renderCustomFontsList() {
+    const listEl = document.getElementById('custom-fonts-list');
+    if (!listEl) return;
+    const fonts = currentBooks.filter(b => isFont(b.filename));
+    if (fonts.length === 0) {
+        listEl.innerHTML = '<p class="hint" style="font-size: 12px; margin: 0;">No custom fonts installed.</p>';
+        return;
+    }
+
+    listEl.innerHTML = fonts.map(f => {
+        const sizeKb = Math.round(f.size / 1024);
+        return `
+        <div style="display: flex; justify-content: space-between; align-items: center; background: rgba(0,0,0,0.2); padding: 6px 10px; border-radius: 6px; border: 1px solid var(--line);">
+            <div style="min-width: 0; flex: 1; margin-right: 8px;">
+                <div style="font-size: 13px; font-weight: 500; color: var(--ink); white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">${escapeHtml(f.name || f.filename)}</div>
+                <div style="font-size: 11px; color: var(--muted);">${sizeKb} KB</div>
+            </div>
+            <button class="btn btn-micro danger" style="width: auto; padding: 2px 8px; flex-shrink: 0;" onclick="deleteBook('${escapeAttr(f.filename)}', '${escapeAttr(f.name)}')">Delete</button>
+        </div>
+        `;
+    }).join('');
 }
 
 function bindBookListActions() {

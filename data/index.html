@@ -5,7 +5,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>KomaBon OS</title>
-    <link rel="stylesheet" href="style.css?v=9">
+    <link rel="stylesheet" href="style.css?v=15">
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"
         integrity="sha512-XMVd28F1oH/O71fzwBnV7HucLxVwtxf26XV8P4wPk26EDxuGZ91N8bsOttmnomcCD3CS5ZMRL50H0GgOHvegtg=="
         crossorigin="anonymous" referrerpolicy="no-referrer"></script>
@@ -152,89 +152,116 @@
 
             <!-- Preferences Tab -->
             <section id="preferences" class="tab-content">
-                <div class="pref-two-col-layout">
-                    <!-- Left Column: Unified Reader & Display Settings Card -->
-                    <div class="card" style="margin-bottom: 0;">
-                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
-                            <h3 style="margin: 0;">Typography &amp; Refresh</h3>
+                <div style="display: flex; flex-direction: column; gap: 1rem;">
+                    <!-- 1. Reader & Display Unified Card -->
+                    <div class="card" style="margin-bottom: 0; padding: 16px 20px;">
+                        <!-- Typography row -->
+                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
+                            <h3 style="margin: 0; font-size: 15px;">Typography &amp; Refresh</h3>
                             <span id="reader-settings-status" class="auto-save-pill"></span>
                         </div>
-                        <div class="setting-row">
-                            <label for="font-size">Reading Font Size</label>
-                            <select id="font-size" onchange="autoSaveReaderSettings()">
-                                <option value="9">Small (9pt)</option>
-                                <option value="12">Medium (12pt)</option>
-                                <option value="18">Large (18pt)</option>
-                            </select>
-                        </div>
-                        <div class="setting-row">
-                            <label for="font-family">Reading Font</label>
-                            <select id="font-family" onchange="autoSaveReaderSettings()">
-                                <option value="0">System (Sans-serif)</option>
-                                <option value="1">Merriweather</option>
-                                <option value="2">Literata</option>
-                                <option value="3">Source Serif Pro</option>
-                                <option value="4">Gelasio</option>
-                                <option value="5">Open Sans</option>
-                            </select>
-                        </div>
-                        <div class="setting-row">
-                            <label for="refresh-rate">Full Refresh Interval (Pages)</label>
-                            <input type="number" id="refresh-rate" min="1" max="100" value="6" class="input-narrow"
-                                onchange="autoSaveReaderSettings()">
+                        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 12px; margin-bottom: 12px;">
+                            <div>
+                                <label for="font-size" style="font-size: 11.5px; font-weight: 600; color: var(--muted); display: block; margin-bottom: 3px;">Reading Font Size</label>
+                                <select id="font-size" class="input-full" onchange="autoSaveReaderSettings()" style="padding: 6px 10px;">
+                                    <option value="9">Small (9pt)</option>
+                                    <option value="12">Medium (12pt)</option>
+                                    <option value="18">Large (18pt)</option>
+                                </select>
+                            </div>
+                            <div>
+                                <label for="font-family" style="font-size: 11.5px; font-weight: 600; color: var(--muted); display: block; margin-bottom: 3px;">Reading Font</label>
+                                <select id="font-family" class="input-full" onchange="autoSaveReaderSettings()" style="padding: 6px 10px;">
+                                    <option value="0">System (Sans-serif)</option>
+                                    <option value="1">Merriweather</option>
+                                    <option value="2">Literata</option>
+                                    <option value="3">Source Serif Pro</option>
+                                    <option value="4">Gelasio</option>
+                                    <option value="5">Open Sans</option>
+                                </select>
+                            </div>
+                            <div>
+                                <label for="refresh-rate" style="font-size: 11.5px; font-weight: 600; color: var(--muted); display: block; margin-bottom: 3px;">Full Refresh Interval (Pages)</label>
+                                <input type="number" id="refresh-rate" min="1" max="100" value="6" class="input-full"
+                                    onchange="autoSaveReaderSettings()" style="padding: 6px 10px;">
+                            </div>
                         </div>
 
-                        <hr class="divider" style="margin: 1.25rem 0;">
+                        <hr class="divider" style="margin: 10px 0;">
 
-                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
-                            <h3 style="margin: 0;">Display &amp; Sleep</h3>
+                        <!-- Display & Sleep row -->
+                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
+                            <h3 style="margin: 0; font-size: 15px;">Display &amp; Sleep</h3>
                             <span id="sleep-settings-status" class="auto-save-pill"></span>
                         </div>
-                        <div class="setting-row">
-                            <label for="display-rotation">Display Rotation</label>
-                            <select id="display-rotation" onchange="autoSaveDisplaySettings()">
-                                <option value="3">0° (Portrait)</option>
-                                <option value="2">90° (Landscape Right)</option>
-                                <option value="1">180° (Inverted Portrait)</option>
-                                <option value="0">270° (Landscape Left)</option>
-                            </select>
+                        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 12px; margin-bottom: 10px;">
+                            <div>
+                                <label for="display-rotation" style="font-size: 11.5px; font-weight: 600; color: var(--muted); display: block; margin-bottom: 3px;">Display Rotation</label>
+                                <select id="display-rotation" class="input-full" onchange="autoSaveDisplaySettings()" style="padding: 6px 10px;">
+                                    <option value="3">0° (Portrait)</option>
+                                    <option value="2">90° (Landscape Right)</option>
+                                    <option value="1">180° (Inverted Portrait)</option>
+                                    <option value="0">270° (Landscape Left)</option>
+                                </select>
+                            </div>
+                            <div>
+                                <label for="sleep-screen-mode" style="font-size: 11.5px; font-weight: 600; color: var(--muted); display: block; margin-bottom: 3px;">Sleep Screen Mode</label>
+                                <select id="sleep-screen-mode" class="input-full" onchange="autoSaveSleepSettings()" style="padding: 6px 10px;">
+                                    <option value="0">Book Cover (Reading) / Minimal (Idle)</option>
+                                    <option value="1">Custom Screensaver (Image)</option>
+                                    <option value="2">Minimal Logo Only</option>
+                                </select>
+                            </div>
+                            <div>
+                                <label for="sleep-timeout" style="font-size: 11.5px; font-weight: 600; color: var(--muted); display: block; margin-bottom: 3px;">Idle Sleep Timeout (Minutes)</label>
+                                <input type="number" id="sleep-timeout" min="0" max="60" value="5" class="input-full"
+                                    onchange="autoSaveSleepSettings()" style="padding: 6px 10px;">
+                            </div>
                         </div>
-                        <div class="setting-row">
-                            <label for="sleep-screen-mode">Sleep Screen Mode</label>
-                            <select id="sleep-screen-mode" onchange="autoSaveSleepSettings()">
-                                <option value="0">Book Cover (Reading) / Minimal (Idle)</option>
-                                <option value="1">Custom Screensaver (Image)</option>
-                                <option value="2">Minimal Logo Only</option>
-                            </select>
-                        </div>
-                        <div class="setting-row">
-                            <label for="sleep-timeout">Idle Sleep Timeout (Minutes)</label>
-                            <input type="number" id="sleep-timeout" min="0" max="60" value="5" class="input-narrow"
-                                onchange="autoSaveSleepSettings()">
-                        </div>
-                        <div class="setting-row stacked spaced">
-                            <label for="sleep-message">Sleep Message</label>
+
+                        <div>
+                            <label for="sleep-message" style="font-size: 11.5px; font-weight: 600; color: var(--muted); display: block; margin-bottom: 3px;">Sleep Message</label>
                             <input type="text" id="sleep-message" maxlength="100" placeholder="Press button to wake"
-                                class="input-full" onchange="autoSaveSleepSettings()">
+                                class="input-full" onchange="autoSaveSleepSettings()" style="padding: 6px 10px;">
                         </div>
                         <div id="display-settings-status" style="display: none;"></div>
                     </div>
 
-                    <!-- Right Column: Unified Custom Screensaver Card -->
-                    <div class="card screensaver-card-container" id="screensaver-card" style="margin-bottom: 0;">
-                        <div>
-                            <h3 style="margin: 0 0 4px;">Custom Screensaver</h3>
-                            <p class="hint">Upload any image (PNG, JPG, WEBP). Scaled to 480&times;800 and dithered to 1-bit native RAW.</p>
-                        </div>
+                    <!-- 2. Custom Screensaver Card (Enlarged preview + balanced controls) -->
+                    <div class="card" id="screensaver-card" style="margin-bottom: 0; padding: 16px 20px;">
+                        <div style="display: flex; gap: 1.5rem; align-items: stretch;">
+                            <!-- Left Controls Column: Workflow Console -->
+                            <div style="flex: 1 1 0; display: flex; flex-direction: column; justify-content: space-between; min-width: 260px;">
+                                <div>
+                                    <h3 style="margin: 0 0 4px; font-size: 15px;">Custom Screensaver</h3>
+                                    <p class="hint" style="font-size: 12px; margin: 0 0 10px;">Select an image to show when KomaBon goes into deep sleep (scaled to 480&times;800 with 1-bit Atkinson dithering).</p>
+                                </div>
 
-                        <!-- Mid row: Drag & Drop + Preview Bezel side by side -->
-                        <div class="screensaver-upload-row">
-                            <div class="screensaver-dropzone" onclick="document.getElementById('screensaver-file-input').click()">
-                                <span>Drag image here<br><small>or click to select</small></span>
-                                <input type="file" id="screensaver-file-input" accept="image/*" class="hidden-input"
-                                    onchange="handleScreensaverFileSelect(this.files)">
+                                <!-- Integrated Dropzone & Controls Box (Expanded to match full preview height) -->
+                                <div style="background: rgba(0,0,0,0.18); border: 1px solid var(--line); border-radius: 8px; padding: 14px 16px; flex: 1; display: flex; flex-direction: column; justify-content: space-between;">
+                                    <div class="screensaver-dropzone" style="padding: 1.5rem 1rem; flex: 1; min-height: 160px; cursor: pointer; border-width: 2px; background: rgba(0,0,0,0.15);"
+                                        onclick="document.getElementById('screensaver-file-input').click()">
+                                        <div style="font-size: 32px; margin-bottom: 6px;">🖼️</div>
+                                        <span style="font-size: 14px; font-weight: 600; color: var(--ink);">Drag screensaver image here</span>
+                                        <small style="color: var(--muted); font-size: 12px; margin-top: 4px;">or click to browse from device (PNG, JPG, WEBP)</small>
+                                    </div>
+                                    <input type="file" id="screensaver-file-input" accept="image/*" class="hidden-input"
+                                        onchange="handleScreensaverFileSelect(this.files)">
+
+                                    <!-- Integrated Action Bar directly under dropzone -->
+                                    <div style="margin-top: 12px; padding-top: 10px; border-top: 1px dashed var(--line); display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 8px;">
+                                        <div id="screensaver-status" class="status-msg" style="margin: 0; font-size: 12.5px;"></div>
+                                        <div class="btn-row" style="margin: 0; gap: 8px;">
+                                            <button class="btn primary" id="upload-screensaver-btn" style="width: auto; padding: 7px 18px; font-size: 12.5px;" onclick="uploadCustomScreensaver()"
+                                                disabled>Apply Screensaver</button>
+                                            <button class="btn danger" id="delete-screensaver-btn" style="width: auto; padding: 7px 18px; font-size: 12.5px; display: none;" onclick="deleteCustomScreensaver()">Remove</button>
+                                        </div>
+                                    </div>
+                                </div>
                             </div>
-                            <div class="screensaver-preview-col">
+
+                            <!-- Right Column: Big Bezel Display Preview -->
+                            <div class="screensaver-preview-col" style="flex: 0 0 auto; display: flex; flex-direction: column; align-items: center;">
                                 <div class="screensaver-bezel-frame">
                                     <canvas id="screensaver-preview-canvas" width="480" height="800"
                                         style="display: none;"></canvas>
@@ -242,17 +269,7 @@
                                         No screensaver active
                                     </div>
                                 </div>
-                            </div>
-                        </div>
-
-                        <!-- Bottom row: status on the left, action buttons on the right -->
-                        <div class="screensaver-bottom-row">
-                            <div id="screensaver-status" class="status-msg" style="margin: 0;"></div>
-                            <div class="btn-row" style="margin: 0; gap: 8px;">
-                                <button class="btn primary" id="upload-screensaver-btn" onclick="uploadCustomScreensaver()"
-                                    disabled>Apply Screensaver</button>
-                                <button class="btn danger" id="delete-screensaver-btn" onclick="deleteCustomScreensaver()"
-                                    style="display: none;">Remove</button>
+                                <span style="font-size: 11px; color: var(--muted); margin-top: 4px;">480 &times; 800 E-Ink</span>
                             </div>
                         </div>
                     </div>
@@ -261,118 +278,176 @@
 
             <!-- Network Tab -->
             <section id="network" class="tab-content">
-                <div class="pref-grid">
-                    <!-- Network Status Card -->
-                    <div class="card">
-                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem;">
-                            <h3 style="margin: 0;">Connection Status</h3>
+                <div style="display: flex; flex-direction: column; gap: 1.25rem;">
+                    <!-- 1. Connection Status Card -->
+                    <div class="card" style="margin-bottom: 0;">
+                        <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px; margin-bottom: 12px;">
+                            <div>
+                                <h3 style="margin: 0 0 2px;">Connection Status</h3>
+                                <p id="wifi-status" class="hint" style="margin: 0;">Checking connection...</p>
+                            </div>
                             <button id="debug-wifi-btn" class="btn secondary btn-micro" onclick="toggleDebugWifi()"
-                                style="width: auto;">Enable Wi-Fi Debug</button>
+                                style="width: auto; padding: 6px 12px;">Enable Wi-Fi Debug</button>
                         </div>
-                        <p id="wifi-status" class="hint" style="margin-bottom: 1rem;">Checking connection...</p>
 
-                        <div class="network-details-list">
-                            <div class="detail-item"><strong>Mode:</strong> <span id="wifi-mode-badge">Station (STA) / SoftAP</span></div>
-                            <div class="detail-item"><strong>Signal RSSI:</strong> <span id="wifi-rssi-badge">-- dBm</span></div>
-                            <div class="detail-item"><strong>Device IP:</strong> <span id="wifi-ip-badge">--</span></div>
+                        <!-- 3 Metric Tiles -->
+                        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 12px; margin-top: 8px;">
+                            <div style="background: rgba(0, 0, 0, 0.2); border: 1px solid var(--line); border-radius: 8px; padding: 12px 14px;">
+                                <div style="font-size: 11px; text-transform: uppercase; letter-spacing: 0.05em; color: var(--muted); margin-bottom: 4px;">Network (SSID)</div>
+                                <div id="wifi-ssid-badge" style="font-size: 15px; font-weight: 600; color: var(--ink); white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">--</div>
+                                <div style="font-size: 12px; color: var(--muted); margin-top: 2px;">Mode: <span id="wifi-mode-badge">Station (STA)</span></div>
+                            </div>
+                            <div style="background: rgba(0, 0, 0, 0.2); border: 1px solid var(--line); border-radius: 8px; padding: 12px 14px;">
+                                <div style="font-size: 11px; text-transform: uppercase; letter-spacing: 0.05em; color: var(--muted); margin-bottom: 4px;">Signal Strength (RSSI)</div>
+                                <div id="wifi-rssi-badge" style="font-size: 15px; font-weight: 600; color: var(--success);">-- dBm</div>
+                                <div style="font-size: 12px; color: var(--muted); margin-top: 2px;">2.4 GHz Band</div>
+                            </div>
+                            <div style="background: rgba(0, 0, 0, 0.2); border: 1px solid var(--line); border-radius: 8px; padding: 12px 14px;">
+                                <div style="font-size: 11px; text-transform: uppercase; letter-spacing: 0.05em; color: var(--muted); margin-bottom: 4px;">Device IP Address</div>
+                                <div id="wifi-ip-badge" style="font-size: 15px; font-weight: 600; color: var(--ink); font-family: monospace;">--</div>
+                                <div style="font-size: 12px; color: var(--muted); margin-top: 2px;">Port: 80 (HTTP)</div>
+                            </div>
                         </div>
                     </div>
 
-                    <!-- Wi-Fi Station & Connect Card -->
-                    <div class="card">
-                        <h3>Wi-Fi Networks</h3>
-                        <p class="hint">Scan for local 2.4GHz Wi-Fi networks and connect.</p>
+                    <!-- 2. Wi-Fi Station & Connect Card -->
+                    <div class="card" style="margin-bottom: 0;">
+                        <h3 style="margin: 0 0 4px;">Connect to Wi-Fi</h3>
+                        <p class="hint">Scan for nearby 2.4GHz Wi-Fi networks and connect KomaBon.</p>
 
-                        <div class="setting-row spaced">
-                            <label for="wifi-ssid">Network (SSID)</label>
-                            <select id="wifi-ssid" class="input-grow">
-                                <option value="">Tap Scan to list networks…</option>
-                            </select>
+                        <div style="display: flex; flex-direction: column; gap: 12px; margin-top: 14px;">
+                            <!-- Network select row -->
+                            <div style="display: flex; gap: 10px; align-items: center; flex-wrap: wrap;">
+                                <div style="flex: 1 1 280px;">
+                                    <label for="wifi-ssid" style="font-size: 12px; font-weight: 600; color: var(--muted); display: block; margin-bottom: 4px;">Available Networks</label>
+                                    <select id="wifi-ssid" class="input-full" style="padding: 8px 12px;">
+                                        <option value="">Tap Scan to list networks…</option>
+                                    </select>
+                                </div>
+                                <div style="align-self: flex-end;">
+                                    <button class="btn secondary" style="white-space: nowrap; padding: 8px 16px;" onclick="scanWifi()">🔍 Scan Networks</button>
+                                </div>
+                            </div>
+
+                            <!-- Password row -->
+                            <div style="display: flex; gap: 10px; align-items: center; flex-wrap: wrap;">
+                                <div style="flex: 1 1 280px; position: relative;">
+                                    <label for="wifi-pass" style="font-size: 12px; font-weight: 600; color: var(--muted); display: block; margin-bottom: 4px;">Password</label>
+                                    <div style="position: relative;">
+                                        <input type="password" id="wifi-pass" placeholder="(leave blank if open)" class="input-full" style="padding: 8px 40px 8px 12px;">
+                                        <button type="button" aria-label="Toggle password visibility" onclick="const p = document.getElementById('wifi-pass'); p.type = p.type === 'password' ? 'text' : 'password';"
+                                            style="position: absolute; right: 10px; top: 50%; transform: translateY(-50%); background: none; border: none; cursor: pointer; color: var(--muted); font-size: 14px; padding: 0;">👁️</button>
+                                    </div>
+                                </div>
+                                <div style="align-self: flex-end;">
+                                    <button class="btn primary" style="white-space: nowrap; padding: 8px 24px;" onclick="connectWifi()">🔗 Connect</button>
+                                </div>
+                            </div>
                         </div>
-                        <div class="setting-row spaced">
-                            <label for="wifi-pass">Password</label>
-                            <input type="password" id="wifi-pass" placeholder="(leave blank if open)" class="input-grow">
+
+                        <div id="wifi-connect-status" class="status-msg" style="margin-top: 10px;"></div>
+
+                        <!-- Informational hint -->
+                        <div style="border-top: 1px dashed var(--line); padding-top: 10px; margin-top: 12px;">
+                            <p class="hint" style="margin: 0; font-size: 12px;">
+                                💡 <strong>Tip:</strong> KomaBon supports 2.4 GHz 802.11 b/g/n networks. If no configured network is within range, KomaBon activates its standalone setup hotspot (<strong>KomaBon-AP</strong>).
+                            </p>
                         </div>
-                        <div class="btn-row" style="margin-top: 1rem;">
-                            <button class="btn secondary" onclick="scanWifi()">Scan Networks</button>
-                            <button class="btn primary" onclick="connectWifi()">Connect</button>
-                        </div>
-                        <div id="wifi-connect-status" class="status-msg"></div>
                     </div>
                 </div>
             </section>
 
             <!-- System Tab -->
             <section id="system" class="tab-content">
-                <div class="settings-grid">
-                    <!-- 1. Firmware & OTA Update -->
-                    <div class="card">
-                        <div class="card-main-row">
-                            <div class="card-info">
-                                <h3>Firmware &amp; OTA</h3>
-                                <p class="hint">Current: v<span id="current-ver">1.0</span></p>
-                                <div id="update-status" class="status-msg"></div>
+                <div style="display: flex; flex-direction: column; gap: 1.25rem;">
+                    <!-- 1. Firmware & OTA Update Card -->
+                    <div class="card" style="margin-bottom: 0;">
+                        <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 1rem;">
+                            <div>
+                                <div style="display: flex; align-items: center; gap: 8px;">
+                                    <h3 style="margin: 0;">Firmware &amp; OTA</h3>
+                                    <span class="badge" style="background: rgba(59,130,246,0.15); color: var(--primary); font-weight:600; font-size:12px; padding:2px 8px; border-radius:6px; border:1px solid rgba(59,130,246,0.3);">
+                                        v<span id="current-ver">1.0</span>
+                                    </span>
+                                </div>
+                                <p class="hint" style="margin: 4px 0 0;">Check for official releases on GitHub and update KomaBon over-the-air.</p>
                             </div>
-                            <div class="card-action">
-                                <button id="check-update-btn" class="btn btn-action-large" onclick="checkUpdate()">Check Updates</button>
-                                <button id="update-btn" class="btn btn-action-large primary hidden"
-                                    onclick="performUpdate()">Install</button>
+                            <div style="display: flex; gap: 8px; align-items: center;">
+                                <button id="check-update-btn" class="btn secondary" onclick="checkUpdate()">Check Updates</button>
+                                <button id="update-btn" class="btn primary hidden" onclick="performUpdate()">Install Update</button>
                             </div>
                         </div>
+                        <div id="update-status" class="status-msg" style="margin-top: 6px;"></div>
                     </div>
 
-                    <!-- 2. Font Upload Card -->
-                    <div class="card">
-                        <div class="card-main-row">
-                            <div class="card-info">
-                                <h3>Typography Engine</h3>
-                                <p class="hint">Upload custom .ttf to storage</p>
-                                <div id="upload-status" class="status-msg"></div>
-                            </div>
-                            <div class="card-action">
-                                <div id="font-dropzone" class="dropzone font-dropzone"
-                                    onclick="document.getElementById('book-file').click()">
-                                    <span>Drag .ttf<br><small>or click</small></span>
-                                    <input type="file" id="book-file" class="hidden-input" accept=".ttf"
-                                        onchange="uploadBook()">
-                                </div>
-                            </div>
+                    <!-- 2. Typography Engine & Font Management Card -->
+                    <div class="card" style="margin-bottom: 0;">
+                        <h3 style="margin: 0 0 4px;">Typography &amp; Fonts</h3>
+                        <p class="hint">Upload custom TrueType (.ttf) fonts directly to storage for reading rendering.</p>
+
+                        <!-- Font Upload Drag & Drop -->
+                        <div id="font-dropzone" class="screensaver-dropzone" style="min-height: 80px; padding: 1rem; margin: 12px 0 8px;"
+                            onclick="document.getElementById('book-file').click()">
+                            <span style="font-size: 13px; font-weight: 500;">Drag .ttf font here<br><small style="color: var(--muted);">or click to browse</small></span>
+                            <input type="file" id="book-file" class="hidden-input" accept=".ttf" onchange="uploadBook()">
                         </div>
-                        <div id="upload-progress" class="progress-container hidden">
+                        <div id="upload-progress" class="progress-container hidden" style="margin-bottom: 8px;">
                             <div id="upload-progress-bar" class="progress-bar"></div>
                         </div>
-                    </div>
+                        <div id="upload-status" class="status-msg" style="margin: 0 0 8px;"></div>
 
-                    <!-- 3. Library State & Backup -->
-                    <div class="card">
-                        <div class="card-main-row">
-                            <div class="card-info">
-                                <h3>Reading State &amp; Backup</h3>
-                                <p id="reader-progress-status" class="hint">Loading saved position...</p>
-                                <div id="library-state-status" class="status-msg"></div>
-                                <div id="reader-progress-reset-status" class="status-msg"></div>
-                            </div>
-                            <div class="card-action">
-                                <div class="btn-col">
-                                    <button class="btn btn-micro secondary" onclick="exportLibraryState()">Export State</button>
-                                    <input type="file" id="import-state-file" accept=".json,application/json"
-                                        style="display:none" onchange="importLibraryState(this)">
-                                    <button class="btn btn-micro secondary"
-                                        onclick="document.getElementById('import-state-file').click()">Import State</button>
-                                    <button class="btn btn-micro danger" onclick="resetReaderProgress()">Reset Progress</button>
-                                </div>
+                        <!-- Installed Custom Fonts List -->
+                        <div style="border-top: 1px dashed var(--line); padding-top: 10px; margin-top: 6px;">
+                            <span style="font-size: 12px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em; color: var(--muted);">Installed Custom Fonts</span>
+                            <div id="custom-fonts-list" style="margin-top: 8px; display: flex; flex-direction: column; gap: 6px;">
+                                <p class="hint" style="font-size: 12px; margin: 0;">No custom fonts installed.</p>
                             </div>
                         </div>
                     </div>
 
-                    <!-- 4. System Diagnostics & Crash Log -->
-                    <div id="crash-log-card" class="card hidden">
-                        <div class="card-info">
-                            <h3>⚠️ Crash Diagnostics</h3>
-                            <p class="hint" id="crash-reset-reason">Abnormal restart recorded on boot.</p>
-                            <pre id="crash-log-content"
-                                style="background:#09090b;padding:10px;border-radius:6px;overflow-x:auto;font-size:0.8rem;color:#38bdf8;max-height:160px;margin:8px 0;white-space:pre-wrap;"></pre>
-                            <button type="button" class="btn btn-micro danger" onclick="clearCrashLog()">Clear Crash Log</button>
+                    <!-- 3. Reading State & Storage Tools Card -->
+                    <div class="card" style="margin-bottom: 0;">
+                        <h3 style="margin: 0 0 4px;">Reading State &amp; Storage Maintenance</h3>
+                        <p class="hint">Export reading progress and system settings for safe-keeping, or recover storage bus connections.</p>
+
+                        <!-- Current reading status indicator -->
+                        <div style="background: rgba(0, 0, 0, 0.2); border: 1px solid var(--line); border-radius: 8px; padding: 10px 12px; margin: 12px 0; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 8px;">
+                            <div>
+                                <div style="font-size: 11px; text-transform: uppercase; letter-spacing: 0.05em; color: var(--muted); margin-bottom: 2px;">Current Book Position</div>
+                                <div id="reader-progress-status" style="font-size: 13.5px; font-weight: 500; color: var(--ink);">Loading position...</div>
+                            </div>
+                            <div style="display: flex; gap: 8px;">
+                                <button class="btn secondary btn-micro" style="width: auto; padding: 4px 10px;" onclick="exportLibraryState()">📥 Export Backup</button>
+                                <input type="file" id="import-state-file" accept=".json,application/json" style="display:none" onchange="importLibraryState(this)">
+                                <button class="btn secondary btn-micro" style="width: auto; padding: 4px 10px;" onclick="document.getElementById('import-state-file').click()">📤 Import Backup</button>
+                                <button class="btn danger btn-micro" style="width: auto; padding: 4px 10px;" onclick="resetReaderProgress()">⚠️ Reset Progress</button>
+                            </div>
+                        </div>
+                        <div id="library-state-status" class="status-msg" style="margin-top: 4px;"></div>
+                        <div id="reader-progress-reset-status" class="status-msg" style="margin-top: 2px;"></div>
+
+                        <!-- MicroSD Maintenance Row -->
+                        <div style="border-top: 1px dashed var(--line); padding-top: 12px; margin-top: 8px; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 12px;">
+                            <div>
+                                <strong style="font-size: 13px; color: var(--ink);">MicroSD Bus Reconnect</strong>
+                                <p class="hint" style="margin: 2px 0 0; font-size: 12px;">Re-initialize SPI bus communication if a card was re-inserted without rebooting.</p>
+                            </div>
+                            <button id="btn-remount-sd" class="btn secondary btn-micro" style="width: auto; padding: 6px 12px;" onclick="remountSD()">Remount MicroSD Bus</button>
+                        </div>
+                        <div id="sd-remount-status" class="status-msg" style="margin-top: 6px;"></div>
+
+                        <div id="sd-cluster-warning" class="hint hidden" style="color: var(--yellow); margin-top: 10px; font-size: 12px; background: rgba(251, 191, 36, 0.1); padding: 8px 10px; border-radius: 6px; border: 1px solid rgba(251, 191, 36, 0.2);">
+                            ⚡ Note: MicroSD cluster size could be optimized to 32 KB.
+                        </div>
+
+                        <!-- Crash Diagnostics (shown only if abnormal reset) -->
+                        <div id="crash-log-card" class="hidden" style="margin-top: 14px; border-top: 1px dashed var(--line); padding-top: 12px;">
+                            <div style="display: flex; justify-content: space-between; align-items: center;">
+                                <strong style="color: var(--danger); font-size: 13px;">⚠️ Abnormal Reset Detected</strong>
+                                <button type="button" class="btn btn-micro danger" style="width: auto; padding: 2px 8px;" onclick="clearCrashLog()">Clear Log</button>
+                            </div>
+                            <p class="hint" id="crash-reset-reason" style="margin: 4px 0 8px;"></p>
+                            <pre id="crash-log-content" style="background:#09090b;padding:10px;border-radius:6px;overflow-x:auto;font-size:0.75rem;color:#38bdf8;max-height:140px;margin:0;white-space:pre-wrap;"></pre>
                         </div>
                     </div>
                 </div>
@@ -380,9 +455,9 @@
         </main>
     </div>
 
-    <script src="library.js?v=4"></script>
+    <script src="library.js?v=5"></script>
     <script src="converter.js"></script>
-    <script src="script.js?v=4"></script>
+    <script src="script.js?v=5"></script>
 </body>
 
 </html>
