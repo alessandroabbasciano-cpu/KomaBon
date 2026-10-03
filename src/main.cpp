@@ -153,7 +153,7 @@ void setup() {
         // EMERGENCY CALIBRATION RESET
         // If the user got locked out with a bad calibration (e.g. all buttons mapped to DOWN),
         // they can hold KEY2 (PIN_BUTTON_SLEEP) while resetting the device to wipe the calibration.
-                if (digitalRead(PIN_BUTTON_SLEEP) == LOW) {
+        if (digitalRead(PIN_BUTTON_SLEEP) == LOW) {
             uint32_t holdStart = millis();
             bool confirmedHold = true;
             while (millis() - holdStart < 1500) {
