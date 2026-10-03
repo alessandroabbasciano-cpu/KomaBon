@@ -403,6 +403,163 @@ details.inline-details .compact-row {
 }
 
 /* ==========================================================================
+   Preferences & Multi-Column Layouts
+   ========================================================================== */
+.pref-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+    gap: 1.25rem;
+    margin-bottom: 1.5rem;
+}
+
+/* Two distinct balanced columns */
+.pref-two-col-layout {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(340px, 1fr));
+    gap: 1.25rem;
+    align-items: start;
+}
+
+.pref-col {
+    display: flex;
+    flex-direction: column;
+    gap: 1.25rem;
+}
+
+.pref-col .card {
+    margin-bottom: 0;
+}
+
+.auto-save-pill {
+    font-size: 11px;
+    font-weight: 600;
+    color: var(--success);
+    background: rgba(110, 231, 183, 0.15);
+    border: 1px solid rgba(110, 231, 183, 0.3);
+    padding: 2px 8px;
+    border-radius: 12px;
+    opacity: 0;
+    transition: opacity 0.3s ease;
+}
+
+.auto-save-pill.saving {
+    color: var(--yellow);
+    background: rgba(251, 191, 36, 0.15);
+    border-color: rgba(251, 191, 36, 0.3);
+    opacity: 1;
+}
+
+.auto-save-pill.saved {
+    opacity: 1;
+}
+
+/* Screensaver Upload & Preview Card in Right Column */
+.screensaver-card-container {
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+}
+
+.screensaver-upload-row {
+    display: flex;
+    gap: 1.25rem;
+    align-items: stretch;
+    margin: 1.25rem 0;
+    min-height: 240px;
+}
+
+.screensaver-upload-row .screensaver-dropzone {
+    flex: 1 1 0;
+    min-width: 140px;
+}
+
+.screensaver-bottom-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 1rem;
+    margin-top: auto;
+    padding-top: 0.75rem;
+    border-top: 1px dashed var(--line);
+}
+
+.screensaver-dropzone {
+    border: 2px dashed var(--line);
+    border-radius: 8px;
+    color: var(--muted);
+    cursor: pointer;
+    background-color: rgba(0, 0, 0, 0.2);
+    padding: 1.5rem 1rem;
+    text-align: center;
+    transition: all 0.2s ease;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    width: 100%;
+}
+
+.screensaver-dropzone:hover {
+    border-color: var(--primary);
+    background-color: rgba(59, 130, 246, 0.1);
+    color: var(--ink);
+}
+
+.screensaver-preview-col {
+    flex: 0 0 auto;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+}
+
+.screensaver-bezel-frame {
+    border: 6px solid #222;
+    border-radius: 8px;
+    box-shadow: 0 6px 18px rgba(0, 0, 0, 0.6);
+    background: #111;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 135px;
+    aspect-ratio: 480 / 800;
+    overflow: hidden;
+}
+
+.screensaver-bezel-frame canvas {
+    width: 100%;
+    height: 100%;
+    object-fit: contain;
+}
+
+#screensaver-empty-preview {
+    padding: 12px 8px;
+    color: var(--muted);
+    font-size: 0.75rem;
+    text-align: center;
+}
+
+/* Network Details */
+.network-details-list {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    margin-top: 0.5rem;
+}
+
+.network-details-list .detail-item {
+    font-size: 13.5px;
+    color: var(--ink);
+    display: flex;
+    justify-content: space-between;
+    border-bottom: 1px dashed var(--line);
+    padding-bottom: 4px;
+}
+
+.network-details-list .detail-item strong {
+    color: var(--secondary);
+}
+
+/* ==========================================================================
    Settings 3-Column Symmetrical Layout
    ========================================================================== */
 .settings-grid {

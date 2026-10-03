@@ -23,22 +23,28 @@ function showTab(tabId) {
     document.querySelectorAll('.tab-content').forEach(el => el.classList.remove('active'));
     document.querySelectorAll('.nav-links li').forEach(el => el.classList.remove('active'));
 
-    document.getElementById(tabId).classList.add('active');
+    const targetSection = document.getElementById(tabId);
+    if (targetSection) targetSection.classList.add('active');
 
-    const navItems = ['library', 'settings'];
+    const navItems = ['library', 'preferences', 'network', 'system'];
     const tabIndex = navItems.indexOf(tabId);
     if (tabIndex >= 0) {
-        document.querySelectorAll('.nav-links li')[tabIndex].classList.add('active');
+        const lis = document.querySelectorAll('.nav-links li');
+        if (lis[tabIndex]) lis[tabIndex].classList.add('active');
     }
 
     if (tabId === 'library') {
         if (typeof fetchBooks === 'function') fetchBooks();
-    } else if (tabId === 'settings') {
-        getReaderProgress();
-        getWifiStatus();
+    } else if (tabId === 'preferences') {
+        getReaderSettings();
         getDisplaySettings();
         getSleepSettings();
         checkScreensaverStatus();
+    } else if (tabId === 'network') {
+        getWifiStatus();
+    } else if (tabId === 'system') {
+        getReaderProgress();
+        fetchCrashLog();
     }
 }
 
@@ -242,6 +248,19 @@ function getReaderSettings() {
         .catch(error => console.error('Error loading reader settings:', error));
 }
 
+let _readerSaveTimer = null;
+function autoSaveReaderSettings() {
+    const statusDiv = document.getElementById('reader-settings-status');
+    if (statusDiv) {
+        statusDiv.textContent = "Saving...";
+        statusDiv.className = "auto-save-pill saving";
+    }
+    clearTimeout(_readerSaveTimer);
+    _readerSaveTimer = setTimeout(() => {
+        saveReaderSettings();
+    }, 400);
+}
+
 function saveReaderSettings() {
     const refreshRate = parseInt(document.getElementById('refresh-rate').value);
     const fontSize = parseInt(document.getElementById('font-size').value);
@@ -255,19 +274,25 @@ function saveReaderSettings() {
     })
         .then(response => response.json())
         .then(data => {
-            if (data.status === 'ok') {
-                statusDiv.textContent = "Settings saved!";
-                statusDiv.style.color = "green";
-                setTimeout(() => statusDiv.textContent = "", 3000);
-            } else {
-                statusDiv.textContent = "Error saving settings.";
-                statusDiv.style.color = "red";
+            if (statusDiv) {
+                if (data.status === 'ok') {
+                    statusDiv.textContent = "Saved ✓";
+                    statusDiv.className = "auto-save-pill saved";
+                    setTimeout(() => { statusDiv.classList.remove('saved'); }, 2500);
+                } else {
+                    statusDiv.textContent = "Error saving";
+                    statusDiv.className = "auto-save-pill";
+                    statusDiv.style.color = "var(--danger)";
+                }
             }
         })
         .catch(error => {
             console.error('Error saving settings:', error);
-            statusDiv.textContent = "Connection error.";
-            statusDiv.style.color = "red";
+            if (statusDiv) {
+                statusDiv.textContent = "Connection error";
+                statusDiv.className = "auto-save-pill";
+                statusDiv.style.color = "var(--danger)";
+            }
         });
 }
 
@@ -370,6 +395,19 @@ function getSleepSettings() {
         .catch(error => console.error('Error loading sleep settings:', error));
 }
 
+let _sleepSaveTimer = null;
+function autoSaveSleepSettings() {
+    const statusDiv = document.getElementById('sleep-settings-status');
+    if (statusDiv) {
+        statusDiv.textContent = "Saving...";
+        statusDiv.className = "auto-save-pill saving";
+    }
+    clearTimeout(_sleepSaveTimer);
+    _sleepSaveTimer = setTimeout(() => {
+        saveSleepSettings();
+    }, 400);
+}
+
 function saveSleepSettings() {
     const sleepTimeout = parseInt(document.getElementById('sleep-timeout').value);
     const screenModeEl = document.getElementById('sleep-screen-mode');
@@ -384,20 +422,39 @@ function saveSleepSettings() {
     })
         .then(response => response.json())
         .then(data => {
-            if (data.status === 'ok') {
-                statusDiv.textContent = "Settings saved!";
-                statusDiv.style.color = "var(--success)";
-                setTimeout(() => statusDiv.textContent = "", 3000);
-            } else {
-                statusDiv.textContent = "Error saving settings.";
-                statusDiv.style.color = "var(--danger)";
+            if (statusDiv) {
+                if (data.status === 'ok') {
+                    statusDiv.textContent = "Saved ✓";
+                    statusDiv.className = "auto-save-pill saved";
+                    setTimeout(() => { statusDiv.classList.remove('saved'); }, 2500);
+                } else {
+                    statusDiv.textContent = "Error saving";
+                    statusDiv.className = "auto-save-pill";
+                    statusDiv.style.color = "var(--danger)";
+                }
             }
         })
         .catch(error => {
             console.error('Error saving sleep settings:', error);
-            statusDiv.textContent = "Connection error.";
-            statusDiv.style.color = "var(--danger)";
+            if (statusDiv) {
+                statusDiv.textContent = "Connection error";
+                statusDiv.className = "auto-save-pill";
+                statusDiv.style.color = "var(--danger)";
+            }
         });
+}
+
+let _displaySaveTimer = null;
+function autoSaveDisplaySettings() {
+    const statusDiv = document.getElementById('sleep-settings-status');
+    if (statusDiv) {
+        statusDiv.textContent = "Applying...";
+        statusDiv.className = "auto-save-pill saving";
+    }
+    clearTimeout(_displaySaveTimer);
+    _displaySaveTimer = setTimeout(() => {
+        saveDisplaySettings();
+    }, 400);
 }
 
 // --- Custom Screensaver Management ---
@@ -693,13 +750,25 @@ function getWifiStatus() {
         .then(response => response.json())
         .then(data => {
             const el = document.getElementById('wifi-status');
-            if (!el) return;
+            const modeEl = document.getElementById('wifi-mode-badge');
+            const rssiEl = document.getElementById('wifi-rssi-badge');
+            const ipEl = document.getElementById('wifi-ip-badge');
+
             if (data.sta_connected) {
-                el.textContent = `Connected to "${data.sta_ssid}" (${data.sta_ip}), signal ${data.rssi} dBm.`;
+                if (el) el.textContent = `Connected to "${data.sta_ssid}".`;
+                if (modeEl) modeEl.textContent = 'Station (STA)';
+                if (rssiEl) rssiEl.textContent = `${data.rssi} dBm`;
+                if (ipEl) ipEl.textContent = data.sta_ip || '--';
             } else if (data.ap_active) {
-                el.textContent = `Hotspot mode — network "${data.ap_ssid}" at ${data.ap_ip}. Join a Wi-Fi network below to get online.`;
+                if (el) el.textContent = `Hotspot active: "${data.ap_ssid}".`;
+                if (modeEl) modeEl.textContent = 'Access Point (SoftAP)';
+                if (rssiEl) rssiEl.textContent = 'N/A (Host)';
+                if (ipEl) ipEl.textContent = data.ap_ip || '--';
             } else {
-                el.textContent = 'Not connected.';
+                if (el) el.textContent = 'Not connected.';
+                if (modeEl) modeEl.textContent = 'Disconnected';
+                if (rssiEl) rssiEl.textContent = '--';
+                if (ipEl) ipEl.textContent = '--';
             }
         })
         .catch(error => console.error('Error loading Wi-Fi status:', error));
