@@ -34,7 +34,7 @@ async function processCoverQueue() {
     while (coverQueue.length > 0) {
         const { filename, imgElement } = coverQueue.shift();
         try {
-            const resp = await fetch(/api/books/cover?name=);
+            const resp = await fetch(`/api/books/cover?name=${encodeURIComponent(filename)}`);
             if (resp.ok) {
                 const blob = await resp.blob();
                 imgElement.src = URL.createObjectURL(blob);
