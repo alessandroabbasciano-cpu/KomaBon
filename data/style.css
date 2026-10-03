@@ -184,6 +184,21 @@ p.hint {
     letter-spacing: 0.5px;
 }
 
+.stat-pill.error-badge {
+    margin-left: auto;
+    background-color: rgba(239, 68, 68, 0.2);
+    border-color: rgba(239, 68, 68, 0.5);
+    color: var(--danger-line);
+    display: inline-flex;
+    justify-content: center;
+    align-items: center;
+    text-align: center;
+}
+
+.stat-pill.error-badge strong {
+    color: var(--danger-line);
+}
+
 #header-voltage {
     font-size: 0.85rem;
     font-weight: 600;
@@ -312,6 +327,11 @@ p.hint {
     margin-bottom: 0;
 }
 
+.conv-left {
+    display: flex;
+    flex-direction: column;
+}
+
 .dropzone {
     border: 2px dashed var(--line);
     border-radius: 8px;
@@ -322,6 +342,10 @@ p.hint {
     display: flex;
     align-items: center;
     justify-content: center;
+    min-height: 120px;
+    height: 100%;
+    padding: 1.25rem 1rem;
+    text-align: center;
 }
 
 .dropzone:hover,
@@ -497,8 +521,8 @@ details.inline-details .compact-row {
    Library File Manager
    ========================================================================== */
 .book-list-container {
-    max-height: 400px;
-    overflow-y: auto;
+    max-height: none;
+    overflow-y: visible;
     padding-right: 6px;
 }
 
@@ -1153,39 +1177,18 @@ select:focus {
     overflow: hidden;
 }
 
-.book-cover-img {
-    width: 32px;
-    height: 44px;
-    object-fit: cover;
-    border-radius: 4px;
-    border: 1px solid var(--line);
-    margin-right: 12px;
-    background: #f0f0f0;
-    flex-shrink: 0;
-}
-.book-item-content {
-    display: flex;
-    align-items: center;
-    flex-grow: 1;
-    overflow: hidden;
-}
-
 .converter-grid {
     display: grid;
     grid-template-columns: 1fr;
     gap: 16px;
-    align-items: center;
+    align-items: stretch;
 }
 @media (min-width: 600px) {
     .converter-grid {
         grid-template-columns: 1fr 2fr;
     }
 }
-.error-badge {
-    background-color: var(--danger-line) !important;
-    color: var(--danger) !important;
-    border: 1px solid var(--danger) !important;
-}
+
 .btn-micro {
     padding: 2px 6px;
     font-size: 10px;

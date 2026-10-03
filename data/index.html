@@ -5,7 +5,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>KomaBon OS</title>
-    <link rel="stylesheet" href="style.css?v=4">
+    <link rel="stylesheet" href="style.css?v=6">
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"
         integrity="sha512-XMVd28F1oH/O71fzwBnV7HucLxVwtxf26XV8P4wPk26EDxuGZ91N8bsOttmnomcCD3CS5ZMRL50H0GgOHvegtg=="
         crossorigin="anonymous" referrerpolicy="no-referrer"></script>
@@ -37,11 +37,12 @@
                     <span id="battery-val">--%</span>
                     <span id="header-voltage" style="margin: 0 4px;"></span>
                     <i class="battery-icon" id="battery-icon" data-level="100"></i>
-                
-                    <div class="stat-pill hidden error-badge" id="sd-error-badge"><span style="margin-right:8px">SD Disconnected</span> <button class="btn btn-micro warning" onclick="remountSD()">Remount</button></div>
                 </div>
                 <div class="stat-pill"><strong>Free Space:</strong> <span id="freespace-val">-- MB</span></div>
                 <div class="stat-pill"><strong>Uptime:</strong> <span id="uptime-val">--</span></div>
+                <div class="stat-pill hidden error-badge" id="sd-error-badge">
+                    <strong>SD Error:</strong> Remove and reinsert card
+                </div>
             </div>
 
             <!-- Dashboard Tab -->
@@ -353,7 +354,7 @@
 
     <script src="library.js?v=4"></script>
     <script src="converter.js"></script>
-    <script src="script.js"></script>
+    <script src="script.js?v=2"></script>
 </body>
 
 </html>

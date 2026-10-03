@@ -82,13 +82,23 @@ async function fetchStatus() {
         document.getElementById('header-voltage').innerText = voltageText;
 
         const sdErrorBadge = document.getElementById('sd-error-badge');
+        const isSdError = (data.totalSpace === 0 && data.freeSpace === 0);
         if (sdErrorBadge) {
-            if (data.totalSpace === 0 && data.freeSpace === 0) {
+            if (isSdError) {
                 sdErrorBadge.classList.remove('hidden');
             } else {
                 sdErrorBadge.classList.add('hidden');
             }
         }
+
+        // Auto-refresh library when SD card is reinserted / remounted
+        if (window._lastSdErrorState === true && !isSdError) {
+            console.log('SD card reconnected. Refreshing library...');
+            if (typeof fetchBooks === 'function') {
+                fetchBooks();
+            }
+        }
+        window._lastSdErrorState = isSdError;
 
         const batIcon = document.getElementById('battery-icon');
         const level = parseInt(data.battery);
