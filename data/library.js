@@ -25,6 +25,38 @@ function getCoverDb() {
 }
 
 
+
+async function rawBlobToDataUrl(blob) {
+    let width, height;
+    if (blob.size === 640) { width = 60; height = 80; }
+    else if (blob.size === 2400) { width = 120; height = 160; }
+    else return URL.createObjectURL(blob);
+
+    const buffer = await blob.arrayBuffer();
+    const bytes = new Uint8Array(buffer);
+    const canvas = document.createElement('canvas');
+    canvas.width = width;
+    canvas.height = height;
+    const ctx = canvas.getContext('2d');
+    const imgData = ctx.createImageData(width, height);
+    for (let y = 0; y < height; y++) {
+        for (let x = 0; x < width; x++) {
+            const byteIdx = (y * Math.ceil(width / 8)) + Math.floor(x / 8);
+            const bitIdx = 7 - (x % 8);
+            // Invert colors? 1 is black, 0 is white in E-ink (usually), let's check KomaBon. Usually 0 is black, 1 is white.
+            // Let's assume 1 is white (255) and 0 is black (0) or vice versa.
+            const color = (bytes[byteIdx] & (1 << bitIdx)) ? 255 : 0;
+            const idx = (y * width + x) * 4;
+            imgData.data[idx] = color;
+            imgData.data[idx+1] = color;
+            imgData.data[idx+2] = color;
+            imgData.data[idx+3] = 255;
+        }
+    }
+    ctx.putImageData(imgData, 0, 0);
+    return canvas.toDataURL('image/png');
+}
+
 const coverQueue = [];
 let coverFetching = false;
 
@@ -37,10 +69,12 @@ async function processCoverQueue() {
             const resp = await fetch(`/api/books/cover?name=${encodeURIComponent(filename)}`);
             if (resp.ok) {
                 const blob = await resp.blob();
-                imgElement.src = URL.createObjectURL(blob);
+                imgElement.src = await rawBlobToDataUrl(blob);
                 const db = await getCoverDb();
                 const tx2 = db.transaction(COVER_STORE_NAME, 'readwrite');
                 tx2.objectStore(COVER_STORE_NAME).put(blob, filename);
+            } else {
+                imgElement.style.display = 'none';
             }
         } catch (e) {
             console.error('Network error for cover', e);
@@ -50,7 +84,7 @@ async function processCoverQueue() {
 }
 
 window.loadCover = async function(filename, imgElement) {
-    if (!filename.toLowerCase().endsWith('.kmb')) return;
+    if (!(filename.toLowerCase().endsWith('.kmb') || filename.toLowerCase().endsWith('.epub'))) return;
     try {
         const db = await getCoverDb();
         const tx = db.transaction(COVER_STORE_NAME, 'readonly');
@@ -58,7 +92,7 @@ window.loadCover = async function(filename, imgElement) {
         const req = store.get(filename);
         req.onsuccess = async () => {
             if (req.result) {
-                imgElement.src = URL.createObjectURL(req.result);
+                imgElement.src = await rawBlobToDataUrl(req.result);
             } else {
                 coverQueue.push({ filename, imgElement });
                 processCoverQueue();
@@ -366,9 +400,12 @@ function renderItemHtml(item, epubs, isSearchActive = false) {
             return `
             <div class="book-item series-nested-item ${isGhost ? 'ghost-node' : ''}" data-filename="${nameAttr}">
                 <input type="checkbox" class="book-select-check" data-filename="${nameAttr}" ${isChecked} onchange="onBookCheckChange(this)" title="Select">
-                <div class="book-info-col">
-                    <span class="book-title">🖼️ ${escapeHtml(b.name)}${ghostBadge}</span>
-                    ${progressHtml}
+                <div class="book-item-content">
+                    <img class="book-cover-img" id="cover-${nameAttr}" src="data:image/gif;base64,R0lGODlhAQABAAD/ACwAAAAAAQABAAACADs=" onload="window.loadCover(\'${nameAttr}\', this); this.onload=null;">
+                    <div class="book-info-col">
+                        <span class="book-title">🖼️ ${escapeHtml(b.name)}${ghostBadge}</span>
+                        ${progressHtml}
+                    </div>
                 </div>
                 ${sizeHtml}
                 ${dlBtn}
