@@ -186,6 +186,12 @@
       <!-- SECTION 2: HARDWARE SPECS -->
       <section id="specs" class="doc-section">
         <h2>⚙️ Hardware Specifications</h2>
+        
+        <figure class="doc-figure">
+          <img src="images/trmnl_kit_overview.jpg" alt="TRMNL 7.5 DIY Kit Overview" style="max-width: 680px;">
+          <figcaption>TRMNL 7.5" (OG) DIY Kit: GDEY075T7 E-Ink panel, Seeed Studio ePaper driver board, and XIAO ESP32-S3 Plus module.</figcaption>
+        </figure>
+
         <div class="table-container">
           <table>
             <thead>
@@ -373,6 +379,23 @@ python -m espefuse --port &lt;YOUR_COM_PORT&gt; burn_efuse DIS_PAD_JTAG
         </div>
 
         <h3 id="pinout-matrix">🔌 Complete Pinout & Wiring Matrix</h3>
+
+        <figure class="doc-figure">
+          <img src="images/xiao_epaper_board_detail.jpg" alt="Seeed Studio XIAO ePaper Board Solder Points" style="max-width: 640px;">
+          <figcaption>TRMNL Carrier Board: Note Pad KEY1 (Joystick SIG), NFC pads (SD SCK/MOSI), FPC 24-Pin connector, and 24-Pin jumper position.</figcaption>
+        </figure>
+
+        <div class="doc-figure-grid">
+          <figure class="doc-figure">
+            <img src="images/microsd_module.png" alt="MicroSD SPI Breakout Board" style="max-height: 200px; width: auto;">
+            <figcaption>MicroSD SPI Breakout Board (6-Pin)</figcaption>
+          </figure>
+          <figure class="doc-figure">
+            <img src="images/joystick_5way.png" alt="5-Way Tactile Analog Joystick Module GHH_KB_V11" style="max-height: 200px; width: auto;">
+            <figcaption>GHH_KB_V11 5-way analog joystick (2-wire ladder)</figcaption>
+          </figure>
+        </div>
+
         <div class="table-container">
           <table>
             <thead>
@@ -459,6 +482,11 @@ python -m espefuse --port &lt;YOUR_COM_PORT&gt; burn_efuse DIS_PAD_JTAG
           </table>
         </div>
 
+        <figure class="doc-figure">
+          <img src="images/xiao_esp32s3_plus_pinout.webp" alt="Seeed Studio XIAO ESP32-S3 Plus Pinout" style="max-width: 680px;">
+          <figcaption>Official Seeed Studio XIAO ESP32-S3 Plus pinout (front and rear pads). Note bottom pads D11-D16 / GPIO38-GPIO42.</figcaption>
+        </figure>
+
         <h3 id="silicon-rules">🚫 Strict Octal PSRAM Rule (GPIO 33–37)</h3>
         <div class="alert alert-danger">
           <div class="alert-title">⛔ ABSOLUTE RULE: NEVER TOUCH GPIO 33 THROUGH GPIO 37</div>
@@ -473,6 +501,11 @@ python -m espefuse --port &lt;YOUR_COM_PORT&gt; burn_efuse DIS_PAD_JTAG
           uses the factory eFuse ADC calibration curves (<code>analogReadMilliVolts()</code>) for millimeter-accurate
           battery percentage calculation across 3.00V (Empty) to 4.20V (Full).
         </p>
+
+        <figure class="doc-figure">
+          <img src="images/battery_and_power_wiring.jpg" alt="LiPo Battery & Power Switch Wiring" style="max-width: 600px;">
+          <figcaption>LiPo battery connection to JST port (1) and hardware power slide switch (2). Note the battery charging PMIC area and switching inductor near the JST connector.</figcaption>
+        </figure>
 
         <h3 id="deep-sleep">💤 Deep Sleep & Screensavers</h3>
         <p>

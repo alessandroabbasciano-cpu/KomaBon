@@ -2,6 +2,9 @@
 
 This document describes the physical wiring, electrical layout, and low-level silicon configuration required to build a KomaBon e-reader using the **TRMNL 7.5" DIY Kit (Seeed Studio XIAO ESP32-S3 Plus)**.
 
+![TRMNL 7.5 DIY Kit Overview](images/trmnl_kit_overview.jpg)
+*TRMNL 7.5" (OG) DIY Kit: GDEY075T7 E-Ink panel, Seeed Studio ePaper driver board, and XIAO ESP32-S3 Plus module.*
+
 ---
 
 ## 1. Electrical & Silicon Constraints
@@ -74,6 +77,17 @@ Burning the `DIS_PAD_JTAG` eFuse permanently severs the physical silicon multipl
 
 ## 3. Physical Wiring & Pinout Matrix
 
+### Visual Reference: Carrier Board Soldering Points & Navigation Switch
+
+![Seeed Studio XIAO ePaper Board Solder Points](images/xiao_epaper_board_detail.jpg)
+
+*TRMNL Carrier Board: Note Pad KEY1 (Joystick SIG), NFC pads (SD SCK/MOSI), FPC 24-Pin connector, and 24-Pin jumper position.*
+
+| MicroSD SPI Breakout | 5-Way Analog Joystick (GHH_KB_V11) |
+| :---: | :---: |
+| ![MicroSD SPI Breakout Board](images/microsd_module.png) | ![5-Way Tactile Analog Joystick Module GHH_KB_V11](images/joystick_5way.png) |
+| *MicroSD SPI breakout board (6-pin)* | *GHH_KB_V11 5-way analog joystick (2-wire ladder to KEY1 & GND)* |
+
 ### Pin Connections
 
 | Module | Signal | Physical Source Pad / Pin | ESP32-S3 GPIO | Recommendation |
@@ -89,6 +103,7 @@ Burning the `DIS_PAD_JTAG` eFuse permanently severs the physical silicon multipl
 
 ### Physical Wiring Diagram
 
+```text
 [ XIAO ESP32-S3 PLUS MODULE ]
   Pin 12 (VCC_3V3) ──────────────────────────> MicroSD VCC
   Pin 13 (GND)     ──────────────────────────> MicroSD GND
@@ -100,10 +115,21 @@ Burning the `DIS_PAD_JTAG` eFuse permanently severs the physical silicon multipl
   Pad TX1 / NFC2 (GPIO42) ───────────────────> MicroSD MOSI
   Pad KEY1 Signal (GPIO2) ───────────────────> 5-Way Joystick Signal (ADC1_CH1)
   Pad KEY1 Ground ───────────────────────────> 5-Way Joystick GND
+```
+
+### Seeed Studio XIAO ESP32-S3 Plus Pinout
+
+![Official Seeed Studio XIAO ESP32-S3 Plus Pinout Diagram](images/xiao_esp32s3_plus_pinout.webp)
+
+*Official Seeed Studio XIAO ESP32-S3 Plus pinout (front and rear pads). Note bottom pads D11-D16 / GPIO38-GPIO42.*
 
 ---
 
 ## 4. Signal Integrity & EMI Shielding Guidelines
+
+![LiPo Battery & Power Switch Wiring](images/battery_and_power_wiring.jpg)
+
+*LiPo battery connection to JST port (1) and hardware power slide switch (2). Note the battery charging PMIC area and switching inductor near the JST connector.*
 
 The high-frequency SPI bus running alongside the switching battery charger PMIC (ETA6003 or SY6974B) requires strict cabling discipline to prevent runtime token errors:
 
@@ -112,3 +138,9 @@ The high-frequency SPI bus running alongside the switching battery charger PMIC 
 * **Local Power Decoupling:** Solder a **100nF or 1µF ceramic capacitor** directly across the VCC and GND pins of the MicroSD slot to suppress voltage dips during flash write cycles.
 * **Avoid Inductor Proximity:** Route the entire MicroSD wire bundle away from inductor **L1** (marked 2R2 or 1R0) located near the battery connector on the carrier board.
 * **Joystick Analog Domain:** Ensure GPIO2 is configured strictly as an analog input (`ADC1_CH1`). Digital input pull-ups on GPIO2 must remain disabled to prevent internal shoot-through leakage currents.
+
+---
+
+## 5. 3D Printable Enclosure
+
+The complete parametric OpenSCAD CAD model, fastener BOM (M2 brass heat-set inserts & DIN 912 cap screws), and FDM slicing guidelines are available in [`hardware/enclosure/`](../hardware/enclosure/).

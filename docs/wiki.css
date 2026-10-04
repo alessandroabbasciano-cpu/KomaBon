@@ -627,3 +627,32 @@ tr:hover td {
     display: none;
   }
 }
+
+/* --- DOC FIGURES & IMAGES --- */
+.doc-figure {
+  margin: 24px 0;
+  text-align: center;
+}
+
+.doc-figure img {
+  max-width: 100%;
+  height: auto;
+  border-radius: 8px;
+  border: 1px solid var(--line);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.4);
+}
+
+.doc-figure figcaption {
+  margin-top: 8px;
+  font-size: 13px;
+  color: var(--muted);
+  font-style: italic;
+}
+
+.doc-figure-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: 16px;
+  margin: 24px 0;
+  align-items: start;
+}

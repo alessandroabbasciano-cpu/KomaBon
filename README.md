@@ -9,6 +9,8 @@ This project is a specialized branch built upon the foundational code of Book32 
 
 It features an intelligent dual-file-system architecture, native Wi-Fi web asset management, a custom hardware calibration wizard for the joystick, and secure manual OTA updates directly from the device settings.
 
+![TRMNL 7.5" DIY Kit Overview](docs/images/trmnl_kit_overview.jpg)
+
 ## ⚙️ The Core Engine: Manga & Document Pre-Processing
 
 The true beating heart of KomaBon is its **Universal Conversion Pipeline**, implemented directly in browser-side JavaScript. Because raw manga archives (CBZ/ZIP) or complex documents (PDF, ODT, EPUB) would easily cause an ESP32-S3 microcontroller to run out of memory or choke on heavy image decoding, KomaBon offloads the heavy lifting to the client browser.
@@ -51,7 +53,8 @@ The true beating heart of KomaBon is its **Universal Conversion Pipeline**, impl
 
 > ⚠️ **CRITICAL STEP — eFuse JTAG Disabling:**  
 > GPIO39, GPIO41, and GPIO42 overlap with the ESP32-S3 hardware JTAG controller. Connecting USB or soft-resetting the device forces debug signals onto these lines, crashing the MicroSD bus. You **must burn the `DIS_PAD_JTAG` eFuse** before reliable operation is possible.  
-> 📖 **Read the full assembly, wiring, and electrical guide: [KomaBon Official Wiki](https://alessandroabbasciano-cpu.github.io/KomaBon/wiki.html#hardware-guide)** (or offline in [docs/HARDWARE_MODS.md](docs/HARDWARE_MODS.md)).
+> 📖 **Read the full assembly, wiring, and electrical guide: [KomaBon Official Wiki](https://alessandroabbasciano-cpu.github.io/KomaBon/wiki.html#hardware-guide)** (or offline in [docs/HARDWARE_MODS.md](docs/HARDWARE_MODS.md)).  
+> 🖨️ **3D Printable Enclosure:** Complete OpenSCAD parametric model and FDM print guide in [hardware/enclosure/](hardware/enclosure/).
 
 ### Pinout Reference
 
@@ -72,6 +75,8 @@ The true beating heart of KomaBon is its **Universal Conversion Pipeline**, impl
 | MicroSD (SPI2) | MISO | GPIO 8 | Castellation Pin 10 | Weak internal pull-up enabled |
 | **Power / Battery** | Voltage ADC | GPIO 1 | Carrier Board Resistor Divider | Li-ion level monitoring |
 | Power / Battery | PMIC Switch | GPIO 6 | Carrier Board Status | SY6974B / ETA6003 line |
+
+![Seeed Studio XIAO ESP32-S3 Plus Pinout](docs/images/xiao_esp32s3_plus_pinout.webp)
 
 > 🚫 **DO NOT TOUCH GPIO 33-37:**  
 > The Seeed XIAO ESP32-S3 Plus runs 8MB Octal PSRAM at 120MHz over pins GPIO33–37 (`qio_opi`). Never define, declare, or probe these pins.
