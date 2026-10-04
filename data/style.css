@@ -363,9 +363,7 @@ p.hint {
     display: none;
 }
 
-@media (max-width: 1050px) {
-    
-}
+@media (max-width: 1050px) {}
 
 details.inline-details {
     margin: 0.5rem 0 0 0;
@@ -1318,6 +1316,7 @@ select:focus {
         font-size: 16px;
     }
 }
+
 .book-cover-img {
     width: 32px;
     height: 44px;
@@ -1328,6 +1327,7 @@ select:focus {
     background: #f0f0f0;
     flex-shrink: 0;
 }
+
 .book-item-content {
     display: flex;
     align-items: center;
@@ -1341,6 +1341,7 @@ select:focus {
     gap: 16px;
     align-items: stretch;
 }
+
 @media (min-width: 600px) {
     .converter-grid {
         grid-template-columns: 1fr 2fr;
@@ -1357,7 +1358,8 @@ select:focus {
 .k-dropdown {
     position: relative;
     display: inline-block;
-    margin-left: auto; /* Push to right edge */
+    margin-left: auto;
+    /* Push to right edge */
     padding-left: 10px;
 }
 
@@ -1387,7 +1389,7 @@ select:focus {
     background-color: var(--surface);
     border: 1px solid var(--line);
     border-radius: 8px;
-    box-shadow: 0 4px 12px rgba(0,0,0,0.4);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
     z-index: 1000;
     overflow: hidden;
 }
@@ -1410,6 +1412,7 @@ select:focus {
     font-family: inherit;
     border-bottom: 1px solid var(--line);
 }
+
 .k-dropdown-item:last-child {
     border-bottom: none;
 }
@@ -1425,7 +1428,8 @@ select:focus {
 .book-item {
     display: flex;
     align-items: center;
-    flex-wrap: wrap; /* Allow dropdown/progress to wrap if needed */
+    flex-wrap: wrap;
+    /* Allow dropdown/progress to wrap if needed */
 }
 
 /* Ensure progress bar takes full width on its own line */
@@ -1438,7 +1442,8 @@ select:focus {
     display: flex;
     align-items: center;
     gap: 8px;
-    margin-left: auto; /* push to right */
+    margin-left: auto;
+    /* push to right */
 }
 
 /* Selection dot + highlight */
@@ -1452,10 +1457,24 @@ select:focus {
     cursor: pointer;
     transition: background 0.15s, border-color 0.15s;
 }
-.book-item.selected { background-color: rgba(59, 130, 246, 0.16); box-shadow: inset 3px 0 0 var(--primary); }
-.sel-dot.on { background: var(--primary); border-color: var(--primary); }
-.book-item[data-filename] { cursor: pointer; }
-.series-header .sel-dot { margin-right: 10px; }
+
+.book-item.selected {
+    background-color: rgba(59, 130, 246, 0.16);
+    box-shadow: inset 3px 0 0 var(--primary);
+}
+
+.sel-dot.on {
+    background: var(--primary);
+    border-color: var(--primary);
+}
+
+.book-item[data-filename] {
+    cursor: pointer;
+}
+
+.series-header .sel-dot {
+    margin-right: 10px;
+}
 
 #book-menu {
     position: fixed;
@@ -1463,10 +1482,11 @@ select:focus {
     background-color: var(--surface);
     border: 1px solid var(--line);
     border-radius: 8px;
-    box-shadow: 0 6px 18px rgba(0,0,0,0.5);
+    box-shadow: 0 6px 18px rgba(0, 0, 0, 0.5);
     z-index: 5000;
     overflow: hidden;
 }
+
 .bulk-action-bar {
     position: fixed;
     bottom: 16px;

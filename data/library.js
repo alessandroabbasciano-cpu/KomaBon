@@ -50,9 +50,9 @@ async function rawBlobToDataUrl(blob) {
             const color = (bytes[byteIdx] & (1 << bitIdx)) ? 0 : 255;
             const idx = (y * width + x) * 4;
             imgData.data[idx] = color;
-            imgData.data[idx+1] = color;
-            imgData.data[idx+2] = color;
-            imgData.data[idx+3] = 255;
+            imgData.data[idx + 1] = color;
+            imgData.data[idx + 2] = color;
+            imgData.data[idx + 3] = 255;
         }
     }
     ctx.putImageData(imgData, 0, 0);
@@ -85,7 +85,7 @@ async function processCoverQueue() {
     coverFetching = false;
 }
 
-window.loadCover = async function(filename, imgElement) {
+window.loadCover = async function (filename, imgElement) {
     if (!(filename.toLowerCase().endsWith('.kmb') || filename.toLowerCase().endsWith('.epub'))) return;
     try {
         const db = await getCoverDb();
@@ -338,7 +338,7 @@ function buildGroupedStructure(books) {
                     const s = bookSeriesMap.get(b.filename);
                     return s && s.series === info.series;
                 });
-                
+
                 const volumesMap = new Map();
                 seriesBooks.forEach(b => {
                     const s = bookSeriesMap.get(b.filename);
@@ -346,8 +346,8 @@ function buildGroupedStructure(books) {
                     if (!volumesMap.has(vol)) volumesMap.set(vol, []);
                     volumesMap.get(vol).push(b);
                 });
-                
-                const volumesList = Array.from(volumesMap.keys()).sort((a,b)=>a-b).map(vol => {
+
+                const volumesList = Array.from(volumesMap.keys()).sort((a, b) => a - b).map(vol => {
                     const vBooks = volumesMap.get(vol);
                     vBooks.sort((x, y) => {
                         const sx = bookSeriesMap.get(x.filename);
@@ -360,9 +360,9 @@ function buildGroupedStructure(books) {
                     const volSize = vBooks.reduce((acc, b) => acc + (b.size || 0), 0);
                     return { volume: vol, books: vBooks, size: volSize };
                 });
-                
+
                 const totalSize = seriesBooks.reduce((acc, b) => acc + (b.size || 0), 0);
-                
+
                 renderedItems.push({
                     type: 'series',
                     name: info.series,
@@ -400,37 +400,37 @@ function renderItemHtml(item, epubs, isSearchActive = false) {
         const completedCount = allBooks.filter(b => b.percent >= 100).length;
         const ongoingCount = allBooks.filter(b => b.percent > 0 && b.percent < 100).length;
         const missingCount = allBooks.filter(b => b.missing).length;
-        
+
         let seriesProgressBadge = '';
         if (completedCount === allBooks.length && allBooks.length > 0) {
             seriesProgressBadge = `<span class="series-progress-badge completed">V Completed (${completedCount}/${allBooks.length})</span>`;
         } else if (completedCount > 0 || ongoingCount > 0) {
             seriesProgressBadge = `<span class="series-progress-badge ongoing">${completedCount}/${allBooks.length} read</span>`;
         }
-        
+
         let missingBadge = '';
         if (missingCount > 0) {
             missingBadge = `<span class="ghost-badge">${missingCount} missing</span>`;
         }
 
-        
+
         const renderNestedBook = (b) => {
             const progressHtml = renderProgressBar(b);
             const isGhost = !!b.missing;
             const ghostBadge = isGhost ? '<span class="ghost-badge">File missing</span>' : '';
             const sizeHtml = isGhost ? '<span class="book-size ghost-size">Missing</span>' : `<span class="book-size">${Math.round(b.size / 1024)} KB</span>`;
-            
+
             let displayName = escapeHtml(b.name);
             const prefix = item.name;
             if (displayName.startsWith(prefix)) {
                 displayName = displayName.substring(prefix.length).replace(/^[\s_.-]+/, '');
                 if (!displayName) displayName = escapeHtml(b.name);
             }
-            
+
             const nameAttr = escapeAttr(b.filename);
             const bookIsFont = isFont(b.filename);
             const bookIsKmb = isKmb(b.filename);
-            
+
             return `
             <div class="book-item series-nested-item ${isGhost ? 'ghost-node' : ''}${selectedBooks.has(b.filename) ? ' selected' : ''}" data-filename="${nameAttr}">
                 <div class="book-item-content">
@@ -455,8 +455,8 @@ function renderItemHtml(item, epubs, isSearchActive = false) {
             volumesHtml = item.volumes.map(vol => {
                 const volName = vol.volume === 0 ? 'Extras' : `Volume ${vol.volume}`;
                 const nestedBooks = vol.books.map(renderNestedBook).join('');
-                const volSizeStr = vol.size >= 1024 * 1024 ? `${(vol.size/(1024*1024)).toFixed(1)} MB` : `${Math.round(vol.size/1024)} KB`;
-                
+                const volSizeStr = vol.size >= 1024 * 1024 ? `${(vol.size / (1024 * 1024)).toFixed(1)} MB` : `${Math.round(vol.size / 1024)} KB`;
+
                 return `
                 <details class="inline-details" open style="margin-left:8px; margin-bottom:8px;">
                     <summary style="padding:4px 8px; font-weight:bold; color:var(--ink); border-bottom:1px solid var(--border); margin-bottom:4px; display:flex; justify-content:space-between;">
@@ -917,7 +917,7 @@ function filterBooks() {
 function executeBulkDownload() {
     if (selectedBooks.size === 0) return;
     if (!confirm(`Download ${selectedBooks.size} selected files?`)) return;
-    
+
     let delay = 0;
     selectedBooks.forEach(filename => {
         setTimeout(() => {
@@ -930,7 +930,7 @@ function executeBulkDownload() {
         }, delay);
         delay += 1000;
     });
-    
+
     clearBulkSelection();
 }
 

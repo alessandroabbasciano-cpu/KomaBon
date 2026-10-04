@@ -36,10 +36,11 @@ The true beating heart of KomaBon is its **Universal Conversion Pipeline**, impl
 
 ### 5-Way Analog Joystick (GPIO 2 / ADC1)
 
-* **Center (or KEY1):** Click to Select / Confirm. Long press to return to the main menu.
-* **Right:** Next page / Forward navigation.
-* **Left:** Previous page. Long press to go back or exit current view.
-* **Up / Down:** Scroll vertically or pan through pages and library menus.
+* **Center (or KEY1):** Click to Select / Confirm / open Reader Quick Settings. Long press (≥800ms) to return to the Main Menu from anywhere.
+* **Right:** Next page / Forward navigation. Long press (≥600ms) in reader to open the **Bookmarks Management** overlay.
+* **Left:** Previous page. Long press (≥600ms) to go back or escape overlays.
+* **Up:** In reader, click to open Table of Contents (EPUB) or navigate menus. Long press (≥600ms) to **Toggle Bookmark** on the current page.
+* **Down:** In reader, click to open the **Go to Page** slider overlay. Long press (≥1000ms) to put the device into sleep mode immediately.
 
 ### Physical Function Buttons
 
@@ -107,6 +108,9 @@ To monitor real-time serial output for debugging:
 
 ## ✨ Core Features & Architecture
 
+* **TrueType Typography & Proportional Rendering:** High-fidelity vector font engine powered by `stb_truetype` supporting 6 font families (Atkinson, Merriweather, Literata, Source Serif, Gelasio, Open Sans) across 6 granular sizes (8, 10, 12, 14, 16, 18 pt), customizable page margins (Narrow 20px, Medium 35px, Wide 50px), and full justified text alignment.
+* **Interactive "Go to Page" Slider:** On-screen proportional scrubber overlay with $\pm 1$ and $\pm 10$ page jump steps for rapid navigation across both large Manga binaries (.kmb) and dynamic EPUB chapters.
+* **Hardware-Integrated Bookmarks System:** Instant bookmark toggle on current page via long-press UP, full visual management overlay via long-press RIGHT, atomic storage in `/bookmarks.json`, and an elegant top-left swallowtail ribbon indicator with fast partial e-ink redraws.
 * **Rapid Navigation, Lazy Rendering & Fast Refresh A2:** Decoupled 80ms deadzone filter combined with a 250ms debounced quiet window. In main menu and bookshelf navigation, KomaBon utilizes zero-flicker **A2 Fast Refresh** waveforms for seamless list browsing without black/white inversions, automatically switching back to crisp high-contrast waveforms during reading.
 * **Native Manga RTL Reading:** First-class hardware support for authentic Right-to-Left (RTL) reading order across `.kmb` manga binaries and EPUBs, with per-book persistent orientation memory and rapid toggle options.
 * **Modular App Architecture:** Cleanly decoupled architecture with standalone `AppBookshelf` for library management, isolated `HtmlParser` for memory-efficient document parsing, and modular `AppReader` (Pagination, Input, UI).

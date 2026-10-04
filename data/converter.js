@@ -1576,14 +1576,14 @@ async function uploadKMB(blob, filename, progressBar) {
     if (!initResp.ok) throw new Error("Init failed: " + await initResp.text());
     const initData = await initResp.json();
     if (!initData.ok) throw new Error("Init error: " + initData.error);
-    
+
     const safeName = initData.safeName;
     logMessage(`Allocated server filename: ${safeName}`);
-    
+
     let offset = 0;
     while (offset < blob.size) {
         const chunk = blob.slice(offset, offset + CHUNK_SIZE);
-        
+
         let retries = 5;
         while (retries > 0) {
             try {
@@ -1601,7 +1601,7 @@ async function uploadKMB(blob, filename, progressBar) {
                         else reject(new Error(`HTTP ${xhr.status}`));
                     };
                     xhr.onerror = () => reject(new Error("Network Error"));
-                    
+
                     xhr.open('POST', `/api/books/upload_chunk?name=${encodeURIComponent(safeName)}&offset=${offset}`);
                     xhr.setRequestHeader('Content-Type', 'application/octet-stream');
                     xhr.send(chunk);
@@ -1616,13 +1616,13 @@ async function uploadKMB(blob, filename, progressBar) {
         }
         offset += CHUNK_SIZE;
     }
-    
+
     // Commit
     const commitResp = await fetch(`/api/books/upload_commit?name=${encodeURIComponent(safeName)}&orig=${encodeURIComponent(filename)}`, { method: 'POST' });
     if (!commitResp.ok) throw new Error("Commit failed: " + await commitResp.text());
     const commitData = await commitResp.json();
     if (!commitData.ok) throw new Error("Commit error: " + commitData.error);
-    
+
     logMessage("Upload completed successfully!");
     if (typeof fetchBooks === "function") fetchBooks();
 }

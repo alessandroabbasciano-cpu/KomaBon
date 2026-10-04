@@ -772,13 +772,13 @@ function getWifiStatus() {
                 if (el) el.textContent = `Connected to "${data.sta_ssid}".`;
                 if (ssidEl) ssidEl.textContent = data.sta_ssid || 'Connected';
                 if (modeEl) modeEl.textContent = 'Station (STA)';
-                
+
                 let quality = 'Good';
                 if (data.rssi >= -60) quality = 'Excellent';
                 else if (data.rssi >= -70) quality = 'Good';
                 else if (data.rssi >= -80) quality = 'Fair';
                 else quality = 'Weak';
-                
+
                 if (rssiEl) rssiEl.textContent = `${data.rssi} dBm (${quality})`;
                 if (ipEl) ipEl.textContent = data.sta_ip || '--';
             } else if (data.ap_active) {

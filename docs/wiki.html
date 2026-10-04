@@ -23,7 +23,7 @@
       <button class="menu-toggle" aria-label="Toggle navigation menu">☰</button>
       <a href="wiki.html" class="brand-logo">
         <span>📖 KomaBon</span>
-        <span class="version-tag">v0.7.0</span>
+        <span class="version-tag">v0.8.0</span>
       </a>
     </div>
 
@@ -82,6 +82,9 @@
           <li><a href="#rapid-input">Rapid Input & Debounce (v0.6.0)</a></li>
           <li><a href="#fast-refresh-a2">Fast Refresh A2 (Zero-Flicker)</a></li>
           <li><a href="#manga-rtl">Native Manga RTL Reading</a></li>
+          <li><a href="#bookmarks-system">Bookmarks & Ribbon (v0.8.0)</a></li>
+          <li><a href="#go-to-page">Interactive Go to Page (v0.8.0)</a></li>
+          <li><a href="#truetype-typography">TrueType Typography & Margins (v0.8.0)</a></li>
           <li><a href="#calibration-wizard">Joystick Calibration Wizard</a></li>
           <li><a href="#reading-controls">Reading Gestures & Shortcuts</a></li>
         </ul>
@@ -495,8 +498,17 @@ python -m espefuse --port &lt;YOUR_COM_PORT&gt; burn_efuse DIS_PAD_JTAG
           <div class="feature-card">
             <span class="feature-icon">🕹️</span>
             <h3>Joystick Directions</h3>
-            <p><strong>Right:</strong> Next page | <strong>Left:</strong> Previous page | <strong>Up/Down:</strong> Menu
-              navigation & TOC scroll.</p>
+            <p><strong>Right:</strong> Next page | <strong>Left:</strong> Previous page | <strong>Up:</strong> TOC
+              (EPUB) | <strong>Down:</strong> Go to Page slider.</p>
+          </div>
+          <div class="feature-card">
+            <span class="feature-icon">⏱️</span>
+            <h3>Hardware Long-Press Gestures</h3>
+            <p><strong>Hold UP (600ms):</strong> Toggle Bookmark on current page.<br>
+              <strong>Hold RIGHT (600ms):</strong> Open Bookmarks Menu.<br>
+              <strong>Hold LEFT (600ms):</strong> Back / Exit overlay.<br>
+              <strong>Hold DOWN (1000ms):</strong> Immediate Sleep Mode.
+            </p>
           </div>
           <div class="feature-card">
             <span class="feature-icon">🔘</span>
@@ -506,15 +518,10 @@ python -m espefuse --port &lt;YOUR_COM_PORT&gt; burn_efuse DIS_PAD_JTAG
           </div>
           <div class="feature-card">
             <span class="feature-icon">↩️</span>
-            <h3>KEY3 Button (GPIO 5)</h3>
-            <p>Dedicated <strong>Back</strong> / Exit button. Press to escape overlays, close dialogs, or wake device
-              from deep sleep.</p>
-          </div>
-          <div class="feature-card">
-            <span class="feature-icon">🔄</span>
-            <h3>KEY2 Button (GPIO 3)</h3>
-            <p><strong>Full Refresh:</strong> Clears accumulated e-ink ghosting immediately without altering reading
-              position.</p>
+            <h3>Physical Function Buttons</h3>
+            <p><strong>KEY3 (GPIO 5):</strong> Dedicated Back / Escape overlays / Wake from deep sleep.<br>
+              <strong>KEY2 (GPIO 3):</strong> Click to trigger an immediate Full Refresh and clear ghosting.
+            </p>
           </div>
         </div>
 
@@ -544,18 +551,71 @@ python -m espefuse --port &lt;YOUR_COM_PORT&gt; burn_efuse DIS_PAD_JTAG
           waveform mode in <code>DisplayMgr</code>:
         </p>
         <ul>
-          <li><strong>UI Navigation (Main Menu &amp; Bookshelf):</strong> A2 fast refresh mode is automatically enabled. Cursor selection changes and page shifts draw smoothly and instantaneously without inverse flashes.</li>
-          <li><strong>Reading Engine Auto-Switch:</strong> The moment a book is opened in <code>AppReader</code>, the firmware disables A2 mode and restores the standard high-contrast, multi-pass waveform to guarantee crisp typography, deep blacks, and zero contrast degradation on manga panels and EPUB text.</li>
+          <li><strong>UI Navigation (Main Menu &amp; Bookshelf):</strong> A2 fast refresh mode is automatically enabled.
+            Cursor selection changes and page shifts draw smoothly and instantaneously without inverse flashes.</li>
+          <li><strong>Reading Engine Auto-Switch:</strong> The moment a book is opened in <code>AppReader</code>, the
+            firmware disables A2 mode and restores the standard high-contrast, multi-pass waveform to guarantee crisp
+            typography, deep blacks, and zero contrast degradation on manga panels and EPUB text.</li>
         </ul>
 
         <h3 id="manga-rtl">📖 Native Manga RTL Reading (Right-to-Left)</h3>
         <p>
-          Authentic Japanese manga is published with right-to-left panel and page progressions. KomaBon features native hardware and firmware support for RTL navigation:
+          Authentic Japanese manga is published with right-to-left panel and page progressions. KomaBon features native
+          hardware and firmware support for RTL navigation:
         </p>
         <ul>
-          <li><strong>Inverted Navigation:</strong> When RTL is active, pushing the joystick <strong>Right</strong> flips to the previous page, while pushing <strong>Left</strong> advances forward, matching natural physical manga reading.</li>
-          <li><strong>Per-Book Persistence:</strong> Reading direction preferences are recorded per volume in <code>ProgressStore</code> (and embedded directly into <code>.kmb</code> binary headers). Once set, KomaBon remembers each book's orientation automatically.</li>
-          <li><strong>Quick-Toggle in Reader:</strong> Click the joystick Center in-reader to toggle RTL mode on or off instantly without leaving your current page.</li>
+          <li><strong>Inverted Navigation:</strong> When RTL is active, pushing the joystick <strong>Right</strong>
+            flips to the previous page, while pushing <strong>Left</strong> advances forward, matching natural physical
+            manga reading.</li>
+          <li><strong>Per-Book Persistence:</strong> Reading direction preferences are recorded per volume in
+            <code>ProgressStore</code> (and embedded directly into <code>.kmb</code> binary headers). Once set, KomaBon
+            remembers each book's orientation automatically.</li>
+          <li><strong>Quick-Toggle in Reader:</strong> Click the joystick Center in-reader to toggle RTL mode on or off
+            instantly without leaving your current page.</li>
+        </ul>
+
+        <h3 id="bookmarks-system">🔖 Bookmarks System & Ribbon Indicator (New in v0.8.0)</h3>
+        <p>
+          KomaBon v0.8.0 introduces full hardware-integrated bookmarks for both Manga (.kmb) and EPUB books:
+        </p>
+        <ul>
+          <li><strong>Quick Toggle:</strong> Hold the joystick <strong>UP</strong> (≥600ms) during reading to toggle a
+            bookmark on the current page instantly.</li>
+          <li><strong>Visual Ribbon Indicator:</strong> Bookmarked pages display an elegant black swallowtail ribbon
+            icon in the top-left margin (24px from edge), updated with a zero-ghosting instant partial refresh without
+            redrawing the whole page.</li>
+          <li><strong>Bookmarks Management Overlay:</strong> Hold the joystick <strong>RIGHT</strong> (≥600ms) or select
+            <em>Bookmarks...</em> in Quick Settings to view all saved bookmarks, jump directly to any page, or delete
+            bookmarks with Left.</li>
+          <li><strong>Atomic Storage:</strong> Persisted automatically to LittleFS in <code>/bookmarks.json</code> with
+            thread-safe atomic writes to protect against sudden power loss.</li>
+        </ul>
+
+        <h3 id="go-to-page">⏩ Interactive "Go to Page" Slider (New in v0.8.0)</h3>
+        <p>
+          Navigating across hundreds of manga panels or large book chapters is seamless:
+        </p>
+        <ul>
+          <li><strong>Instant Access:</strong> Push the joystick <strong>DOWN</strong> in-reader or select <em>Go to
+              Page...</em> from Quick Settings.</li>
+          <li><strong>Fine & Rapid Stepping:</strong> Use <strong>Left / Right</strong> for fine ±1 page steps, and
+            <strong>Up / Down</strong> for rapid ±10 page jumps.</li>
+          <li><strong>Visual Scrubber:</strong> Real-time progress bar reflecting percentage and absolute page count.
+            Press <strong>Select</strong> to confirm the jump or <strong>Back</strong> to cancel.</li>
+        </ul>
+
+        <h3 id="truetype-typography">🔤 TrueType Engine, Margins & Justified Text (New in v0.8.0)</h3>
+        <p>
+          The reader rendering engine now features native vector typography:
+        </p>
+        <ul>
+          <li><strong>TrueType Vector Fonts:</strong> Powered by <code>stb_truetype</code> with 6 curated families
+            (Atkinson Hyperlegible, Merriweather, Literata, Source Serif 4, Gelasio, Open Sans).</li>
+          <li><strong>Granular Font Sizes:</strong> 8pt, 10pt, 12pt, 14pt, 16pt, and 18pt with proportional airy line
+            height.</li>
+          <li><strong>Selectable Margins:</strong> Narrow (20px), Medium (35px), and Wide (50px).</li>
+          <li><strong>Full Justified Text:</strong> Dynamic word-spacing justification configurable across Reader Quick
+            Settings, App Settings, and the Web UI.</li>
         </ul>
 
         <h3 id="calibration-wizard">🎯 Joystick Calibration Wizard</h3>
@@ -566,7 +626,8 @@ python -m espefuse --port &lt;YOUR_COM_PORT&gt; burn_efuse DIS_PAD_JTAG
         <ol>
           <li>The screen displays real-time ADC raw values.</li>
           <li>Follow the on-screen prompts: click <strong>Center</strong>, push <strong>Up</strong>, push
-            <strong>Down</strong>, push <strong>Left</strong>, push <strong>Right</strong>.</li>
+            <strong>Down</strong>, push <strong>Left</strong>, push <strong>Right</strong>.
+          </li>
           <li>The calibrated center points are saved permanently to <code>/joy_cal.json</code> on external storage and
             loaded automatically on boot.</li>
         </ol>
@@ -618,9 +679,12 @@ python -m espefuse --port &lt;YOUR_COM_PORT&gt; burn_efuse DIS_PAD_JTAG
           Managing large manga collections is simplified with dedicated quick-action controls:
         </p>
         <ul>
-          <li><strong>3-Dots Context Menu (<code>btn-more</code>):</strong> Each book and series folder features a contextual dropdown menu for instant renaming, metadata inspection, single-book download, or deletion.</li>
-          <li><strong>Circular Multi-Select Dots:</strong> Tap the circular selector dot on individual books or an entire series header to select multiple items at once.</li>
-          <li><strong>Floating Bulk Action Bar:</strong> Whenever items are selected, a floating bar slides into view offering <em>Download Selected</em> or <em>Delete Selected</em> with full confirmation protection.</li>
+          <li><strong>3-Dots Context Menu (<code>btn-more</code>):</strong> Each book and series folder features a
+            contextual dropdown menu for instant renaming, metadata inspection, single-book download, or deletion.</li>
+          <li><strong>Circular Multi-Select Dots:</strong> Tap the circular selector dot on individual books or an
+            entire series header to select multiple items at once.</li>
+          <li><strong>Floating Bulk Action Bar:</strong> Whenever items are selected, a floating bar slides into view
+            offering <em>Download Selected</em> or <em>Delete Selected</em> with full confirmation protection.</li>
         </ul>
 
         <h3 id="web-ui-indexeddb">3. IndexedDB Cover Caching &amp; Resilient Chunked Upload</h3>
@@ -628,8 +692,13 @@ python -m espefuse --port &lt;YOUR_COM_PORT&gt; burn_efuse DIS_PAD_JTAG
           To prevent bottlenecking the ESP32-S3's storage and network interfaces:
         </p>
         <ul>
-          <li><strong>IndexedDB Client Cache (<code>KomaBonCovers</code>):</strong> Book cover thumbnails are cached directly inside the browser's persistent IndexedDB storage upon first fetch. Subsequent visits retrieve covers instantly from local storage, eliminating repetitive SPI SD reads and preventing ESP32 VFS exhaustion.</li>
-          <li><strong>Chunked File Upload (512 KB Slices):</strong> Heavy manga files and book archives are uploaded to <code>/api/books/upload_chunk</code> in 512 KB segments with automatic retry. If Wi-Fi reception fluctuates during a 50 MB upload, failed chunks are automatically retried without aborting the entire transfer.</li>
+          <li><strong>IndexedDB Client Cache (<code>KomaBonCovers</code>):</strong> Book cover thumbnails are cached
+            directly inside the browser's persistent IndexedDB storage upon first fetch. Subsequent visits retrieve
+            covers instantly from local storage, eliminating repetitive SPI SD reads and preventing ESP32 VFS
+            exhaustion.</li>
+          <li><strong>Chunked File Upload (512 KB Slices):</strong> Heavy manga files and book archives are uploaded to
+            <code>/api/books/upload_chunk</code> in 512 KB segments with automatic retry. If Wi-Fi reception fluctuates
+            during a 50 MB upload, failed chunks are automatically retried without aborting the entire transfer.</li>
         </ul>
 
         <h3 id="web-ui-settings">4. Semantic 4-Tab Settings Interface</h3>
@@ -637,10 +706,14 @@ python -m espefuse --port &lt;YOUR_COM_PORT&gt; burn_efuse DIS_PAD_JTAG
           Device administration and preferences are organized into four intuitive sections:
         </p>
         <ul>
-          <li><strong>Device:</strong> Live battery telemetry, storage partition breakdown, Wi-Fi info, and direct access to joystick hardware calibration.</li>
-          <li><strong>Preferences:</strong> Multi-column reading and system settings (font sizes, margins, sleep timeouts) with automatic background saving.</li>
-          <li><strong>Screensaver:</strong> Standby wallpaper manager allowing custom image uploads with live 1-bit Atkinson dithering preview.</li>
-          <li><strong>Firmware &amp; Maintenance:</strong> Web OTA binary flasher, partition tools, and real-time crash log inspector.</li>
+          <li><strong>Device:</strong> Live battery telemetry, storage partition breakdown, Wi-Fi info, and direct
+            access to joystick hardware calibration.</li>
+          <li><strong>Preferences:</strong> Multi-column reading and system settings (font sizes, margins, sleep
+            timeouts) with automatic background saving.</li>
+          <li><strong>Screensaver:</strong> Standby wallpaper manager allowing custom image uploads with live 1-bit
+            Atkinson dithering preview.</li>
+          <li><strong>Firmware &amp; Maintenance:</strong> Web OTA binary flasher, partition tools, and real-time crash
+            log inspector.</li>
         </ul>
 
         <h3 id="ghost-nodes">5. Ghost Node Architecture (Missing Files)</h3>
@@ -712,7 +785,8 @@ python -m espefuse --port &lt;YOUR_COM_PORT&gt; burn_efuse DIS_PAD_JTAG
             slices grid-based pages along whitespace gutters with zero external downloads.</li>
           <li><strong>Authentic Reading Order:</strong> Graph-based topological sort automatically sequences detected
             panels according to genuine reading order: <strong>RTL (Right-to-Left)</strong> for Japanese manga or
-            <strong>LTR (Left-to-Right)</strong> for Western comics.</li>
+            <strong>LTR (Left-to-Right)</strong> for Western comics.
+          </li>
           <li><strong>Natural Upright Scaling &amp; Text Protection:</strong> Automatically scales panels to fit the
             screen while keeping text and artwork right-side up. Speech bubbles straddling borders are dynamically
             included to prevent cut dialogue, with optional 90° rotation for wide landscape panels.</li>
@@ -805,19 +879,27 @@ python -m espefuse --port &lt;YOUR_COM_PORT&gt; burn_efuse DIS_PAD_JTAG
           KomaBon's application layer is decoupled into specialized single-responsibility modules:
         </p>
         <ul>
-          <li><strong>AppBookshelf:</strong> Dedicated application responsible for scanning, sorting, and displaying the library cards and series folders, completely separated from the reader engine.</li>
-          <li><strong>AppReader:</strong> Focused exclusively on rendering content, divided into modular components: <code>Pagination</code> (chapter/page arithmetic &amp; RTL inversion), <code>Input</code> (joystick gestures &amp; quick-settings overlay), and <code>UI</code> (text &amp; manga bitmapped rendering).</li>
-          <li><strong>HtmlParser:</strong> Dedicated parser extracted from the EPUB loader, converting XHTML structures into rich formatted text tokens while preserving memory on the ESP32-S3.</li>
-          <li><strong>ProgressStore:</strong> Centralized progress registry managing reading offsets, last-read timestamps, and book-specific preferences (such as RTL reading direction).</li>
+          <li><strong>AppBookshelf:</strong> Dedicated application responsible for scanning, sorting, and displaying the
+            library cards and series folders, completely separated from the reader engine.</li>
+          <li><strong>AppReader:</strong> Focused exclusively on rendering content, divided into modular components:
+            <code>Pagination</code> (chapter/page arithmetic &amp; RTL inversion), <code>Input</code> (joystick gestures
+            &amp; quick-settings overlay), and <code>UI</code> (text &amp; manga bitmapped rendering).</li>
+          <li><strong>HtmlParser:</strong> Dedicated parser extracted from the EPUB loader, converting XHTML structures
+            into rich formatted text tokens while preserving memory on the ESP32-S3.</li>
+          <li><strong>ProgressStore:</strong> Centralized progress registry managing reading offsets, last-read
+            timestamps, and book-specific preferences (such as RTL reading direction).</li>
         </ul>
 
         <h3 id="metadata-files">JSON Configuration Schema</h3>
         <p>User configuration and reading state are preserved across reboots in structured JSON files:</p>
         <ul>
-          <li><code>/progress.json</code>: Maps book titles to current chapter, node index, character offset, global page, and RTL orientation.</li>
-          <li><code>/book_order.json</code>: Persists custom user drag-and-drop book sorting order and series grouping.</li>
+          <li><code>/progress.json</code>: Maps book titles to current chapter, node index, character offset, global
+            page, and RTL orientation.</li>
+          <li><code>/book_order.json</code>: Persists custom user drag-and-drop book sorting order and series grouping.
+          </li>
           <li><code>/joy_cal.json</code>: Contains calibrated ADC thresholds for Center, Up, Down, Left, and Right.</li>
-          <li><code>/reader_config.json</code>: Stores font family (FreeSans, Merriweather, Literata, etc.), font size, line spacing, and refresh frequency.</li>
+          <li><code>/reader_config.json</code>: Stores font family (FreeSans, Merriweather, Literata, etc.), font size,
+            line spacing, and refresh frequency.</li>
         </ul>
       </section>
 
@@ -832,7 +914,8 @@ python -m espefuse --port &lt;YOUR_COM_PORT&gt; burn_efuse DIS_PAD_JTAG
           <li><strong>Wiring Integrity:</strong> The SCK line (GPIO 41) <em>must</em> be twisted with a GND wire to
             suppress high-frequency SPI reflections.</li>
           <li><strong>Card Format:</strong> Ensure your card is formatted as <strong>FAT32</strong> or
-            <strong>exFAT</strong> with MBR partition table.</li>
+            <strong>exFAT</strong> with MBR partition table.
+          </li>
           <li><strong>Storage Recovery:</strong> Click "Remount SD Bus" from the Web UI Dashboard.</li>
         </ol>
 
@@ -867,7 +950,8 @@ python -m espefuse --port &lt;YOUR_COM_PORT&gt; burn_efuse DIS_PAD_JTAG
           <li>Hold down the <strong>KEY3 button (Back)</strong> or <strong>Joystick Center</strong> continuously during
             power-on for at least 1.5 seconds.</li>
           <li>The screen displays <strong>RESCUE MODE ACTIVE</strong>. The device starts an emergency SoftAP named
-            <code>KomaBon-Rescue</code> at <code>192.168.4.1</code>.</li>
+            <code>KomaBon-Rescue</code> at <code>192.168.4.1</code>.
+          </li>
           <li>Connect with your smartphone or laptop to access the <strong>Recovery Console</strong>, where you can wipe
             corrupted JSON configurations, inspect crash logs, format internal storage, or reflash firmware via OTA
             without connecting a serial cable.</li>

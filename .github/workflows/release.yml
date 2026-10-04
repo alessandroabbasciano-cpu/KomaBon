@@ -117,8 +117,17 @@ jobs:
 
       - name: Write release notes
         run: |
+          RELEASE_HIGHLIGHTS=""
+          if [ -f "docs/releases/${GITHUB_REF_NAME}.md" ]; then
+            RELEASE_HIGHLIGHTS=$(cat "docs/releases/${GITHUB_REF_NAME}.md")
+          fi
+
           cat > notes.md <<EOF
           ## 📖 KomaBon ${GITHUB_REF_NAME}
+
+          ${RELEASE_HIGHLIGHTS}
+
+          ---
 
           🚀 **Browser Web Installation:**
           You can easily set up new hardware or update KomaBon directly from your browser (Chrome/Edge) over USB without using the command line:
@@ -153,6 +162,7 @@ jobs:
             dist/firmware.bin
             dist/littlefs.bin
           body_path: notes.md
+          generate_release_notes: true
 
       - name: Update browser installer assets
         run: |
