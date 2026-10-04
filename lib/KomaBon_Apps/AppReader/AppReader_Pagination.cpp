@@ -311,7 +311,7 @@ void AppReader::prevChapter() {
 }
 
 void AppReader::applyFontSize(int pt) {
-    int normalized = (pt >= 18) ? 18 : (pt >= 12 ? 12 : 9);
+    int normalized = SettingsStore::clampFontSize(pt);
     {
         KomaBonGuard guard(_epubMutex);
         _fontSizePt = normalized;

@@ -7,6 +7,7 @@
 #include "KBReader.h"
 #include "../../KomaBon_Core/InputMgr.h"
 #include "../../KomaBon_Core/Lock.h"
+#include "../../KomaBon_Core/SettingsStore.h"
 #include <freertos/FreeRTOS.h>
 #include <freertos/task.h>
 #include <vector>

@@ -8,10 +8,14 @@ TextRenderer::TextRenderer(int width, int height, int fontSize, EpubLoader* epub
 
     if (fontSize >= 18)
         _fontSize = 18;
+    else if (fontSize >= 14)
+        _fontSize = 14;
     else if (fontSize >= 12)
         _fontSize = 12;
+    else if (fontSize >= 10)
+        _fontSize = 10;
     else
-        _fontSize = 9;
+        _fontSize = 8;
     _cachedPage = -1;
     _lastGFXFont = nullptr;
     memset(_gfxCharWidths, 0, sizeof(_gfxCharWidths));
@@ -19,7 +23,7 @@ TextRenderer::TextRenderer(int width, int height, int fontSize, EpubLoader* epub
 }
 
 void TextRenderer::setFontSize(int size) {
-    int normalized = (size >= 18) ? 18 : (size >= 12 ? 12 : 9);
+    int normalized = (size >= 18) ? 18 : (size >= 14 ? 14 : (size >= 12 ? 12 : (size >= 10 ? 10 : 8)));
     if (normalized == _fontSize) return;
     _fontSize = normalized;
     _lastGFXFont = nullptr;
@@ -67,6 +71,14 @@ const GFXfont* TextRenderer::getGFXFont(TextStyle style, int& lineHeight) {
             h2 = &BOLD24;                                                                                    \
             h1 = &BOLD24;                                                                                    \
             break;                                                                                           \
+        case 14:                                                                                             \
+            normal = &NORMAL12;                                                                              \
+            bold = &BOLD12;                                                                                  \
+            h4 = &BOLD12;                                                                                    \
+            h3 = &BOLD18;                                                                                    \
+            h2 = &BOLD24;                                                                                    \
+            h1 = &BOLD24;                                                                                    \
+            break;                                                                                           \
         case 12:                                                                                             \
             normal = &NORMAL12;                                                                              \
             bold = &BOLD12;                                                                                  \
@@ -75,7 +87,15 @@ const GFXfont* TextRenderer::getGFXFont(TextStyle style, int& lineHeight) {
             h2 = &BOLD18;                                                                                    \
             h1 = &BOLD24;                                                                                    \
             break;                                                                                           \
-        case 9:                                                                                              \
+        case 10:                                                                                             \
+            normal = &NORMAL9;                                                                               \
+            bold = &BOLD9;                                                                                   \
+            h4 = &BOLD9;                                                                                     \
+            h3 = &BOLD12;                                                                                    \
+            h2 = &BOLD18;                                                                                    \
+            h1 = &BOLD24;                                                                                    \
+            break;                                                                                           \
+        case 8:                                                                                              \
         default:                                                                                             \
             normal = &NORMAL9;                                                                               \
             bold = &BOLD9;                                                                                   \
@@ -139,7 +159,11 @@ const GFXfont* TextRenderer::getGFXFont(TextStyle style, int& lineHeight) {
             break;
     }
 
-    lineHeight = font->yAdvance + 2;
+    // Proportional ~1.35x line height calibrated for readability and breathability
+    int extra = 0;
+    if (_fontSize == 14) extra = 6;
+    else if (_fontSize == 10) extra = 4;
+    lineHeight = ((font->yAdvance * 135) / 100) + extra;
     return font;
 }
 
@@ -164,7 +188,9 @@ RenderResult TextRenderer::renderRichPageDynamic(KomaBonDisplay& display,
     _lineCache.clear();
     _cachedPage = pageNum;
 
-    int y = 40;
+    int defaultLineHeight = 0;
+    getGFXFont(STYLE_NORMAL, defaultLineHeight);
+    int y = 24 + (defaultLineHeight * 70 / 100);
     int maxY = _height - 40;
     RenderResult result = {0, 0, false, startNode, startOffset};
     int currentNode = startNode;

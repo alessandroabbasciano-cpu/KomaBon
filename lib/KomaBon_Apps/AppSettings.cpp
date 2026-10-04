@@ -11,7 +11,8 @@
 #include <WiFiManager.h>
 #include <KomaBonFS.h>
 
-static const int FONT_SIZES[] = {9, 12, 18};
+static const int FONT_SIZES[] = {8, 10, 12, 14, 18};
+static const int FONT_SIZES_COUNT = sizeof(FONT_SIZES) / sizeof(FONT_SIZES[0]);
 static const int REFRESH_FREQS[] = {5, 10, 20, 50};
 static const int SLEEP_TIMEOUTS[] = {0, 5, 15, 30, 60};
 
@@ -125,8 +126,8 @@ void AppSettings::forgetNetwork() {
 void AppSettings::cycleValue(int index, bool forward) {
     switch (index) {
         case ROW_FONT_SIZE:
-            _reader.fontSize = forward ? cycleIntForward(FONT_SIZES, 3, _reader.fontSize)
-                                       : cycleIntBackward(FONT_SIZES, 3, _reader.fontSize);
+            _reader.fontSize = forward ? cycleIntForward(FONT_SIZES, FONT_SIZES_COUNT, _reader.fontSize)
+                                       : cycleIntBackward(FONT_SIZES, FONT_SIZES_COUNT, _reader.fontSize);
             break;
         case ROW_FONT_FAMILY:
             if (forward) {

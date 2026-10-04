@@ -62,7 +62,7 @@ void AppReader::loadSettings() {
             if (doc.containsKey("refreshFrequency")) _refreshEveryNPages = doc["refreshFrequency"];
             if (doc.containsKey("fontSize")) {
                 int pt = doc["fontSize"];
-                _fontSizePt = (pt >= 18) ? 18 : (pt >= 12 ? 12 : 9);
+                _fontSizePt = SettingsStore::clampFontSize(pt);
             }
             if (doc.containsKey("fontFamily")) {
                 int fam = doc["fontFamily"];

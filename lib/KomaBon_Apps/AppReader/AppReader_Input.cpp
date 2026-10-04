@@ -38,12 +38,16 @@ void AppReader::handleInput(InputAction action) {
             _needsRedraw = true;
         } else if (action == INPUT_SELECT) {
             if (_overlaySelectedIndex == 0) {
-                if (_fontSizePt == 9)
+                if (_fontSizePt == 8)
+                    _fontSizePt = 10;
+                else if (_fontSizePt == 10)
                     _fontSizePt = 12;
                 else if (_fontSizePt == 12)
+                    _fontSizePt = 14;
+                else if (_fontSizePt == 14)
                     _fontSizePt = 18;
                 else
-                    _fontSizePt = 9;
+                    _fontSizePt = 8;
                 _settingsChanged = true;
                 _needsRedraw = true;
             } else if (_overlaySelectedIndex == 1) {
