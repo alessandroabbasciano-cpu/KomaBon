@@ -152,7 +152,7 @@ bool AppReader::openBook(const String& path, bool restoreProgress) {
             return false;
         }
 
-        size_t bufferSize = (_kbReader->getWidth() + 7) / 8 * _kbReader->getHeight();
+        size_t bufferSize = static_cast<size_t>(_kbReader->getWidth() + 7) / 8 * _kbReader->getHeight();
         _comicPageBuffer = (uint8_t*)ps_malloc(bufferSize);
 
         if (!_comicPageBuffer) {

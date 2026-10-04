@@ -3526,7 +3526,7 @@ static void stbtt__rasterize(stbtt__bitmap* result, stbtt__point* pts, int* wcou
     for (i = 0; i < windings; ++i)
         n += wcount[i];
 
-    e = (stbtt__edge*)STBTT_malloc(sizeof(*e) * (n + 1), userdata); // add an extra one as a sentinel
+    e = (stbtt__edge*)STBTT_malloc(sizeof(*e) * (size_t)(n + 1), userdata); // add an extra one as a sentinel
     if (e == 0) return;
     n = 0;
 
@@ -3861,7 +3861,7 @@ static int stbtt_BakeFontBitmap_internal(unsigned char* data,
     stbtt_fontinfo f;
     f.userdata = NULL;
     if (!stbtt_InitFont(&f, data, offset)) return -1;
-    STBTT_memset(pixels, 0, pw * ph); // background of 0 around pixels
+    STBTT_memset(pixels, 0, (size_t)pw * ph); // background of 0 around pixels
     x = y = 1;
     bottom_y = 1;
 
@@ -4010,7 +4010,7 @@ STBTT_DEF int stbtt_PackBegin(stbtt_pack_context* spc, unsigned char* pixels, in
 
     stbrp_init_target(context, pw - padding, ph - padding, nodes, num_nodes);
 
-    if (pixels) STBTT_memset(pixels, 0, pw * ph); // background of 0 around pixels
+    if (pixels) STBTT_memset(pixels, 0, (size_t)pw * ph); // background of 0 around pixels
 
     return 1;
 }
