@@ -13,7 +13,7 @@
 #include <vector>
 #include <map>
 
-enum ReaderState { VIEW_READING, VIEW_OVERLAY_SETTINGS, VIEW_OVERLAY_TOC };
+enum ReaderState { VIEW_READING, VIEW_OVERLAY_SETTINGS, VIEW_OVERLAY_TOC, VIEW_OVERLAY_GOTO };
 
 // Utility function to extract the bare filename from a path (handling both / and \)
 
@@ -118,12 +118,15 @@ class AppReader : public App {
     // Overlay Menus
     int _overlaySelectedIndex;
     int _overlayScrollOffset;
+    int _gotoTargetPage;   // Target page in Go to Page overlay
     bool _settingsChanged; // NEW: Tracks unsaved changes in the overlay
     void openSettingsOverlay();
     void openTOCOverlay();
+    void openGotoOverlay();
     void closeOverlay();
     void drawOverlaySettings();
     void drawOverlayTOC();
+    void drawOverlayGoto();
 
   public:
     bool openBook(const String& path, bool restoreProgress = true);
@@ -141,6 +144,7 @@ class AppReader : public App {
     void markProgressInactive();
     void closeBook(bool markInactive = true);
     void loadChapter(int chapterIndex);
+    void goToPage(int targetPage);
     void nextPage();
     void prevPage();
     void nextChapter();

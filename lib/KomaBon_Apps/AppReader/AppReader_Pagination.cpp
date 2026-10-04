@@ -365,3 +365,70 @@ void AppReader::applyJustify(bool justify) {
         _needsRedraw = true;
     }
 }
+
+void AppReader::goToPage(int targetPage) {
+    if (targetPage < 1) targetPage = 1;
+    if (_totalPages > 0 && targetPage > _totalPages) targetPage = _totalPages;
+
+    if (_isComicMode) {
+        _globalPageNumber = targetPage;
+        saveReadingProgress(true);
+        flushProgress();
+        forceRedraw();
+        return;
+    }
+
+    KomaBonGuard guard(_epubMutex);
+    if (!_epubLoader || !_textRenderer) return;
+
+    // In EPUB mode, find which chapter contains targetPage
+    int targetChapter = 0;
+    if (!_chapterStartPages.empty()) {
+        for (int i = (int)_chapterStartPages.size() - 1; i >= 0; i--) {
+            if (targetPage >= _chapterStartPages[i]) {
+                targetChapter = i;
+                break;
+            }
+        }
+    } else {
+        // If chapter start mapping is not ready yet, approximate by percentage
+        int totalChaps = _epubLoader->getChapterCount();
+        if (_totalPages > 0 && totalChaps > 0) {
+            targetChapter = ((targetPage - 1) * totalChaps) / _totalPages;
+            if (targetChapter >= totalChaps) targetChapter = totalChaps - 1;
+        }
+    }
+
+    loadChapter(targetChapter);
+
+    int startPageForChap = 1;
+    if (targetChapter < (int)_chapterStartPages.size()) {
+        startPageForChap = _chapterStartPages[targetChapter];
+    }
+    _globalPageNumber = startPageForChap;
+
+    // Advance within the chapter until we hit targetPage or end of chapter
+    DisplayMgr& dispMgr = DisplayMgr::getInstance();
+    KomaBonDisplay& display = dispMgr.getDisplay();
+
+    while (_globalPageNumber < targetPage) {
+        RenderResult r = _textRenderer->renderRichPageDynamic(
+            display, _currentRichContent, _currentPagePointer.nodeIndex, _currentPagePointer.charOffset,
+            _pageHistory.size(), 0, false);
+
+        if (r.pageFull) {
+            _pageHistory.push_back(_currentPagePointer);
+            _currentPagePointer.nodeIndex = r.nextNodeIndex;
+            _currentPagePointer.charOffset = r.nextCharOffset;
+            _globalPageNumber++;
+        } else {
+            break; // End of chapter reached
+        }
+    }
+
+    if (_textRenderer) _textRenderer->clearCache();
+    _currentPageRenderValid = false;
+    saveReadingProgress(true);
+    flushProgress();
+    forceRedraw();
+}

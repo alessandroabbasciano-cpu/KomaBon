@@ -22,6 +22,8 @@ void AppReader::draw() {
         drawOverlaySettings();
     else if (_state == VIEW_OVERLAY_TOC)
         drawOverlayTOC();
+    else if (_state == VIEW_OVERLAY_GOTO)
+        drawOverlayGoto();
 }
 
 void AppReader::drawReading() {
@@ -152,7 +154,7 @@ void AppReader::drawOverlaySettings() {
     FontMgr& fontMgr = FontMgr::getInstance();
 
     int ow = 320; // Slightly wider to accommodate font names
-    int oh = 326; // Height for 7 items
+    int oh = 358; // Height for 8 items
     int ox = (display.width() - ow) / 2;
     int oy = (display.height() - oh) / 2;
 
@@ -163,8 +165,8 @@ void AppReader::drawOverlaySettings() {
         display.drawRect(ox, oy, ow, oh, GxEPD_BLACK);
         display.drawRect(ox + 2, oy + 2, ow - 4, oh - 4, GxEPD_BLACK);
 
-        fontMgr.drawTextCentered(display, "Quick Settings", oy + 35, FONT_SIZE_SUBTITLE, GxEPD_BLACK);
-        display.drawLine(ox + 20, oy + 55, ox + ow - 20, oy + 55, GxEPD_BLACK);
+        fontMgr.drawTextCentered(display, "Quick Settings", oy + 32, FONT_SIZE_SUBTITLE, GxEPD_BLACK);
+        display.drawLine(ox + 20, oy + 50, ox + ow - 20, oy + 50, GxEPD_BLACK);
 
         // Dynamic Strings Generation
         char fontSizeStr[32];
@@ -188,17 +190,73 @@ void AppReader::drawOverlaySettings() {
         char rtlModeStr[32];
         snprintf(rtlModeStr, sizeof(rtlModeStr), "RTL Mode: %s", _isRTL ? "On" : "Off");
 
-        const char* items[] = {fontSizeStr, fontFamilyStr,   marginStr,      justifyStr,
-                               rtlModeStr,  "Force Refresh", "Close & Apply"};
+        const char* items[] = {fontSizeStr, fontFamilyStr,   marginStr,       justifyStr,
+                               rtlModeStr,  "Go to Page...", "Force Refresh", "Close & Apply"};
 
-        for (int i = 0; i < 7; i++) {
-            int itemY = oy + 95 + (i * 32);
+        for (int i = 0; i < 8; i++) {
+            int itemY = oy + 86 + (i * 32);
             fontMgr.drawTextCentered(display, items[i], itemY, FONT_SIZE_BODY, GxEPD_BLACK);
             if (i == _overlaySelectedIndex) {
                 display.drawRect(ox + 20, itemY - 20, ow - 40, 28, GxEPD_BLACK);
                 display.drawRect(ox + 21, itemY - 19, ow - 42, 26, GxEPD_BLACK);
             }
         }
+    } while (display.nextPage());
+}
+
+void AppReader::drawOverlayGoto() {
+    DisplayMgr& dispMgr = DisplayMgr::getInstance();
+    KomaBonDisplay& display = dispMgr.getDisplay();
+    FontMgr& fontMgr = FontMgr::getInstance();
+
+    int ow = 340;
+    int oh = 220;
+    int ox = (display.width() - ow) / 2;
+    int oy = (display.height() - oh) / 2;
+
+    display.setPartialWindow(ox, oy, ow, oh);
+    display.firstPage();
+    do {
+        display.fillScreen(GxEPD_WHITE);
+        display.drawRect(ox, oy, ow, oh, GxEPD_BLACK);
+        display.drawRect(ox + 2, oy + 2, ow - 4, oh - 4, GxEPD_BLACK);
+
+        fontMgr.drawTextCentered(display, "Go to Page", oy + 32, FONT_SIZE_SUBTITLE, GxEPD_BLACK);
+        display.drawLine(ox + 20, oy + 46, ox + ow - 20, oy + 46, GxEPD_BLACK);
+
+        char pageStr[48];
+        if (_totalPages > 0) {
+            int pct = (_gotoTargetPage * 100) / _totalPages;
+            snprintf(pageStr, sizeof(pageStr), "Page %d of %d  (%d%%)", _gotoTargetPage, _totalPages, pct);
+        } else {
+            snprintf(pageStr, sizeof(pageStr), "Page %d", _gotoTargetPage);
+        }
+        fontMgr.drawTextCentered(display, pageStr, oy + 84, FONT_SIZE_BODY, GxEPD_BLACK);
+
+        // Slider bar
+        int barX = ox + 30;
+        int barY = oy + 106;
+        int barW = ow - 60; // 280
+        int barH = 16;
+        display.drawRect(barX, barY, barW, barH, GxEPD_BLACK);
+        display.drawRect(barX + 1, barY + 1, barW - 2, barH - 2, GxEPD_BLACK);
+
+        if (_totalPages > 1) {
+            int fillW = ((_gotoTargetPage - 1) * (barW - 6)) / (_totalPages - 1);
+            if (fillW < 0) fillW = 0;
+            if (fillW > barW - 6) fillW = barW - 6;
+            if (_gotoTargetPage == _totalPages) fillW = barW - 6;
+            if (fillW > 0) {
+                display.fillRect(barX + 3, barY + 3, fillW, barH - 6, GxEPD_BLACK);
+            }
+        }
+
+        display.drawLine(ox + 20, oy + 144, ox + ow - 20, oy + 144, GxEPD_BLACK);
+
+        fontMgr.drawTextCentered(display, "< / >: +/-1    ^ / v: +/-10", oy + 168, FONT_SIZE_SMALL,
+                                 GxEPD_BLACK);
+        fontMgr.drawTextCentered(display, "SELECT: Jump    BACK: Cancel", oy + 194, FONT_SIZE_SMALL,
+                                 GxEPD_BLACK);
     } while (display.nextPage());
 }
 

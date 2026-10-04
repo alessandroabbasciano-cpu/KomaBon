@@ -39,6 +39,7 @@ AppReader::AppReader() {
 
     _overlaySelectedIndex = 0;
     _overlayScrollOffset = 0;
+    _gotoTargetPage = 1;
     _settingsChanged = false;
     _state = VIEW_READING;
 

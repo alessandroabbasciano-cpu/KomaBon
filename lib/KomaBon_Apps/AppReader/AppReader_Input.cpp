@@ -22,6 +22,8 @@ void AppReader::handleInput(InputAction action) {
             openSettingsOverlay();
         else if (action == INPUT_PREV)
             openTOCOverlay();
+        else if (action == INPUT_NEXT)
+            openGotoOverlay();
         else if (action == INPUT_SLEEP)
             enterSleepMode();
         else if (action == INPUT_BACK) {
@@ -31,10 +33,10 @@ void AppReader::handleInput(InputAction action) {
         }
     } else if (_state == VIEW_OVERLAY_SETTINGS) {
         if (action == INPUT_NEXT) {
-            _overlaySelectedIndex = (_overlaySelectedIndex + 1) % 7;
+            _overlaySelectedIndex = (_overlaySelectedIndex + 1) % 8;
             _needsRedraw = true;
         } else if (action == INPUT_PREV) {
-            _overlaySelectedIndex = (_overlaySelectedIndex - 1 + 7) % 7;
+            _overlaySelectedIndex = (_overlaySelectedIndex - 1 + 8) % 8;
             _needsRedraw = true;
         } else if (action == INPUT_SELECT) {
             if (_overlaySelectedIndex == 0) {
@@ -70,13 +72,36 @@ void AppReader::handleInput(InputAction action) {
                 _settingsChanged = true;
                 _needsRedraw = true;
             } else if (_overlaySelectedIndex == 5) {
+                openGotoOverlay();
+            } else if (_overlaySelectedIndex == 6) {
                 _readingFirstDraw = true;
                 _settingsChanged = true;
                 closeOverlay();
-            } else if (_overlaySelectedIndex == 6) {
+            } else if (_overlaySelectedIndex == 7) {
                 closeOverlay();
             }
         } else if (action == INPUT_LEFT || action == INPUT_BACK) {
+            closeOverlay();
+        }
+    } else if (_state == VIEW_OVERLAY_GOTO) {
+        int maxPage = (_totalPages > 0) ? _totalPages : 9999;
+        if (action == INPUT_RIGHT) {
+            _gotoTargetPage = std::min(maxPage, _gotoTargetPage + 1);
+            _needsRedraw = true;
+        } else if (action == INPUT_LEFT) {
+            _gotoTargetPage = std::max(1, _gotoTargetPage - 1);
+            _needsRedraw = true;
+        } else if (action == INPUT_NEXT) {
+            _gotoTargetPage = std::min(maxPage, _gotoTargetPage + 10);
+            _needsRedraw = true;
+        } else if (action == INPUT_PREV) {
+            _gotoTargetPage = std::max(1, _gotoTargetPage - 10);
+            _needsRedraw = true;
+        } else if (action == INPUT_SELECT) {
+            int target = _gotoTargetPage;
+            closeOverlay();
+            goToPage(target);
+        } else if (action == INPUT_BACK) {
             closeOverlay();
         }
     } else if (_state == VIEW_OVERLAY_TOC) {
@@ -132,6 +157,14 @@ void AppReader::openTOCOverlay() {
     _state = VIEW_OVERLAY_TOC;
     _overlaySelectedIndex = _currentChapter;
     _overlayScrollOffset = std::max(0, _currentChapter - 3);
+    _needsRedraw = true;
+}
+
+void AppReader::openGotoOverlay() {
+    _state = VIEW_OVERLAY_GOTO;
+    _gotoTargetPage = _globalPageNumber;
+    if (_gotoTargetPage < 1) _gotoTargetPage = 1;
+    if (_totalPages > 0 && _gotoTargetPage > _totalPages) _gotoTargetPage = _totalPages;
     _needsRedraw = true;
 }
 
