@@ -18,7 +18,9 @@ enum InputAction {
     // Manual full display refresh (KEY2 short click). Appended rather than
     // inserted: these values are printed raw in the input logs, so reordering
     // would silently change the meaning of older traces.
-    INPUT_REFRESH
+    INPUT_REFRESH,
+    INPUT_BOOKMARK_QUICK,
+    INPUT_BOOKMARK_MENU
 };
 
 class InputMgr {

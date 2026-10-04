@@ -1,5 +1,7 @@
 #include "AppReader.h"
 #include "AppMgr.h"
+#include "BookmarkStore.h"
+#include "BookMeta.h"
 
 void AppReader::handleInput(InputAction action) {
     if (action == INPUT_NONE) return;
@@ -24,6 +26,10 @@ void AppReader::handleInput(InputAction action) {
             openTOCOverlay();
         else if (action == INPUT_NEXT)
             openGotoOverlay();
+        else if (action == INPUT_BOOKMARK_QUICK)
+            toggleCurrentBookmark();
+        else if (action == INPUT_BOOKMARK_MENU)
+            openBookmarksOverlay();
         else if (action == INPUT_SLEEP)
             enterSleepMode();
         else if (action == INPUT_BACK) {
@@ -33,10 +39,10 @@ void AppReader::handleInput(InputAction action) {
         }
     } else if (_state == VIEW_OVERLAY_SETTINGS) {
         if (action == INPUT_NEXT) {
-            _overlaySelectedIndex = (_overlaySelectedIndex + 1) % 8;
+            _overlaySelectedIndex = (_overlaySelectedIndex + 1) % 9;
             _needsRedraw = true;
         } else if (action == INPUT_PREV) {
-            _overlaySelectedIndex = (_overlaySelectedIndex - 1 + 8) % 8;
+            _overlaySelectedIndex = (_overlaySelectedIndex - 1 + 9) % 9;
             _needsRedraw = true;
         } else if (action == INPUT_SELECT) {
             if (_overlaySelectedIndex == 0) {
@@ -74,10 +80,12 @@ void AppReader::handleInput(InputAction action) {
             } else if (_overlaySelectedIndex == 5) {
                 openGotoOverlay();
             } else if (_overlaySelectedIndex == 6) {
+                openBookmarksOverlay();
+            } else if (_overlaySelectedIndex == 7) {
                 _readingFirstDraw = true;
                 _settingsChanged = true;
                 closeOverlay();
-            } else if (_overlaySelectedIndex == 7) {
+            } else if (_overlaySelectedIndex == 8) {
                 closeOverlay();
             }
         } else if (action == INPUT_LEFT || action == INPUT_BACK) {
@@ -101,6 +109,48 @@ void AppReader::handleInput(InputAction action) {
             int target = _gotoTargetPage;
             closeOverlay();
             goToPage(target);
+        } else if (action == INPUT_BACK) {
+            closeOverlay();
+        }
+    } else if (_state == VIEW_OVERLAY_BOOKMARKS) {
+        String key = getOriginalFilename(normalizedBookName(_currentBookPath));
+        std::vector<BookmarkEntry> bookmarks = BookmarkStore::getInstance().getBookmarks(key);
+        int total = (int)bookmarks.size();
+
+        if (total == 0) {
+            if (action == INPUT_SELECT || action == INPUT_LEFT || action == INPUT_BACK) closeOverlay();
+            return;
+        }
+
+        if (action == INPUT_NEXT) {
+            _overlaySelectedIndex++;
+            if (_overlaySelectedIndex >= total) _overlaySelectedIndex = 0;
+            if (_overlaySelectedIndex >= _overlayScrollOffset + 6)
+                _overlayScrollOffset = _overlaySelectedIndex - 5;
+            if (_overlaySelectedIndex < _overlayScrollOffset) _overlayScrollOffset = _overlaySelectedIndex;
+            _needsRedraw = true;
+        } else if (action == INPUT_PREV) {
+            _overlaySelectedIndex--;
+            if (_overlaySelectedIndex < 0) _overlaySelectedIndex = total - 1;
+            if (_overlaySelectedIndex < _overlayScrollOffset) _overlayScrollOffset = _overlaySelectedIndex;
+            if (_overlaySelectedIndex >= _overlayScrollOffset + 6)
+                _overlayScrollOffset = _overlaySelectedIndex - 5;
+            _needsRedraw = true;
+        } else if (action == INPUT_SELECT) {
+            if (_overlaySelectedIndex >= 0 && _overlaySelectedIndex < total) {
+                int targetPage = bookmarks[_overlaySelectedIndex].page;
+                closeOverlay();
+                goToPage(targetPage);
+            }
+        } else if (action == INPUT_LEFT) {
+            // Delete selected bookmark
+            if (_overlaySelectedIndex >= 0 && _overlaySelectedIndex < total) {
+                BookmarkStore::getInstance().removeBookmarkByIndex(key, _overlaySelectedIndex);
+                if (_overlaySelectedIndex >= total - 1 && _overlaySelectedIndex > 0) {
+                    _overlaySelectedIndex--;
+                }
+                _needsRedraw = true;
+            }
         } else if (action == INPUT_BACK) {
             closeOverlay();
         }
@@ -165,6 +215,13 @@ void AppReader::openGotoOverlay() {
     _gotoTargetPage = _globalPageNumber;
     if (_gotoTargetPage < 1) _gotoTargetPage = 1;
     if (_totalPages > 0 && _gotoTargetPage > _totalPages) _gotoTargetPage = _totalPages;
+    _needsRedraw = true;
+}
+
+void AppReader::openBookmarksOverlay() {
+    _state = VIEW_OVERLAY_BOOKMARKS;
+    _overlaySelectedIndex = 0;
+    _overlayScrollOffset = 0;
     _needsRedraw = true;
 }
 

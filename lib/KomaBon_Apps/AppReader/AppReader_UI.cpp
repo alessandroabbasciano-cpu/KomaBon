@@ -7,6 +7,7 @@
 #include "../KomaBon_Core/SettingsStore.h"
 #include "../../KomaBon_Core/AppMgr.h"
 #include "BookMeta.h"
+#include "BookmarkStore.h"
 
 const uint8_t* AppReader::getIconImage() {
     return icon_reader_160x160;
@@ -24,6 +25,8 @@ void AppReader::draw() {
         drawOverlayTOC();
     else if (_state == VIEW_OVERLAY_GOTO)
         drawOverlayGoto();
+    else if (_state == VIEW_OVERLAY_BOOKMARKS)
+        drawOverlayBookmarks();
 }
 
 void AppReader::drawReading() {
@@ -144,6 +147,7 @@ void AppReader::drawReading() {
         display.print(rightText);
 
         BatteryMgr::getInstance().drawStatusBar(display, display.width() - 105, 10);
+        drawBookmarkIndicator(display);
 
     } while (display.nextPage());
 }
@@ -154,7 +158,7 @@ void AppReader::drawOverlaySettings() {
     FontMgr& fontMgr = FontMgr::getInstance();
 
     int ow = 320; // Slightly wider to accommodate font names
-    int oh = 358; // Height for 8 items
+    int oh = 390; // Height for 9 items
     int ox = (display.width() - ow) / 2;
     int oy = (display.height() - oh) / 2;
 
@@ -165,8 +169,8 @@ void AppReader::drawOverlaySettings() {
         display.drawRect(ox, oy, ow, oh, GxEPD_BLACK);
         display.drawRect(ox + 2, oy + 2, ow - 4, oh - 4, GxEPD_BLACK);
 
-        fontMgr.drawTextCentered(display, "Quick Settings", oy + 32, FONT_SIZE_SUBTITLE, GxEPD_BLACK);
-        display.drawLine(ox + 20, oy + 50, ox + ow - 20, oy + 50, GxEPD_BLACK);
+        fontMgr.drawTextCentered(display, "Quick Settings", oy + 30, FONT_SIZE_SUBTITLE, GxEPD_BLACK);
+        display.drawLine(ox + 20, oy + 46, ox + ow - 20, oy + 46, GxEPD_BLACK);
 
         // Dynamic Strings Generation
         char fontSizeStr[32];
@@ -190,11 +194,11 @@ void AppReader::drawOverlaySettings() {
         char rtlModeStr[32];
         snprintf(rtlModeStr, sizeof(rtlModeStr), "RTL Mode: %s", _isRTL ? "On" : "Off");
 
-        const char* items[] = {fontSizeStr, fontFamilyStr,   marginStr,       justifyStr,
-                               rtlModeStr,  "Go to Page...", "Force Refresh", "Close & Apply"};
+        const char* items[] = {fontSizeStr,     fontFamilyStr,  marginStr,       justifyStr,     rtlModeStr,
+                               "Go to Page...", "Bookmarks...", "Force Refresh", "Close & Apply"};
 
-        for (int i = 0; i < 8; i++) {
-            int itemY = oy + 86 + (i * 32);
+        for (int i = 0; i < 9; i++) {
+            int itemY = oy + 76 + (i * 32);
             fontMgr.drawTextCentered(display, items[i], itemY, FONT_SIZE_BODY, GxEPD_BLACK);
             if (i == _overlaySelectedIndex) {
                 display.drawRect(ox + 20, itemY - 20, ow - 40, 28, GxEPD_BLACK);
@@ -313,6 +317,73 @@ void AppReader::drawOverlayTOC() {
                 fontMgr.drawTextCentered(display, "v", oy + oh - 15, FONT_SIZE_SMALL, GxEPD_BLACK);
             }
         }
+    } while (display.nextPage());
+}
+
+void AppReader::drawOverlayBookmarks() {
+    DisplayMgr& dispMgr = DisplayMgr::getInstance();
+    KomaBonDisplay& display = dispMgr.getDisplay();
+    FontMgr& fontMgr = FontMgr::getInstance();
+
+    int ow = 340;
+    int oh = 350;
+    int ox = (display.width() - ow) / 2;
+    int oy = (display.height() - oh) / 2;
+
+    display.setPartialWindow(ox, oy, ow, oh);
+    display.firstPage();
+    do {
+        display.fillScreen(GxEPD_WHITE);
+        display.drawRect(ox, oy, ow, oh, GxEPD_BLACK);
+        display.drawRect(ox + 2, oy + 2, ow - 4, oh - 4, GxEPD_BLACK);
+
+        fontMgr.drawTextCentered(display, "Bookmarks", oy + 32, FONT_SIZE_SUBTITLE, GxEPD_BLACK);
+        display.drawLine(ox + 20, oy + 48, ox + ow - 20, oy + 48, GxEPD_BLACK);
+
+        String key = getOriginalFilename(normalizedBookName(_currentBookPath));
+        std::vector<BookmarkEntry> bookmarks = BookmarkStore::getInstance().getBookmarks(key);
+
+        if (bookmarks.empty()) {
+            fontMgr.drawTextCentered(display, "No bookmarks yet.", oy + 120, FONT_SIZE_BODY, GxEPD_BLACK);
+            fontMgr.drawTextCentered(display, "Hold UP while reading", oy + 160, FONT_SIZE_SMALL,
+                                     GxEPD_BLACK);
+            fontMgr.drawTextCentered(display, "to save a bookmark.", oy + 185, FONT_SIZE_SMALL, GxEPD_BLACK);
+        } else {
+            int itemsPerPage = 6;
+            for (int i = 0; i < itemsPerPage; i++) {
+                int idx = _overlayScrollOffset + i;
+                if (idx >= (int)bookmarks.size()) break;
+
+                int itemY = oy + 86 + (i * 34);
+                char buf[48];
+                if (_totalPages > 0) {
+                    int pct = (bookmarks[idx].page * 100) / _totalPages;
+                    snprintf(buf, sizeof(buf), "Page %d  (%d%%)", bookmarks[idx].page, pct);
+                } else {
+                    snprintf(buf, sizeof(buf), "Page %d", bookmarks[idx].page);
+                }
+
+                if (idx == _overlaySelectedIndex) {
+                    display.fillRect(ox + 20, itemY - 20, ow - 40, 28, GxEPD_BLACK);
+                    fontMgr.drawTextCentered(display, buf, itemY, FONT_SIZE_BODY, GxEPD_WHITE);
+                } else {
+                    fontMgr.drawTextCentered(display, buf, itemY, FONT_SIZE_BODY, GxEPD_BLACK);
+                }
+            }
+
+            if (_overlayScrollOffset > 0) {
+                fontMgr.drawTextCentered(display, "^", oy + 58, FONT_SIZE_SMALL, GxEPD_BLACK);
+            }
+            if (_overlayScrollOffset + itemsPerPage < (int)bookmarks.size()) {
+                fontMgr.drawTextCentered(display, "v", oy + oh - 52, FONT_SIZE_SMALL, GxEPD_BLACK);
+            }
+        }
+
+        display.drawLine(ox + 20, oy + oh - 48, ox + ow - 20, oy + oh - 48, GxEPD_BLACK);
+        fontMgr.drawTextCentered(display, "^ / v: Scroll    SELECT: Jump", oy + oh - 30, FONT_SIZE_SMALL,
+                                 GxEPD_BLACK);
+        fontMgr.drawTextCentered(display, "<: Delete    BACK: Close", oy + oh - 12, FONT_SIZE_SMALL,
+                                 GxEPD_BLACK);
     } while (display.nextPage());
 }
 

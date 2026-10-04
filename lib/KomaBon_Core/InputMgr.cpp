@@ -196,6 +196,16 @@ void InputMgr::inputTask(void* parameter) {
                     BatteryMgr::getInstance().resetIdleTimer();
                     self->enqueueAction(INPUT_BACK);
                     joyLongPressSent = true;
+                } else if (heldTime >= 600 && lastJoyDirection == JOY_UP) {
+                    Serial.println("INPUT: JOY Up Long Press -> BOOKMARK QUICK");
+                    BatteryMgr::getInstance().resetIdleTimer();
+                    self->enqueueAction(INPUT_BOOKMARK_QUICK);
+                    joyLongPressSent = true;
+                } else if (heldTime >= 600 && lastJoyDirection == JOY_RIGHT) {
+                    Serial.println("INPUT: JOY Right Long Press -> BOOKMARK MENU");
+                    BatteryMgr::getInstance().resetIdleTimer();
+                    self->enqueueAction(INPUT_BOOKMARK_MENU);
+                    joyLongPressSent = true;
                 }
             }
         } else {

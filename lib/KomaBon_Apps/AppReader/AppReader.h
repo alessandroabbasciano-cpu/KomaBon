@@ -13,7 +13,13 @@
 #include <vector>
 #include <map>
 
-enum ReaderState { VIEW_READING, VIEW_OVERLAY_SETTINGS, VIEW_OVERLAY_TOC, VIEW_OVERLAY_GOTO };
+enum ReaderState {
+    VIEW_READING,
+    VIEW_OVERLAY_SETTINGS,
+    VIEW_OVERLAY_TOC,
+    VIEW_OVERLAY_GOTO,
+    VIEW_OVERLAY_BOOKMARKS
+};
 
 // Utility function to extract the bare filename from a path (handling both / and \)
 
@@ -123,10 +129,15 @@ class AppReader : public App {
     void openSettingsOverlay();
     void openTOCOverlay();
     void openGotoOverlay();
+    void openBookmarksOverlay();
     void closeOverlay();
     void drawOverlaySettings();
     void drawOverlayTOC();
     void drawOverlayGoto();
+    void drawOverlayBookmarks();
+    void toggleCurrentBookmark();
+    bool isCurrentPageBookmarked();
+    void drawBookmarkIndicator(KomaBonDisplay& display);
 
   public:
     bool openBook(const String& path, bool restoreProgress = true);

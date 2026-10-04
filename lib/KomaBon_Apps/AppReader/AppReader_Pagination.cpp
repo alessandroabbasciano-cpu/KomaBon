@@ -2,6 +2,7 @@
 #include "DisplayMgr.h"
 #include "PageCountStore.h"
 #include "BookMeta.h"
+#include "BookmarkStore.h"
 
 void AppReader::pageCountTask(void* param) {
     AppReader* app = static_cast<AppReader*>(param);
@@ -431,4 +432,59 @@ void AppReader::goToPage(int targetPage) {
     saveReadingProgress(true);
     flushProgress();
     forceRedraw();
+}
+
+bool AppReader::isCurrentPageBookmarked() {
+    if (_currentBookPath.length() == 0) return false;
+    String key = getOriginalFilename(normalizedBookName(_currentBookPath));
+    return BookmarkStore::getInstance().isBookmarked(key, _globalPageNumber);
+}
+
+static const int BOOKMARK_RIBBON_X = 24;
+static const int BOOKMARK_RIBBON_W = 18;
+static const int BOOKMARK_RIBBON_H = 26;
+static const int BOOKMARK_RIBBON_CUT = 7;
+
+void AppReader::drawBookmarkIndicator(KomaBonDisplay& display) {
+    if (isCurrentPageBookmarked()) {
+        int x = BOOKMARK_RIBBON_X;
+        int w = BOOKMARK_RIBBON_W;
+        int h = BOOKMARK_RIBBON_H;
+        int cut = BOOKMARK_RIBBON_CUT;
+        display.fillRect(x, 0, w, h, GxEPD_BLACK);
+        display.fillTriangle(x, h, x + w, h, x + w / 2, h - cut, GxEPD_WHITE);
+    }
+}
+
+void AppReader::toggleCurrentBookmark() {
+    if (_currentBookPath.length() == 0) return;
+    String key = getOriginalFilename(normalizedBookName(_currentBookPath));
+
+    BookmarkEntry entry;
+    entry.page = _globalPageNumber;
+    entry.chapter = _currentChapter;
+    entry.nodeIndex = _currentPagePointer.nodeIndex;
+    entry.charOffset = _currentPagePointer.charOffset;
+
+    bool added = BookmarkStore::getInstance().toggleBookmark(key, entry);
+    Serial.printf("Bookmark: page %d %s for %s\n", _globalPageNumber, added ? "ADDED" : "REMOVED",
+                  key.c_str());
+
+    // Instant redraw of the ribbon indicator on e-ink (top-left margin)
+    DisplayMgr& dispMgr = DisplayMgr::getInstance();
+    KomaBonDisplay& display = dispMgr.getDisplay();
+    int x = BOOKMARK_RIBBON_X;
+    int w = BOOKMARK_RIBBON_W;
+    int h = BOOKMARK_RIBBON_H;
+    int cut = BOOKMARK_RIBBON_CUT;
+
+    display.setPartialWindow(x - 2, 0, w + 4, h + 2);
+    display.firstPage();
+    do {
+        display.fillRect(x - 2, 0, w + 4, h + 2, GxEPD_WHITE);
+        if (added) {
+            display.fillRect(x, 0, w, h, GxEPD_BLACK);
+            display.fillTriangle(x, h, x + w, h, x + w / 2, h - cut, GxEPD_WHITE);
+        }
+    } while (display.nextPage());
 }
