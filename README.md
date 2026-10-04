@@ -107,15 +107,20 @@ To monitor real-time serial output for debugging:
 
 ## ✨ Core Features & Architecture
 
-* **Rapid Navigation & Lazy Rendering:** Decoupled 80ms deadzone filter combined with a 250ms debounced quiet window. Multi-item menu jumps and rapid page flips execute seamlessly in RAM, triggering only a single, final E-Ink partial refresh.
+* **Rapid Navigation, Lazy Rendering & Fast Refresh A2:** Decoupled 80ms deadzone filter combined with a 250ms debounced quiet window. In main menu and bookshelf navigation, KomaBon utilizes zero-flicker **A2 Fast Refresh** waveforms for seamless list browsing without black/white inversions, automatically switching back to crisp high-contrast waveforms during reading.
+* **Native Manga RTL Reading:** First-class hardware support for authentic Right-to-Left (RTL) reading order across `.kmb` manga binaries and EPUBs, with per-book persistent orientation memory and rapid toggle options.
+* **Modular App Architecture:** Cleanly decoupled architecture with standalone `AppBookshelf` for library management, isolated `HtmlParser` for memory-efficient document parsing, and modular `AppReader` (Pagination, Input, UI).
 * **Storage Auto-Recovery & Remount Card:** Dedicated SD Bus recovery trigger in Web UI Dashboard and automated bus re-negotiation on failed uploads.
 * **Ghost Node Architecture:** Protects reading state and book ordering if a MicroSD card is swapped or missing, displaying an orange *FILE MISSING* badge while keeping progress safe.
-* **Zero-Latency SWR Cache & Chunked Rendering:** Instant 0ms library tab switching powered by `sessionStorage` and `IntersectionObserver` virtual chunking (30 items) for massive libraries.
+* **Zero-Latency SWR Cache & IndexedDB Offloading:** Instant 0ms library tab switching powered by `sessionStorage` and client-side cover caching via **IndexedDB** (`KomaBonCovers`), dramatically cutting SD bus traffic and eliminating DOM freezes.
+* **Resilient Chunked Upload Pipeline:** 512KB chunked upload protocol (`/api/books/upload_chunk`) with automatic retry and stream reassembly on ESP32, preventing browser timeout drops on large manga volumes.
+* **Modern Web Library Management:** Clean 3-dots action menu (`btn-more`), circular multi-selection dots for volumes and series, and a floating bulk action bar for mass download and deletion.
+* **Semantic 4-Tab Web Settings:** Streamlined web management categorized into **Device**, **Preferences** (with multi-column auto-save), **Screensaver** (custom wallpapers with 1-bit dithering preview), and **Firmware & Maintenance**.
 * **Hardware Calibration Wizard:** Built-in routine to map and calibrate the 5-way analog joystick thresholds accurately.
 * **Dual-Filesystem Integrity:** Decouples system firmware from user books, ensuring seamless OTA updates without data loss.
-* **Universal In-Browser Pipeline:** Converts CBZ, ZIP, PDF, ODT, and EPUB files directly into lightning-fast 1-bit E-Ink formats with Atkinson dithering and auto white-margin crop.
+* **Universal In-Browser Pipeline:** Converts CBZ, ZIP, PDF, ODT, and EPUB files directly into lightning-fast 1-bit E-Ink formats with Atkinson dithering, panel focus, and auto white-margin crop.
 * **Robust Power States & Deep Sleep:** Intelligent sleep management with prolonged center-press wake. When idle, the device goes into deep sleep and displays either the **cover of the current book** or a **custom user wallpaper** uploaded via the Web UI, overlaid with a sleek reading progress bar.
-* **Instant Phone Pairing (Web UI):** Activating the Web Transfer app now displays the active Wi-Fi SSID and a dynamic QR code for one-scan smartphone pairing to access the Web UI.
+* **Instant Phone Pairing (Web UI):** Activating the Web Transfer app displays the active Wi-Fi SSID and an ergonomically balanced QR code for instant smartphone camera pairing to access the Web UI.
 * **System Diagnostics & Safety:** Built-in hardware safe-boot, automatic FAT32 cluster alignment checking for the SD card, and a persistent crash logger visible in the Web UI to debug hardware/brownout faults.
 
 ## 📚 Documentation & Wiki

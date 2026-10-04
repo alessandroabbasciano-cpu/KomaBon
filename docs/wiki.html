@@ -80,6 +80,8 @@
         <ul class="section-links">
           <li><a href="#joystick-controls">5-Way Joystick & Buttons</a></li>
           <li><a href="#rapid-input">Rapid Input & Debounce (v0.6.0)</a></li>
+          <li><a href="#fast-refresh-a2">Fast Refresh A2 (Zero-Flicker)</a></li>
+          <li><a href="#manga-rtl">Native Manga RTL Reading</a></li>
           <li><a href="#calibration-wizard">Joystick Calibration Wizard</a></li>
           <li><a href="#reading-controls">Reading Gestures & Shortcuts</a></li>
         </ul>
@@ -89,7 +91,9 @@
         <div class="section-title">Web Interface</div>
         <ul class="section-links">
           <li><a href="#web-ui-dashboard">Dashboard & Storage Recovery</a></li>
-          <li><a href="#web-ui-library">Library & Infinite Scroll</a></li>
+          <li><a href="#web-ui-library">Library, 3-Dot Menus & Bulk Actions</a></li>
+          <li><a href="#web-ui-indexeddb">IndexedDB Cover Cache & Chunked Upload</a></li>
+          <li><a href="#web-ui-settings">Semantic 4-Tab Settings</a></li>
           <li><a href="#ghost-nodes">Ghost Files & Missing Storage</a></li>
           <li><a href="#series-grouping">Series & Manga Accordions</a></li>
           <li><a href="#swr-cache">SWR Caching Engine</a></li>
@@ -110,6 +114,7 @@
       <div class="nav-section">
         <div class="section-title">System & Partitions</div>
         <ul class="section-links">
+          <li><a href="#modular-architecture">Modular Firmware Architecture</a></li>
           <li><a href="#partition-table">Flash Partition Layout (16MB)</a></li>
           <li><a href="#storage-architecture">Dual-Filesystem Integrity</a></li>
           <li><a href="#metadata-files">JSON Configuration Files</a></li>
@@ -532,6 +537,27 @@ python -m espefuse --port &lt;YOUR_COM_PORT&gt; burn_efuse DIS_PAD_JTAG
             never starts drawing a frame if unhandled input events remain queued.</li>
         </ul>
 
+        <h3 id="fast-refresh-a2">⚡ Fast Refresh A2 (Zero-Flicker Waveform)</h3>
+        <p>
+          Navigating menus and long bookshelf lists on electrophoretic displays can be visually fatiguing if the panel
+          flashes black and white on every cursor move. KomaBon integrates an automatic <strong>A2 Fast Refresh</strong>
+          waveform mode in <code>DisplayMgr</code>:
+        </p>
+        <ul>
+          <li><strong>UI Navigation (Main Menu &amp; Bookshelf):</strong> A2 fast refresh mode is automatically enabled. Cursor selection changes and page shifts draw smoothly and instantaneously without inverse flashes.</li>
+          <li><strong>Reading Engine Auto-Switch:</strong> The moment a book is opened in <code>AppReader</code>, the firmware disables A2 mode and restores the standard high-contrast, multi-pass waveform to guarantee crisp typography, deep blacks, and zero contrast degradation on manga panels and EPUB text.</li>
+        </ul>
+
+        <h3 id="manga-rtl">📖 Native Manga RTL Reading (Right-to-Left)</h3>
+        <p>
+          Authentic Japanese manga is published with right-to-left panel and page progressions. KomaBon features native hardware and firmware support for RTL navigation:
+        </p>
+        <ul>
+          <li><strong>Inverted Navigation:</strong> When RTL is active, pushing the joystick <strong>Right</strong> flips to the previous page, while pushing <strong>Left</strong> advances forward, matching natural physical manga reading.</li>
+          <li><strong>Per-Book Persistence:</strong> Reading direction preferences are recorded per volume in <code>ProgressStore</code> (and embedded directly into <code>.kmb</code> binary headers). Once set, KomaBon remembers each book's orientation automatically.</li>
+          <li><strong>Quick-Toggle in Reader:</strong> Click the joystick Center in-reader to toggle RTL mode on or off instantly without leaving your current page.</li>
+        </ul>
+
         <h3 id="calibration-wizard">🎯 Joystick Calibration Wizard</h3>
         <p>
           Because analog resistor tolerances vary across joystick modules, KomaBon includes a built-in calibration
@@ -587,7 +613,37 @@ python -m espefuse --port &lt;YOUR_COM_PORT&gt; burn_efuse DIS_PAD_JTAG
           minimal, and scrolling remains butter-smooth on mobile devices.
         </p>
 
-        <h3 id="ghost-nodes">3. Ghost Node Architecture (Missing Files)</h3>
+        <h4>Context Menu &amp; Bulk Actions</h4>
+        <p>
+          Managing large manga collections is simplified with dedicated quick-action controls:
+        </p>
+        <ul>
+          <li><strong>3-Dots Context Menu (<code>btn-more</code>):</strong> Each book and series folder features a contextual dropdown menu for instant renaming, metadata inspection, single-book download, or deletion.</li>
+          <li><strong>Circular Multi-Select Dots:</strong> Tap the circular selector dot on individual books or an entire series header to select multiple items at once.</li>
+          <li><strong>Floating Bulk Action Bar:</strong> Whenever items are selected, a floating bar slides into view offering <em>Download Selected</em> or <em>Delete Selected</em> with full confirmation protection.</li>
+        </ul>
+
+        <h3 id="web-ui-indexeddb">3. IndexedDB Cover Caching &amp; Resilient Chunked Upload</h3>
+        <p>
+          To prevent bottlenecking the ESP32-S3's storage and network interfaces:
+        </p>
+        <ul>
+          <li><strong>IndexedDB Client Cache (<code>KomaBonCovers</code>):</strong> Book cover thumbnails are cached directly inside the browser's persistent IndexedDB storage upon first fetch. Subsequent visits retrieve covers instantly from local storage, eliminating repetitive SPI SD reads and preventing ESP32 VFS exhaustion.</li>
+          <li><strong>Chunked File Upload (512 KB Slices):</strong> Heavy manga files and book archives are uploaded to <code>/api/books/upload_chunk</code> in 512 KB segments with automatic retry. If Wi-Fi reception fluctuates during a 50 MB upload, failed chunks are automatically retried without aborting the entire transfer.</li>
+        </ul>
+
+        <h3 id="web-ui-settings">4. Semantic 4-Tab Settings Interface</h3>
+        <p>
+          Device administration and preferences are organized into four intuitive sections:
+        </p>
+        <ul>
+          <li><strong>Device:</strong> Live battery telemetry, storage partition breakdown, Wi-Fi info, and direct access to joystick hardware calibration.</li>
+          <li><strong>Preferences:</strong> Multi-column reading and system settings (font sizes, margins, sleep timeouts) with automatic background saving.</li>
+          <li><strong>Screensaver:</strong> Standby wallpaper manager allowing custom image uploads with live 1-bit Atkinson dithering preview.</li>
+          <li><strong>Firmware &amp; Maintenance:</strong> Web OTA binary flasher, partition tools, and real-time crash log inspector.</li>
+        </ul>
+
+        <h3 id="ghost-nodes">5. Ghost Node Architecture (Missing Files)</h3>
         <p>
           If a book was previously read but its file is no longer present on the MicroSD card (e.g. card swapped,
           corrupted, or file renamed), KomaBon prevents data loss:
@@ -600,14 +656,14 @@ python -m espefuse --port &lt;YOUR_COM_PORT&gt; burn_efuse DIS_PAD_JTAG
             records, and book order entries without VFS errors.</li>
         </ul>
 
-        <h3 id="series-grouping">4. Manga Series Grouping (Accordions)</h3>
+        <h3 id="series-grouping">6. Manga Series Grouping (Accordions)</h3>
         <p>
           Multi-volume manga series (e.g., <em>Berserk Vol. 01</em>, <em>Berserk Vol. 02</em>) are automatically grouped
           into clean, expandable accordion cards. In-memory instant search expands matching series dynamically as you
           type.
         </p>
 
-        <h3 id="swr-cache">5. Zero-Latency SWR Cache</h3>
+        <h3 id="swr-cache">7. Zero-Latency SWR Cache</h3>
         <p>
           Switching to the Library tab renders instantly (0 ms) using cached data stored in browser
           <code>sessionStorage</code>. The interface revalidates data with the ESP32 in the background; if files were
@@ -744,15 +800,24 @@ python -m espefuse --port &lt;YOUR_COM_PORT&gt; burn_efuse DIS_PAD_JTAG
           </table>
         </div>
 
+        <h3 id="modular-architecture">🏗️ Modular Firmware Architecture</h3>
+        <p>
+          KomaBon's application layer is decoupled into specialized single-responsibility modules:
+        </p>
+        <ul>
+          <li><strong>AppBookshelf:</strong> Dedicated application responsible for scanning, sorting, and displaying the library cards and series folders, completely separated from the reader engine.</li>
+          <li><strong>AppReader:</strong> Focused exclusively on rendering content, divided into modular components: <code>Pagination</code> (chapter/page arithmetic &amp; RTL inversion), <code>Input</code> (joystick gestures &amp; quick-settings overlay), and <code>UI</code> (text &amp; manga bitmapped rendering).</li>
+          <li><strong>HtmlParser:</strong> Dedicated parser extracted from the EPUB loader, converting XHTML structures into rich formatted text tokens while preserving memory on the ESP32-S3.</li>
+          <li><strong>ProgressStore:</strong> Centralized progress registry managing reading offsets, last-read timestamps, and book-specific preferences (such as RTL reading direction).</li>
+        </ul>
+
         <h3 id="metadata-files">JSON Configuration Schema</h3>
         <p>User configuration and reading state are preserved across reboots in structured JSON files:</p>
         <ul>
-          <li><code>/progress.json</code>: Maps book titles to current chapter, node index, character offset, and global
-            page.</li>
-          <li><code>/book_order.json</code>: Persists custom user drag-and-drop book sorting order.</li>
+          <li><code>/progress.json</code>: Maps book titles to current chapter, node index, character offset, global page, and RTL orientation.</li>
+          <li><code>/book_order.json</code>: Persists custom user drag-and-drop book sorting order and series grouping.</li>
           <li><code>/joy_cal.json</code>: Contains calibrated ADC thresholds for Center, Up, Down, Left, and Right.</li>
-          <li><code>/reader_config.json</code>: Stores font family (FreeSans, Merriweather, Literata, etc.), font size,
-            and refresh frequency.</li>
+          <li><code>/reader_config.json</code>: Stores font family (FreeSans, Merriweather, Literata, etc.), font size, line spacing, and refresh frequency.</li>
         </ul>
       </section>
 
