@@ -9,7 +9,7 @@ document.addEventListener('DOMContentLoaded', () => {
       }
     })
     .catch(() => {
-      if (versionBadge) versionBadge.textContent = 'v0.8.0';
+      if (versionBadge) versionBadge.textContent = 'v0.8.1';
     });
 
   // 2. Mobile sidebar toggle

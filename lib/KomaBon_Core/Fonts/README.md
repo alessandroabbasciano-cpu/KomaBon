@@ -21,3 +21,4 @@ The embedded TrueType vector fonts for reading are:
 - **Open Sans** (SIL OFL 1.1)
 
 Full SIL Open Font License 1.1 text is available in [OFL.txt](OFL.txt).
+
