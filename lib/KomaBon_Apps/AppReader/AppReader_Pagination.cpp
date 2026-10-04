@@ -149,6 +149,34 @@ void AppReader::loadChapter(int chapterIndex) {
 
         _currentRichContent = _epubLoader->getChapterContentRich(chapterIndex);
         if (_currentRichContent.size() > 0) {
+            // Find chapter title from the first header or prominent text node
+            _currentChapterTitle = "";
+            for (const auto& node : _currentRichContent) {
+                if (node.type == CONTENT_TEXT) {
+                    String trimmed = node.textNode.text;
+                    trimmed.trim();
+                    if (trimmed.length() == 0) continue;
+
+                    // Prefer H1, H2, H3 headers
+                    if (node.textNode.style == STYLE_HEADER1 || node.textNode.style == STYLE_HEADER2 ||
+                        node.textNode.style == STYLE_HEADER3) {
+                        _currentChapterTitle = trimmed;
+                        break;
+                    }
+                    // Fallback to first non-empty text if short enough to be a title
+                    if (_currentChapterTitle.length() == 0 && trimmed.length() <= 50) {
+                        _currentChapterTitle = trimmed;
+                    }
+                }
+            }
+
+            // Fallback if no header was found
+            if (_currentChapterTitle.length() == 0) {
+                char buf[32];
+                snprintf(buf, sizeof(buf), "Chapter %d", chapterIndex + 1);
+                _currentChapterTitle = buf;
+            }
+
             if (_textRenderer) _textRenderer->clearCache();
             _needsRedraw = true;
             return;

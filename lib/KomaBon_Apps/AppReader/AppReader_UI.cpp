@@ -78,25 +78,68 @@ void AppReader::drawReading() {
 
         display.setFont(&FreeSans9pt8b);
         display.setTextColor(GxEPD_BLACK);
-        char footerText[40];
+
+        // Right side: Page progress and percentage, e.g. "42 / 200 (21%)" or "Page 42"
+        char rightText[48];
         if (_totalPages > 0) {
-            snprintf(footerText, sizeof(footerText), "Page %d of %d", _globalPageNumber, _totalPages);
+            int pct = (int)((((long)_globalPageNumber) * 100) / _totalPages);
+            if (pct > 100) pct = 100;
+            snprintf(rightText, sizeof(rightText), "%d / %d (%d%%)", _globalPageNumber, _totalPages, pct);
         } else {
-            snprintf(footerText, sizeof(footerText), "Page %d", _globalPageNumber);
+            snprintf(rightText, sizeof(rightText), "Page %d", _globalPageNumber);
         }
 
-        int16_t fx1, fy1;
-        uint16_t fw, fh;
-        display.getTextBounds(footerText, 0, 0, &fx1, &fy1, &fw, &fh);
-        int cursorX = display.width() / 2 - (int)fw / 2;
+        int marginX = 25;
         int cursorY = display.height() - 15;
 
-        if (_isComicMode) {
-            display.fillRect(cursorX - 2, cursorY - fh - 2, fw + 4, fh + 4, GxEPD_WHITE);
+        // Measure right text
+        int16_t rx1, ry1;
+        uint16_t rw, rh;
+        display.getTextBounds(rightText, 0, 0, &rx1, &ry1, &rw, &rh);
+        int rightX = display.width() - marginX - (int)rw;
+
+        // Left side: Current chapter title (for EPUB and KMB manga)
+        String titleStr;
+        if (_currentChapterTitle.length() > 0) {
+            titleStr = _currentChapterTitle;
+        } else if (!_isComicMode) {
+            titleStr = "Chapter " + String(_currentChapter + 1);
         }
 
-        display.setCursor(cursorX, cursorY);
-        display.print(footerText);
+        if (titleStr.length() > 0) {
+            // Available width between left margin and right text with safety spacing
+            int maxTitleWidth = rightX - marginX - 35;
+            int16_t lx1, ly1;
+            uint16_t lw, lh;
+            display.getTextBounds(titleStr.c_str(), 0, 0, &lx1, &ly1, &lw, &lh);
+
+            // If the title is wider than the available space, truncate gracefully with "..."
+            if ((int)lw > maxTitleWidth && maxTitleWidth > 40) {
+                while (titleStr.length() > 3) {
+                    titleStr.remove(titleStr.length() - 1);
+                    String testStr = titleStr + "...";
+                    display.getTextBounds(testStr.c_str(), 0, 0, &lx1, &ly1, &lw, &lh);
+                    if ((int)lw <= maxTitleWidth) {
+                        titleStr = testStr;
+                        break;
+                    }
+                }
+            }
+
+            // In comic mode, clear white box behind text
+            if (_isComicMode) {
+                display.fillRect(marginX - 4, cursorY - lh - 2, lw + 8, lh + 6, GxEPD_WHITE);
+            }
+            display.setCursor(marginX, cursorY);
+            display.print(titleStr);
+        }
+
+        // Draw Right Text
+        if (_isComicMode) {
+            display.fillRect(rightX - 4, cursorY - rh - 2, rw + 8, rh + 6, GxEPD_WHITE);
+        }
+        display.setCursor(rightX, cursorY);
+        display.print(rightText);
 
         BatteryMgr::getInstance().drawStatusBar(display, display.width() - 105, 10);
 

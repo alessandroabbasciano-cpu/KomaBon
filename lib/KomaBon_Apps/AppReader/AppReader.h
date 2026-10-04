@@ -73,6 +73,8 @@ class AppReader : public App {
     EpubLoader* _epubLoader;
     TextRenderer* _textRenderer;
     String _currentBookPath;
+    String _bookTitle;
+    String _currentChapterTitle;
     int _currentChapter;
     int _globalPageNumber;
     bool _needsRedraw;

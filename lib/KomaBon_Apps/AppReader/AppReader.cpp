@@ -176,6 +176,28 @@ bool AppReader::openBook(const String& path, bool restoreProgress) {
         _globalPageNumber = 1;
         _currentPageRenderValid = false;
 
+        // Retrieve original long filename before FAT 28-char truncation (from /books_meta.json)
+        String origFullName = getOriginalFilename(normalizedBookName(path));
+        int dot = origFullName.lastIndexOf('.');
+        String baseName = (dot > 0) ? origFullName.substring(0, dot) : origFullName;
+
+        // Isolate chapter title after " - " if present (e.g. "DanDaDan 01 C.001 - Ehi ma così...")
+        int hyphenPos = baseName.indexOf(" - ");
+        if (hyphenPos != -1 && hyphenPos + 3 < (int)baseName.length()) {
+            _bookTitle = baseName.substring(hyphenPos + 3);
+            _bookTitle.trim();
+        } else {
+            // Also check for simple '-' with whitespace
+            int singleHyphen = baseName.indexOf('-');
+            if (singleHyphen != -1 && singleHyphen + 1 < (int)baseName.length()) {
+                _bookTitle = baseName.substring(singleHyphen + 1);
+                _bookTitle.trim();
+            } else {
+                _bookTitle = baseName;
+            }
+        }
+        _currentChapterTitle = _bookTitle;
+
     } else {
         _isComicMode = false;
         KomaBonGuard guard(_epubMutex);
@@ -185,6 +207,13 @@ bool AppReader::openBook(const String& path, bool restoreProgress) {
             delete _epubLoader;
             _epubLoader = nullptr;
             return false;
+        }
+
+        _bookTitle = _epubLoader->getTitle();
+        if (_bookTitle.length() == 0) {
+            String normName = normalizedBookName(path);
+            int dot = normName.lastIndexOf('.');
+            _bookTitle = (dot > 0) ? normName.substring(0, dot) : normName;
         }
 
         if (!_textRenderer) {
@@ -309,6 +338,8 @@ void AppReader::closeBook(bool markInactive) {
 
     flushProgress();
     _currentBookPath = ""; // Prevent stale progress writes on double-calls
+    _bookTitle = "";
+    _currentChapterTitle = "";
 
     KomaBonGuard guard(_epubMutex);
 
