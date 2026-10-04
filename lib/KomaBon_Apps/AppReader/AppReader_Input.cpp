@@ -240,6 +240,14 @@ void AppReader::closeOverlay() {
         _currentPageRenderValid = false;
         _readingFirstDraw = true;
         _pageTurnsSinceRefresh = 0;
+
+        ReaderSettings s = SettingsStore::getInstance().loadReader();
+        s.fontSize = _fontSizePt;
+        s.fontFamily = _fontFamily;
+        s.margin = _margin;
+        s.justifyText = _justifyText;
+        SettingsStore::getInstance().saveReader(s);
+
         startTotalPagesCounting();
     }
 

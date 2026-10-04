@@ -2,6 +2,7 @@ SIL OPEN FONT LICENSE Version 1.1 - 26 February 2007
 =====================================================
 
 This license applies to the font software embedded in this directory:
+- Atkinson Hyperlegible: Copyright 2020 The Braille Institute of America (https://www.brailleinstitute.org) / Applied Design Works with Reserved Font Name "Atkinson Hyperlegible".
 - Merriweather: Copyright 2020 The Merriweather Project Authors (https://github.com/EbenSorkin/Merriweather4) with Reserved Font Name "Merriweather".
 - Literata: Copyright 2017 The Literata Project Authors (https://github.com/googlefonts/literata)
 - Source Serif 4: Copyright 2014 The Source Serif 4 Project Authors (https://github.com/adobe-fonts/source-serif)

@@ -1,51 +1,23 @@
-# Reader font families
+# System & UI Font: FreeSans
 
-These are pre-rendered Adafruit-GFX bitmap fonts (`GFXfont`), generated with
-the `fontconvert` tool from Adafruit-GFX-Library, at 9/12/18pt (Regular) and
-9/12/18/24pt (Bold). `FreeSans.h`/`.cpp` additionally carries Regular 24pt,
-replacing the ASCII-only Adafruit `<Fonts/FreeSans*pt7b.h>` headers across the
-whole firmware.
+This directory contains the pre-rendered Adafruit-GFX bitmap font (`FreeSans`) used across the KomaBon operating system UI (Main Menu, Settings, Bookshelf, Web Transfer, status bars, and dialogs) via `FontMgr`.
 
-## Charset and naming
+It provides `FreeSans` at 9, 12, 18, and 24pt (both Regular and Bold), generated from GNU FreeFont FreeSans with Latin-1 Supplement coverage (0x20–0xFF), replacing the legacy ASCII-only Adafruit `<Fonts/FreeSans*pt7b.h>` headers.
 
-All fonts cover **0x20-0xFF** (ASCII + Latin-1 Supplement), ensuring that
-Western European text renders correctly. `fontconvert` names fonts with
-the `pt8b` suffix when the charset goes beyond 7-bit ASCII, hence
-`Merriweather_Regular12pt8b` etc.
+## License
 
-Regenerate with: `fontconvert <ttf> <size> 32 255`
+GNU FreeFont FreeSans is licensed under **GNU GPLv3 with Font Exception**. See [FreeSans.h](FreeSans.h) header comments for details.
 
-**yAdvance is intentionally patched** after generation to the project's
-established per-family line heights (TTF face metrics differ between mirrors
-and builds). If you regenerate, re-apply the values currently in the `.cpp`
-files or pagination and UI layout will shift.
+## Reader Typography (TrueType Engine)
 
-## Layout: `.h` + `.cpp`
+*Note: Since KomaBon v0.8.0, book reading typography is powered dynamically by the vector TrueType engine (`stb_truetype`) located in `lib/KomaBon_Core/TrueTypeEngine.*` and `lib/KomaBon_Core/TTFonts/`.*
 
-Each family ships as an `extern` declarations header plus a `.cpp` with the
-actual bitmap data. Font data in headers gets duplicated into every translation
-unit that includes them (C++ `const` has internal linkage), which wastes flash;
-the split guarantees a single copy.
+The embedded TrueType vector fonts for reading are:
+- **Atkinson Hyperlegible** (SIL OFL 1.1)
+- **Merriweather** (SIL OFL 1.1)
+- **Literata** (SIL OFL 1.1)
+- **Source Serif 4** (SIL OFL 1.1)
+- **Gelasio** (SIL OFL 1.1)
+- **Open Sans** (SIL OFL 1.1)
 
-They were chosen as freely-licensed substitutes for two proprietary,
-non-redistributable typefaces:
-
-| Header | Font (as embedded) | Substitute for | License |
-| --------------------- | -------------------------- | ------------------ | --------------------------- |
-| `Merriweather.h/.cpp` | Merriweather | Bookerly (Amazon, proprietary) | SIL Open Font License 1.1 |
-| `Literata.h/.cpp` | Literata | (requested directly) | SIL Open Font License 1.1 |
-| `SourceSerif4.h/.cpp` | Source Serif 4 | Source Serif Pro (renamed by Adobe) | SIL Open Font License 1.1 |
-| `Gelasio.h/.cpp` | Gelasio | Georgia (Microsoft, proprietary) | SIL Open Font License 1.1 |
-| `FreeSans.h/.cpp` | GNU FreeFont FreeSans | Adafruit FreeSans (ASCII-only) | GPLv3 with font exception |
-| `OpenSans.h/.cpp` | Open Sans | (extra sans-serif option, not a substitute) | SIL Open Font License 1.1 |
-
-Source TTFs: [google/fonts](https://github.com/google/fonts) (`ofl/` directory).
-Variable font instances were pinned to static Regular (wght=400) and Bold
-(wght=700) weights with `fonttools varLib.instancer` before conversion. Open
-Sans was the exception: its `static/` subfolder already ships pre-instanced
-Regular/Bold TTFs, so it went straight into `fontconvert` with no instancer
-step, and its generated yAdvance (24/32/48/64 for 9/12/18/24pt) came out
-cleanly proportional with this project's FreeType/DPI settings, so it needed
-no manual patch.
-
-Full OFL 1.1 license text: see [OFL.txt](OFL.txt) (also available at <https://openfontlicense.org>).
+Full SIL Open Font License 1.1 text is available in [OFL.txt](OFL.txt).

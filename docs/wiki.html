@@ -587,7 +587,7 @@ python -m espefuse --port &lt;YOUR_COM_PORT&gt; burn_efuse DIS_PAD_JTAG
           <li><strong>Bookmarks Management Overlay:</strong> Hold the joystick <strong>RIGHT</strong> (≥600ms) or select
             <em>Bookmarks...</em> in Quick Settings to view all saved bookmarks, jump directly to any page, or delete
             bookmarks with Left.</li>
-          <li><strong>Atomic Storage:</strong> Persisted automatically to LittleFS in <code>/bookmarks.json</code> with
+          <li><strong>Atomic Storage:</strong> Persisted automatically to non-volatile storage in <code>/bookmarks.json</code> with
             thread-safe atomic writes to protect against sudden power loss.</li>
         </ul>
 
@@ -632,7 +632,7 @@ python -m espefuse --port &lt;YOUR_COM_PORT&gt; burn_efuse DIS_PAD_JTAG
             loaded automatically on boot.</li>
         </ol>
         <div class="alert alert-info">
-          <div class="alert-title">?? Emergency Calibration Reset</div>
+          <div class="alert-title">⚠️ Emergency Calibration Reset</div>
           If a bad calibration locks you out of the interface (e.g., all directions mapped to DOWN), you can hold the
           <strong>KEY2</strong> button while turning on or resetting the device. This wipes the
           <code>/joy_cal.json</code> file immediately and restores the factory hardware defaults so you can navigate
@@ -988,7 +988,7 @@ python -m espefuse --port &lt;YOUR_COM_PORT&gt; burn_efuse DIS_PAD_JTAG
             panel focus pipeline, speech balloon expansion heuristics, and topological manga reading-order DAG sorting.
           </li>
           <li>
-            <strong>Typography</strong> &mdash; Embedded reader fonts (Merriweather, Literata, Source Serif 4, Gelasio,
+            <strong>Typography</strong> &mdash; Embedded reader fonts (Atkinson Hyperlegible, Merriweather, Literata, Source Serif 4, Gelasio,
             Open Sans) are licensed under the <strong>SIL Open Font License 1.1</strong> (see <a href="OFL.txt"
               target="_blank">OFL.txt</a>); FreeSans is licensed under <strong>GNU GPLv3 with Font Exception</strong>.
           </li>

@@ -2,6 +2,8 @@
 # regeneration and provides no readability benefit. See the header comment in
 # each for how it's produced.
 lib/KomaBon_Core/Fonts/*
-lib/Apps/AppReader/icon_reader.h
+lib/KomaBon_Core/TTFonts/*
+lib/KomaBon_Apps/AppReader/icon_reader.h
 lib/KomaBon_Apps/icon_settings.h
-lib/KomaBon_Apps/icon_update.h
+lib/KomaBon_Apps/icon_storage.h
+lib/KomaBon_Apps/icon_web.h
