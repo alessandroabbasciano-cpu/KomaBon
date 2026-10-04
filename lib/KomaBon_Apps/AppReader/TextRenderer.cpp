@@ -161,8 +161,10 @@ const GFXfont* TextRenderer::getGFXFont(TextStyle style, int& lineHeight) {
 
     // Proportional ~1.35x line height calibrated for readability and breathability
     int extra = 0;
-    if (_fontSize == 14) extra = 6;
-    else if (_fontSize == 10) extra = 4;
+    if (_fontSize == 14)
+        extra = 6;
+    else if (_fontSize == 10)
+        extra = 4;
     lineHeight = ((font->yAdvance * 135) / 100) + extra;
     return font;
 }
