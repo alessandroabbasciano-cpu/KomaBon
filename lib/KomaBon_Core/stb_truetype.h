@@ -1915,8 +1915,8 @@ static int stbtt__GetGlyphShapeTT(const stbtt_fontinfo* info, int glyph_index, s
                     v->cy = (stbtt_vertex_type)(n * (mtx[1] * x + mtx[3] * y + mtx[5]));
                 }
                 // Append vertices.
-                tmp = (stbtt_vertex*)STBTT_malloc((size_t)(num_vertices + comp_num_verts) * sizeof(stbtt_vertex),
-                                                  info->userdata);
+                tmp = (stbtt_vertex*)STBTT_malloc(
+                    (size_t)(num_vertices + comp_num_verts) * sizeof(stbtt_vertex), info->userdata);
                 if (!tmp) {
                     if (vertices) STBTT_free(vertices, info->userdata);
                     if (comp_verts) STBTT_free(comp_verts, info->userdata);
@@ -2311,8 +2311,8 @@ static int stbtt__GetGlyphShapeT2(const stbtt_fontinfo* info, int glyph_index, s
     stbtt__csctx count_ctx = STBTT__CSCTX_INIT(1);
     stbtt__csctx output_ctx = STBTT__CSCTX_INIT(0);
     if (stbtt__run_charstring(info, glyph_index, &count_ctx)) {
-        *pvertices =
-            (stbtt_vertex*)STBTT_malloc((size_t)count_ctx.num_vertices * sizeof(stbtt_vertex), info->userdata);
+        *pvertices = (stbtt_vertex*)STBTT_malloc((size_t)count_ctx.num_vertices * sizeof(stbtt_vertex),
+                                                 info->userdata);
         output_ctx.pvertices = *pvertices;
         if (stbtt__run_charstring(info, glyph_index, &output_ctx)) {
             STBTT_assert(output_ctx.num_vertices == count_ctx.num_vertices);
@@ -2793,8 +2793,8 @@ static void* stbtt__hheap_alloc(stbtt__hheap* hh, size_t size, void* userdata) {
     } else {
         if (hh->num_remaining_in_head_chunk == 0) {
             int count = (size < 32 ? 2000 : size < 128 ? 800 : 100);
-            stbtt__hheap_chunk* c =
-                (stbtt__hheap_chunk*)STBTT_malloc(sizeof(stbtt__hheap_chunk) + (size_t)size * count, userdata);
+            stbtt__hheap_chunk* c = (stbtt__hheap_chunk*)STBTT_malloc(
+                sizeof(stbtt__hheap_chunk) + (size_t)size * count, userdata);
             if (c == NULL) return NULL;
             c->next = hh->head;
             hh->head = c;
