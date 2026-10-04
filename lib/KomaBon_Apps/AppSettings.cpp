@@ -83,7 +83,7 @@ void AppSettings::forceRedraw() {
 void AppSettings::recomputeDirty() {
     SleepSettings loadedSleep = SettingsStore::getInstance().loadSleep();
     _dirty = _reader.fontSize != _readerSaved.fontSize || _reader.fontFamily != _readerSaved.fontFamily ||
-             _reader.margin != _readerSaved.margin ||
+             _reader.margin != _readerSaved.margin || _reader.justifyText != _readerSaved.justifyText ||
              _reader.refreshFrequency != _readerSaved.refreshFrequency ||
              _display.rotation != _displaySaved.rotation || _sleep.timeout != loadedSleep.timeout ||
              _sleep.screenMode != loadedSleep.screenMode;
@@ -97,6 +97,8 @@ bool AppSettings::rowChanged(int index) const {
             return _reader.fontFamily != _readerSaved.fontFamily;
         case ROW_MARGIN:
             return _reader.margin != _readerSaved.margin;
+        case ROW_JUSTIFY:
+            return _reader.justifyText != _readerSaved.justifyText;
         case ROW_ROTATION:
             return _display.rotation != _displaySaved.rotation;
         case ROW_REFRESH:
@@ -141,6 +143,9 @@ void AppSettings::cycleValue(int index, bool forward) {
             break;
         case ROW_MARGIN:
             _reader.margin = forward ? (_reader.margin + 1) % 3 : (_reader.margin + 2) % 3;
+            break;
+        case ROW_JUSTIFY:
+            _reader.justifyText = !_reader.justifyText;
             break;
         case ROW_ROTATION:
             if (forward) {
@@ -399,6 +404,11 @@ bool AppSettings::applyAndSave() {
     if (_reader.margin != _readerSaved.margin) {
         for (App* app : AppMgr::getInstance().getApps()) {
             if (app) app->applyMargin(_reader.margin);
+        }
+    }
+    if (_reader.justifyText != _readerSaved.justifyText) {
+        for (App* app : AppMgr::getInstance().getApps()) {
+            if (app) app->applyJustify(_reader.justifyText);
         }
     }
 

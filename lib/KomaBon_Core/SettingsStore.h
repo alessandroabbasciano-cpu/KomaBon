@@ -24,6 +24,7 @@ struct ReaderSettings {
     int fontSize = 12;         // Reading body size in points: 8, 10, 12, 14, 16 or 18
     int fontFamily = 0;        // See ReaderFontFamily: 0..5
     int margin = 1;            // Side margin: 0=Narrow (20px), 1=Medium (35px), 2=Wide (50px)
+    bool justifyText = true;   // Text justification on/off
 };
 
 struct DisplaySettings {

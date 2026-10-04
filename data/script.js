@@ -254,6 +254,7 @@ function getReaderSettings() {
             if (data.fontSize) document.getElementById('font-size').value = data.fontSize;
             if (data.fontFamily !== undefined) document.getElementById('font-family').value = data.fontFamily;
             if (data.margin !== undefined) document.getElementById('reader-margin').value = data.margin;
+            if (data.justifyText !== undefined) document.getElementById('justify-text').value = data.justifyText ? "true" : "false";
         })
         .catch(error => console.error('Error loading reader settings:', error));
 }
@@ -276,12 +277,13 @@ function saveReaderSettings() {
     const fontSize = parseInt(document.getElementById('font-size').value);
     const fontFamily = parseInt(document.getElementById('font-family').value);
     const margin = parseInt(document.getElementById('reader-margin').value);
+    const justifyText = document.getElementById('justify-text').value === "true";
     const statusDiv = document.getElementById('reader-settings-status');
 
     fetch('/api/settings/reader', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ refreshFrequency: refreshRate, fontSize: fontSize, fontFamily: fontFamily, margin: margin }),
+        body: JSON.stringify({ refreshFrequency: refreshRate, fontSize: fontSize, fontFamily: fontFamily, margin: margin, justifyText: justifyText }),
     })
         .then(response => response.json())
         .then(data => {

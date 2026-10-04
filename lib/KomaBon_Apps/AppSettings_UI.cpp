@@ -7,9 +7,10 @@
 #include "../../include/Config.h"
 #include <WiFi.h>
 
-static const char* ROW_LABELS[] = {"Font size",      "Font family",   "Margins",      "Orientation",
-                                   "Refresh screen", "Sleep timeout", "Sleep screen", "Network",
-                                   "System",         "Joystick",      "Save",         "Discard"};
+static const char* ROW_LABELS[] = {"Font size",   "Font family",    "Margins",       "Justify text",
+                                   "Orientation", "Refresh screen", "Sleep timeout", "Sleep screen",
+                                   "Network",     "System",         "Joystick",      "Save",
+                                   "Discard"};
 
 static const char* FONT_FAMILY_NAMES[] = {"Atkinson Hyperlegible", "Merriweather", "Literata",
                                           "Source Serif 4",        "Gelasio",      "Open Sans"};
@@ -47,6 +48,8 @@ String AppSettings::valueForRow(int index) const {
             const char* marginNames[] = {"Narrow", "Medium", "Wide"};
             return String(marginNames[SettingsStore::clampMargin(_reader.margin)]);
         }
+        case ROW_JUSTIFY:
+            return _reader.justifyText ? "On" : "Off";
         case ROW_ROTATION: {
             const char* rotNames[] = {"270 deg", "180 deg", "90 deg", "0 deg"};
             int rot = _display.rotation;

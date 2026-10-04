@@ -152,7 +152,7 @@ void AppReader::drawOverlaySettings() {
     FontMgr& fontMgr = FontMgr::getInstance();
 
     int ow = 320; // Slightly wider to accommodate font names
-    int oh = 294; // Height for 6 items
+    int oh = 326; // Height for 7 items
     int ox = (display.width() - ow) / 2;
     int oy = (display.height() - oh) / 2;
 
@@ -182,13 +182,16 @@ void AppReader::drawOverlaySettings() {
         int safeMargin = (_margin >= 0 && _margin <= 2) ? _margin : 1;
         snprintf(marginStr, sizeof(marginStr), "Margins: %s", marginNames[safeMargin]);
 
+        char justifyStr[32];
+        snprintf(justifyStr, sizeof(justifyStr), "Justify: %s", _justifyText ? "On" : "Off");
+
         char rtlModeStr[32];
         snprintf(rtlModeStr, sizeof(rtlModeStr), "RTL Mode: %s", _isRTL ? "On" : "Off");
 
-        const char* items[] = {fontSizeStr, fontFamilyStr,   marginStr,
+        const char* items[] = {fontSizeStr, fontFamilyStr,   marginStr,      justifyStr,
                                rtlModeStr,  "Force Refresh", "Close & Apply"};
 
-        for (int i = 0; i < 6; i++) {
+        for (int i = 0; i < 7; i++) {
             int itemY = oy + 95 + (i * 32);
             fontMgr.drawTextCentered(display, items[i], itemY, FONT_SIZE_BODY, GxEPD_BLACK);
             if (i == _overlaySelectedIndex) {

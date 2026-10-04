@@ -33,6 +33,7 @@ class App {
     virtual void applyFontSize(int pt) {}
     virtual void applyFontFamily(int family) {}
     virtual void applyMargin(int margin) {}
+    virtual void applyJustify(bool justify) {}
 
     // The system battery indicator performs a partial refresh in the upper-right
     // corner, driven directly from the main loop without going through the app.

@@ -31,6 +31,7 @@ AppReader::AppReader() {
     _fontSizePt = 12;
     _fontFamily = READER_FONT_SANS;
     _margin = 1;
+    _justifyText = true;
     _readingFirstDraw = true;
     _progressDirty = false;
     _progressResumeOnBoot = false;
@@ -57,6 +58,7 @@ void AppReader::loadSettings() {
     _fontSizePt = s.fontSize;
     _fontFamily = s.fontFamily;
     _margin = s.margin;
+    _justifyText = s.justifyText;
 }
 
 bool AppReader::hasBootResume() {
@@ -100,6 +102,7 @@ void AppReader::start() {
         _textRenderer->setFontSize(_fontSizePt);
         _textRenderer->setFontFamily(_fontFamily);
         _textRenderer->setMargin(_margin);
+        _textRenderer->setJustify(_justifyText);
     }
 
     _needsRedraw = true;
@@ -210,6 +213,7 @@ bool AppReader::openBook(const String& path, bool restoreProgress) {
         _textRenderer->setFontSize(_fontSizePt);
         _textRenderer->setFontFamily(_fontFamily);
         _textRenderer->setMargin(_margin);
+        _textRenderer->setJustify(_justifyText);
         _textRenderer->calculateDimensions();
         _globalPageNumber = 1;
         _currentPageRenderValid = false;

@@ -31,10 +31,10 @@ void AppReader::handleInput(InputAction action) {
         }
     } else if (_state == VIEW_OVERLAY_SETTINGS) {
         if (action == INPUT_NEXT) {
-            _overlaySelectedIndex = (_overlaySelectedIndex + 1) % 6;
+            _overlaySelectedIndex = (_overlaySelectedIndex + 1) % 7;
             _needsRedraw = true;
         } else if (action == INPUT_PREV) {
-            _overlaySelectedIndex = (_overlaySelectedIndex - 1 + 6) % 6;
+            _overlaySelectedIndex = (_overlaySelectedIndex - 1 + 7) % 7;
             _needsRedraw = true;
         } else if (action == INPUT_SELECT) {
             if (_overlaySelectedIndex == 0) {
@@ -61,15 +61,19 @@ void AppReader::handleInput(InputAction action) {
                 _settingsChanged = true;
                 _needsRedraw = true;
             } else if (_overlaySelectedIndex == 3) {
+                _justifyText = !_justifyText;
+                _settingsChanged = true;
+                _needsRedraw = true;
+            } else if (_overlaySelectedIndex == 4) {
                 _isRTL = !_isRTL;
                 _progressDirty = true;
                 _settingsChanged = true;
                 _needsRedraw = true;
-            } else if (_overlaySelectedIndex == 4) {
+            } else if (_overlaySelectedIndex == 5) {
                 _readingFirstDraw = true;
                 _settingsChanged = true;
                 closeOverlay();
-            } else if (_overlaySelectedIndex == 5) {
+            } else if (_overlaySelectedIndex == 6) {
                 closeOverlay();
             }
         } else if (action == INPUT_LEFT || action == INPUT_BACK) {
@@ -141,6 +145,7 @@ void AppReader::closeOverlay() {
             _textRenderer->setFontSize(_fontSizePt);
             _textRenderer->setFontFamily(_fontFamily);
             _textRenderer->setMargin(_margin);
+            _textRenderer->setJustify(_justifyText);
         }
         _currentPageRenderValid = false;
         _readingFirstDraw = true;

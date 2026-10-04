@@ -51,6 +51,12 @@ void TextRenderer::setMargin(int margin) {
     clearCache();
 }
 
+void TextRenderer::setJustify(bool justify) {
+    if (justify == _justify) return;
+    _justify = justify;
+    clearCache();
+}
+
 void TextRenderer::calculateDimensions() {
     int lh = 0;
     getGFXFont(STYLE_NORMAL, lh);
@@ -142,6 +148,64 @@ const GFXfont* TextRenderer::getGFXFont(TextStyle style, int& lineHeight) {
     return font;
 }
 
+void TextRenderer::drawLineJustified(KomaBonDisplay& display, const char* str, int x, int y,
+                                     int targetWidth) {
+    if (!str || !*str) return;
+
+    // Count space characters and calculate unspaced text width
+    int spaceCount = 0;
+    int naturalWidth = 0;
+    for (int i = 0; str[i] != '\0'; i++) {
+        unsigned char c = (unsigned char)str[i];
+        if (c == ' ') {
+            spaceCount++;
+        }
+        naturalWidth += _gfxCharWidths[c];
+    }
+
+    // If no spaces, or if text naturally exceeds/matches targetWidth, or if difference is extreme (e.g. >
+    // 100px stretch)
+    int extraWidth = targetWidth - naturalWidth;
+    if (spaceCount == 0 || extraWidth <= 0 || extraWidth > 120) {
+        display.setCursor(x, y);
+        display.print(str);
+        return;
+    }
+
+    int extraPerSpace = extraWidth / spaceCount;
+    int extraRemainder = extraWidth % spaceCount;
+
+    int curX = x;
+    int wordStart = 0;
+    int spaceIndex = 0;
+    int len = strlen(str);
+
+    while (wordStart < len) {
+        // Find next word
+        int wordEnd = wordStart;
+        while (wordEnd < len && str[wordEnd] != ' ') {
+            wordEnd++;
+        }
+
+        // Print word
+        display.setCursor(curX, y);
+        for (int i = wordStart; i < wordEnd; i++) {
+            display.write(str[i]);
+            curX += _gfxCharWidths[(unsigned char)str[i]];
+        }
+
+        // If there's a space after this word
+        if (wordEnd < len && str[wordEnd] == ' ') {
+            int curSpaceW = _gfxCharWidths[' '] + extraPerSpace + (spaceIndex < extraRemainder ? 1 : 0);
+            curX += curSpaceW;
+            spaceIndex++;
+            wordStart = wordEnd + 1;
+        } else {
+            wordStart = wordEnd;
+        }
+    }
+}
+
 RenderResult TextRenderer::renderRichPageDynamic(KomaBonDisplay& display,
                                                  const std::vector<ContentNode>& content, int startNode,
                                                  int startOffset, int pageNum, int pageNumForDisplay,
@@ -154,8 +218,12 @@ RenderResult TextRenderer::renderRichPageDynamic(KomaBonDisplay& display,
         for (const auto& line : _lineCache) {
             int unused;
             display.setFont(getGFXFont((TextStyle)line.fontSize, unused));
-            display.setCursor(line.x, line.y);
-            display.print(line.text);
+            if (line.targetWidth > 0) {
+                drawLineJustified(display, line.text.c_str(), line.x, line.y, line.targetWidth);
+            } else {
+                display.setCursor(line.x, line.y);
+                display.print(line.text);
+            }
         }
         return _cachedResult;
     }
@@ -262,11 +330,21 @@ RenderResult TextRenderer::renderRichPageDynamic(KomaBonDisplay& display,
                                     node.textNode.style == STYLE_HEADER2) {
                                     drawX = (_width - segment_width) / 2;
                                 }
+                                int targetW = 0;
+                                if (_justify && node.textNode.style != STYLE_HEADER1 &&
+                                    node.textNode.style != STYLE_HEADER2 && !node.textNode.isListItem &&
+                                    line_width == 0) {
+                                    targetW = usableWidth - currentX;
+                                }
                                 _lineCache.push_back(
-                                    {drawX, y, (int)node.textNode.style, false, String(lineBuf)});
+                                    {drawX, y, (int)node.textNode.style, false, String(lineBuf), targetW});
                                 if (draw) {
-                                    display.setCursor(drawX, y);
-                                    display.print(lineBuf);
+                                    if (targetW > 0) {
+                                        drawLineJustified(display, lineBuf, drawX, y, targetW);
+                                    } else {
+                                        display.setCursor(drawX, y);
+                                        display.print(lineBuf);
+                                    }
                                 }
                             }
 
@@ -281,11 +359,24 @@ RenderResult TextRenderer::renderRichPageDynamic(KomaBonDisplay& display,
                         }
 
                         if (segment_width > 0) {
+                            int drawX = currentX + line_width;
+                            int targetW = 0;
+                            // Only justify standard body text or indented paragraphs, not headers or list
+                            // items
+                            if (_justify && node.textNode.style != STYLE_HEADER1 &&
+                                node.textNode.style != STYLE_HEADER2 && !node.textNode.isListItem &&
+                                line_width == 0) {
+                                targetW = usableWidth - currentX;
+                            }
                             _lineCache.push_back(
-                                {currentX + line_width, y, (int)node.textNode.style, false, String(lineBuf)});
+                                {drawX, y, (int)node.textNode.style, false, String(lineBuf), targetW});
                             if (draw) {
-                                display.setCursor(currentX + line_width, y);
-                                display.print(lineBuf);
+                                if (targetW > 0) {
+                                    drawLineJustified(display, lineBuf, drawX, y, targetW);
+                                } else {
+                                    display.setCursor(drawX, y);
+                                    display.print(lineBuf);
+                                }
                             }
                         }
 
@@ -323,7 +414,7 @@ RenderResult TextRenderer::renderRichPageDynamic(KomaBonDisplay& display,
                     if (node.textNode.style == STYLE_HEADER1 || node.textNode.style == STYLE_HEADER2) {
                         drawX = (_width - segment_width) / 2;
                     }
-                    _lineCache.push_back({drawX, y, (int)node.textNode.style, false, String(lineBuf)});
+                    _lineCache.push_back({drawX, y, (int)node.textNode.style, false, String(lineBuf), 0});
                     if (draw) {
                         display.setCursor(drawX, y);
                         display.print(lineBuf);

@@ -78,6 +78,7 @@ ReaderSettings SettingsStore::loadReader() {
             s.fontSize = clampFontSize(doc["fontSize"] | 12);
             s.fontFamily = clampFontFamily(doc["fontFamily"] | 0);
             s.margin = clampMargin(doc["margin"] | 1);
+            s.justifyText = doc.containsKey("justifyText") ? doc["justifyText"].as<bool>() : true;
         }
         file.close();
     }
@@ -138,6 +139,7 @@ bool SettingsStore::saveReader(const ReaderSettings& s) {
     doc["fontSize"] = clampFontSize(s.fontSize);
     doc["fontFamily"] = clampFontFamily(s.fontFamily);
     doc["margin"] = clampMargin(s.margin);
+    doc["justifyText"] = s.justifyText;
 
     // Atomicity: Write to temporary file first
     String tmpPath = String(READER_CONFIG_PATH) + ".tmp";

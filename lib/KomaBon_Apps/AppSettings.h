@@ -39,6 +39,7 @@ class AppSettings : public App {
         ROW_FONT_SIZE = 0,
         ROW_FONT_FAMILY,
         ROW_MARGIN,
+        ROW_JUSTIFY,
         ROW_ROTATION,
         ROW_REFRESH,
         ROW_SLEEP,

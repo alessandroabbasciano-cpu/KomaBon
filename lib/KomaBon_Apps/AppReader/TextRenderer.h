@@ -39,6 +39,7 @@ struct RenderedLine {
     int x, y, fontSize;
     bool isBold;
     String text;
+    int targetWidth; // 0 if left-aligned/normal, >0 if justified to targetWidth
 };
 
 class TextRenderer {
@@ -65,6 +66,12 @@ class TextRenderer {
         return _margin;
     }
 
+    // Text justification on/off
+    void setJustify(bool justify);
+    bool getJustify() const {
+        return _justify;
+    }
+
     void calculateDimensions();
 
     // New Dynamic Rendering
@@ -80,6 +87,7 @@ class TextRenderer {
     int _fontSize;
     int _fontFamily = READER_FONT_SANS;
     int _margin = 1;
+    bool _justify = true;
     int _lineHeight;
     EpubLoader* _epubLoader;
 
@@ -95,6 +103,7 @@ class TextRenderer {
     const GFXfont* _lastGFXFont = nullptr;
 
     const GFXfont* getGFXFont(TextStyle style, int& lineHeight);
+    void drawLineJustified(KomaBonDisplay& display, const char* str, int x, int y, int targetWidth);
 };
 
 #endif // TEXT_RENDERER_H

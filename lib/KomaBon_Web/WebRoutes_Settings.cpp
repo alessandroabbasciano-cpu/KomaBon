@@ -35,6 +35,7 @@ void setupSettingsEndpoints(AsyncWebServer* server) {
         doc["fontSize"] = s.fontSize;
         doc["fontFamily"] = s.fontFamily;
         doc["margin"] = s.margin;
+        doc["justifyText"] = s.justifyText;
 
         serializeJson(doc, *response);
         request->send(response);
@@ -62,6 +63,10 @@ void setupSettingsEndpoints(AsyncWebServer* server) {
                 if (json.containsKey("margin")) {
                     s.margin = SettingsStore::clampMargin(json["margin"].as<int>());
                     WebMgr::getInstance()._pendingReaderMargin = s.margin;
+                }
+                if (json.containsKey("justifyText")) {
+                    s.justifyText = json["justifyText"].as<bool>();
+                    WebMgr::getInstance()._pendingReaderJustify = s.justifyText ? 1 : 0;
                 }
 
                 saved = store.saveReader(s);

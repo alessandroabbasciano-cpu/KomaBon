@@ -353,3 +353,15 @@ void AppReader::applyMargin(int margin) {
     }
     startTotalPagesCounting();
 }
+
+void AppReader::applyJustify(bool justify) {
+    {
+        KomaBonGuard guard(_epubMutex);
+        _justifyText = justify;
+        if (_textRenderer) _textRenderer->setJustify(justify);
+        _currentPageRenderValid = false;
+        _readingFirstDraw = true;
+        _pageTurnsSinceRefresh = 0;
+        _needsRedraw = true;
+    }
+}

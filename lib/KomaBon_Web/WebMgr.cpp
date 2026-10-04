@@ -246,6 +246,15 @@ void WebMgr::update() {
         }
     }
 
+    if (_pendingReaderJustify >= 0) {
+        bool justify = (_pendingReaderJustify != 0);
+        _pendingReaderJustify = -1;
+        Serial.printf("WebMgr: Applying deferred justify %d from Web UI\n", (int)justify);
+        for (App* app : AppMgr::getInstance().getApps()) {
+            if (app) app->applyJustify(justify);
+        }
+    }
+
     if (_pendingAppSwitch >= 0) {
         int idx = _pendingAppSwitch;
         _pendingAppSwitch = -1;
