@@ -184,6 +184,14 @@
                                 </select>
                             </div>
                             <div>
+                                <label for="reader-margin" style="font-size: 11.5px; font-weight: 600; color: var(--muted); display: block; margin-bottom: 3px;">Margins</label>
+                                <select id="reader-margin" class="input-full" onchange="autoSaveReaderSettings()" style="padding: 6px 10px;">
+                                    <option value="0">Narrow (20px)</option>
+                                    <option value="1">Medium (35px)</option>
+                                    <option value="2">Wide (50px)</option>
+                                </select>
+                            </div>
+                            <div>
                                 <label for="refresh-rate" style="font-size: 11.5px; font-weight: 600; color: var(--muted); display: block; margin-bottom: 3px;">Full Refresh Interval (Pages)</label>
                                 <input type="number" id="refresh-rate" min="1" max="100" value="6" class="input-full"
                                     onchange="autoSaveReaderSettings()" style="padding: 6px 10px;">

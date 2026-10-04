@@ -32,6 +32,7 @@ class App {
     // interface without depending on reader internals.
     virtual void applyFontSize(int pt) {}
     virtual void applyFontFamily(int family) {}
+    virtual void applyMargin(int margin) {}
 
     // The system battery indicator performs a partial refresh in the upper-right
     // corner, driven directly from the main loop without going through the app.

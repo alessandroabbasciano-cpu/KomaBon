@@ -33,6 +33,11 @@ int SettingsStore::clampFontFamily(int family) {
     return family;
 }
 
+int SettingsStore::clampMargin(int margin) {
+    if (margin < 0 || margin > 2) return 1;
+    return margin;
+}
+
 int SettingsStore::clampRotation(int rotation) {
     if (rotation < 0 || rotation > 3) return 3;
     return rotation;
@@ -70,8 +75,9 @@ ReaderSettings SettingsStore::loadReader() {
         DynamicJsonDocument doc(256);
         if (!deserializeJson(doc, file)) {
             s.refreshFrequency = clampRefreshFrequency(doc["refreshFrequency"] | 10);
-            s.fontSize = clampFontSize(doc["fontSize"] | 9);
+            s.fontSize = clampFontSize(doc["fontSize"] | 12);
             s.fontFamily = clampFontFamily(doc["fontFamily"] | 0);
+            s.margin = clampMargin(doc["margin"] | 1);
         }
         file.close();
     }
@@ -131,6 +137,7 @@ bool SettingsStore::saveReader(const ReaderSettings& s) {
     doc["refreshFrequency"] = clampRefreshFrequency(s.refreshFrequency);
     doc["fontSize"] = clampFontSize(s.fontSize);
     doc["fontFamily"] = clampFontFamily(s.fontFamily);
+    doc["margin"] = clampMargin(s.margin);
 
     // Atomicity: Write to temporary file first
     String tmpPath = String(READER_CONFIG_PATH) + ".tmp";

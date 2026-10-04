@@ -237,6 +237,15 @@ void WebMgr::update() {
         }
     }
 
+    if (_pendingReaderMargin >= 0) {
+        int margin = _pendingReaderMargin;
+        _pendingReaderMargin = -1;
+        Serial.printf("WebMgr: Applying deferred margin %d from Web UI\n", margin);
+        for (App* app : AppMgr::getInstance().getApps()) {
+            if (app) app->applyMargin(margin);
+        }
+    }
+
     if (_pendingAppSwitch >= 0) {
         int idx = _pendingAppSwitch;
         _pendingAppSwitch = -1;

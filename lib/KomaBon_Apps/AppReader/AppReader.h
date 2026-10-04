@@ -54,6 +54,7 @@ class AppReader : public App {
 
     void applyFontSize(int pt) override;
     void applyFontFamily(int family) override;
+    void applyMargin(int margin) override;
 
   private:
     ReaderState _state;
@@ -64,6 +65,7 @@ class AppReader : public App {
     int _pageTurnsSinceRefresh;
     int _fontSizePt;
     int _fontFamily;
+    int _margin;
     bool _readingFirstDraw;
     void loadSettings();
 

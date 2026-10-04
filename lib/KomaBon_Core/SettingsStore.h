@@ -21,8 +21,9 @@
 
 struct ReaderSettings {
     int refreshFrequency = 10; // Full e-ink refresh every N page turns
-    int fontSize = 9;          // Reading body size in points: 9, 12 or 18
+    int fontSize = 12;         // Reading body size in points: 8, 10, 12, 14, 16 or 18
     int fontFamily = 0;        // See ReaderFontFamily: 0..5
+    int margin = 1;            // Side margin: 0=Narrow (20px), 1=Medium (35px), 2=Wide (50px)
 };
 
 struct DisplaySettings {
@@ -56,6 +57,7 @@ class SettingsStore {
     // one while cycling rather than duplicating the allowed sets.
     static int clampFontSize(int pt);       // -> 8, 10, 12, 14, 16 or 18
     static int clampFontFamily(int family); // -> 0..5
+    static int clampMargin(int margin);     // -> 0..2
     static int clampRotation(int rotation); // -> 0..3
     static int clampRefreshFrequency(int n);
     static int clampSleepTimeout(int minutes);

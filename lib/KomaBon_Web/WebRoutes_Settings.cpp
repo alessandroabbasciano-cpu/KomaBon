@@ -34,6 +34,7 @@ void setupSettingsEndpoints(AsyncWebServer* server) {
         doc["refreshFrequency"] = s.refreshFrequency;
         doc["fontSize"] = s.fontSize;
         doc["fontFamily"] = s.fontFamily;
+        doc["margin"] = s.margin;
 
         serializeJson(doc, *response);
         request->send(response);
@@ -57,6 +58,10 @@ void setupSettingsEndpoints(AsyncWebServer* server) {
                 if (json.containsKey("fontFamily")) {
                     s.fontFamily = SettingsStore::clampFontFamily(json["fontFamily"].as<int>());
                     WebMgr::getInstance()._pendingReaderFontFamily = s.fontFamily;
+                }
+                if (json.containsKey("margin")) {
+                    s.margin = SettingsStore::clampMargin(json["margin"].as<int>());
+                    WebMgr::getInstance()._pendingReaderMargin = s.margin;
                 }
 
                 saved = store.saveReader(s);

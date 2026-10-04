@@ -31,10 +31,10 @@ void AppReader::handleInput(InputAction action) {
         }
     } else if (_state == VIEW_OVERLAY_SETTINGS) {
         if (action == INPUT_NEXT) {
-            _overlaySelectedIndex = (_overlaySelectedIndex + 1) % 5;
+            _overlaySelectedIndex = (_overlaySelectedIndex + 1) % 6;
             _needsRedraw = true;
         } else if (action == INPUT_PREV) {
-            _overlaySelectedIndex = (_overlaySelectedIndex - 1 + 5) % 5;
+            _overlaySelectedIndex = (_overlaySelectedIndex - 1 + 6) % 6;
             _needsRedraw = true;
         } else if (action == INPUT_SELECT) {
             if (_overlaySelectedIndex == 0) {
@@ -57,15 +57,19 @@ void AppReader::handleInput(InputAction action) {
                 _settingsChanged = true;
                 _needsRedraw = true;
             } else if (_overlaySelectedIndex == 2) {
+                _margin = (_margin + 1) % 3;
+                _settingsChanged = true;
+                _needsRedraw = true;
+            } else if (_overlaySelectedIndex == 3) {
                 _isRTL = !_isRTL;
                 _progressDirty = true;
                 _settingsChanged = true;
                 _needsRedraw = true;
-            } else if (_overlaySelectedIndex == 3) {
+            } else if (_overlaySelectedIndex == 4) {
                 _readingFirstDraw = true;
                 _settingsChanged = true;
                 closeOverlay();
-            } else if (_overlaySelectedIndex == 4) {
+            } else if (_overlaySelectedIndex == 5) {
                 closeOverlay();
             }
         } else if (action == INPUT_LEFT || action == INPUT_BACK) {
@@ -136,6 +140,7 @@ void AppReader::closeOverlay() {
             KomaBonGuard guard(_epubMutex);
             _textRenderer->setFontSize(_fontSizePt);
             _textRenderer->setFontFamily(_fontFamily);
+            _textRenderer->setMargin(_margin);
         }
         _currentPageRenderValid = false;
         _readingFirstDraw = true;

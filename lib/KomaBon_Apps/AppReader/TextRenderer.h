@@ -59,6 +59,12 @@ class TextRenderer {
         return _fontFamily;
     }
 
+    // Side margin preset: 0=Narrow (20px), 1=Medium (35px), 2=Wide (50px).
+    void setMargin(int margin);
+    int getMargin() const {
+        return _margin;
+    }
+
     void calculateDimensions();
 
     // New Dynamic Rendering
@@ -73,6 +79,7 @@ class TextRenderer {
     int _height;
     int _fontSize;
     int _fontFamily = READER_FONT_SANS;
+    int _margin = 1;
     int _lineHeight;
     EpubLoader* _epubLoader;
 

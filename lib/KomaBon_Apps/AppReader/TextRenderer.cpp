@@ -44,6 +44,13 @@ void TextRenderer::setFontFamily(int family) {
     calculateDimensions();
 }
 
+void TextRenderer::setMargin(int margin) {
+    int normalized = (margin >= 0 && margin <= 2) ? margin : 1;
+    if (normalized == _margin) return;
+    _margin = normalized;
+    clearCache();
+}
+
 void TextRenderer::calculateDimensions() {
     int lh = 0;
     getGFXFont(STYLE_NORMAL, lh);
@@ -166,7 +173,8 @@ RenderResult TextRenderer::renderRichPageDynamic(KomaBonDisplay& display,
 
     char lineBuf[256];
     int line_width = 0;
-    int x_margin = 35;
+    static const int MARGIN_PX[3] = {20, 35, 50};
+    int x_margin = MARGIN_PX[_margin];
     int currentX = x_margin;
 
     while (currentNode < (int)content.size() && y < maxY) {

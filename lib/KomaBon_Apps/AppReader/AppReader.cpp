@@ -28,8 +28,9 @@ AppReader::AppReader() {
     _currentPageRenderValid = false;
     _pageTurnsSinceRefresh = 0;
     _refreshEveryNPages = 10;
-    _fontSizePt = 9;
+    _fontSizePt = 12;
     _fontFamily = READER_FONT_SANS;
+    _margin = 1;
     _readingFirstDraw = true;
     _progressDirty = false;
     _progressResumeOnBoot = false;
@@ -51,27 +52,11 @@ AppReader::~AppReader() {
 }
 
 void AppReader::loadSettings() {
-    File file;
-    if (SystemFS.exists("/reader_config.json")) {
-        file = SystemFS.open("/reader_config.json", "r");
-    }
-
-    if (file) {
-        DynamicJsonDocument doc(512);
-        if (!deserializeJson(doc, file)) {
-            if (doc.containsKey("refreshFrequency")) _refreshEveryNPages = doc["refreshFrequency"];
-            if (doc.containsKey("fontSize")) {
-                int pt = doc["fontSize"];
-                _fontSizePt = SettingsStore::clampFontSize(pt);
-            }
-            if (doc.containsKey("fontFamily")) {
-                int fam = doc["fontFamily"];
-                _fontFamily =
-                    (fam >= READER_FONT_SANS && fam <= READER_FONT_OPEN_SANS) ? fam : READER_FONT_SANS;
-            }
-        }
-        file.close();
-    }
+    ReaderSettings s = SettingsStore::getInstance().loadReader();
+    _refreshEveryNPages = s.refreshFrequency;
+    _fontSizePt = s.fontSize;
+    _fontFamily = s.fontFamily;
+    _margin = s.margin;
 }
 
 bool AppReader::hasBootResume() {
@@ -114,6 +99,7 @@ void AppReader::start() {
         KomaBonGuard guard(_epubMutex);
         _textRenderer->setFontSize(_fontSizePt);
         _textRenderer->setFontFamily(_fontFamily);
+        _textRenderer->setMargin(_margin);
     }
 
     _needsRedraw = true;
@@ -223,6 +209,7 @@ bool AppReader::openBook(const String& path, bool restoreProgress) {
         }
         _textRenderer->setFontSize(_fontSizePt);
         _textRenderer->setFontFamily(_fontFamily);
+        _textRenderer->setMargin(_margin);
         _textRenderer->calculateDimensions();
         _globalPageNumber = 1;
         _currentPageRenderValid = false;

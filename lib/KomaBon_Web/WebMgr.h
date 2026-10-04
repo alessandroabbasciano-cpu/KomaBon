@@ -31,6 +31,7 @@ class WebMgr {
     volatile int _pendingRotation = -1;
     volatile int _pendingReaderFontSize = 0;
     volatile int _pendingReaderFontFamily = -1;
+    volatile int _pendingReaderMargin = -1;
     volatile int _pendingAppSwitch = -1;
     volatile bool _pendingLibraryInvalidate = false;
 

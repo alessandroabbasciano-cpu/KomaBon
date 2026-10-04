@@ -50,7 +50,7 @@ void AppReader::startTotalPagesCounting() {
     if (!_epubLoader || _currentBookPath.length() == 0) return;
 
     String key = getOriginalFilename(normalizedBookName(_currentBookPath));
-    int cached = PageCountStore::getInstance().get(key, _fontSizePt, _fontFamily);
+    int cached = PageCountStore::getInstance().get(key, _fontSizePt, _fontFamily + _margin * 16);
     if (cached > 0) {
         _totalPages = cached;
         // Optimization: Let the background task reconstruct the vector silently
@@ -73,6 +73,7 @@ void AppReader::updateTotalPagesCount() {
         if (!_epubLoader) return;
         _countRenderer = new TextRenderer(display.width(), display.height(), _fontSizePt, _epubLoader);
         _countRenderer->setFontFamily(_fontFamily);
+        _countRenderer->setMargin(_margin);
     }
 
     String key = getOriginalFilename(normalizedBookName(_currentBookPath));
@@ -87,7 +88,7 @@ void AppReader::updateTotalPagesCount() {
             if (_countChapter >= _epubLoader->getChapterCount()) {
                 int total = std::max(1, _countPagesSoFar);
                 _totalPages = total;
-                PageCountStore::getInstance().set(key, _fontSizePt, _fontFamily, total);
+                PageCountStore::getInstance().set(key, _fontSizePt, _fontFamily + _margin * 16, total);
                 _countingActive = false;
                 delete _countRenderer;
                 _countRenderer = nullptr;
@@ -331,6 +332,20 @@ void AppReader::applyFontFamily(int family) {
         KomaBonGuard guard(_epubMutex);
         _fontFamily = normalized;
         if (_textRenderer) _textRenderer->setFontFamily(normalized);
+        _currentPageRenderValid = false;
+        _readingFirstDraw = true;
+        _pageTurnsSinceRefresh = 0;
+        _needsRedraw = true;
+    }
+    startTotalPagesCounting();
+}
+
+void AppReader::applyMargin(int margin) {
+    int normalized = SettingsStore::clampMargin(margin);
+    {
+        KomaBonGuard guard(_epubMutex);
+        _margin = normalized;
+        if (_textRenderer) _textRenderer->setMargin(normalized);
         _currentPageRenderValid = false;
         _readingFirstDraw = true;
         _pageTurnsSinceRefresh = 0;
