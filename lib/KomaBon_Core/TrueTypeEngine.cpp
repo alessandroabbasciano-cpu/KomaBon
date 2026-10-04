@@ -144,12 +144,12 @@ const GFXfont* TrueTypeEngine::buildGFXFont(float ptSize, bool bold) {
     int numChars = lastChar - firstChar + 1;
 
     // Allocate glyphs in PSRAM or internal RAM
-    GFXglyph* glyphs = (GFXglyph*)malloc(numChars * sizeof(GFXglyph));
+    GFXglyph* glyphs = (GFXglyph*)malloc((size_t)numChars * sizeof(GFXglyph));
     if (!glyphs) {
         Serial.println("TrueTypeEngine: Failed to allocate glyphs");
         return nullptr;
     }
-    memset(glyphs, 0, numChars * sizeof(GFXglyph));
+    memset(glyphs, 0, (size_t)numChars * sizeof(GFXglyph));
 
     std::vector<uint8_t> bitmapBytes;
     bitmapBytes.reserve(numChars * 16);
