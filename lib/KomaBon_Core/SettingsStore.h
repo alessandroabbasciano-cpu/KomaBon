@@ -54,7 +54,7 @@ class SettingsStore {
 
     // Clamping helpers, exposed so the UI can snap a value to the next legal
     // one while cycling rather than duplicating the allowed sets.
-    static int clampFontSize(int pt);       // -> 8, 10, 12, 14 or 18
+    static int clampFontSize(int pt);       // -> 8, 10, 12, 14, 16 or 18
     static int clampFontFamily(int family); // -> 0..5
     static int clampRotation(int rotation); // -> 0..3
     static int clampRefreshFrequency(int n);

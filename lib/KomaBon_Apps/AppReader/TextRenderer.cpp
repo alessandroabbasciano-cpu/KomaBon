@@ -8,6 +8,8 @@ TextRenderer::TextRenderer(int width, int height, int fontSize, EpubLoader* epub
 
     if (fontSize >= 18)
         _fontSize = 18;
+    else if (fontSize >= 16)
+        _fontSize = 16;
     else if (fontSize >= 14)
         _fontSize = 14;
     else if (fontSize >= 12)
@@ -23,7 +25,8 @@ TextRenderer::TextRenderer(int width, int height, int fontSize, EpubLoader* epub
 }
 
 void TextRenderer::setFontSize(int size) {
-    int normalized = (size >= 18) ? 18 : (size >= 14 ? 14 : (size >= 12 ? 12 : (size >= 10 ? 10 : 8)));
+    int normalized =
+        (size >= 18) ? 18 : (size >= 16 ? 16 : (size >= 14 ? 14 : (size >= 12 ? 12 : (size >= 10 ? 10 : 8))));
     if (normalized == _fontSize) return;
     _fontSize = normalized;
     _lastGFXFont = nullptr;
@@ -54,118 +57,81 @@ void TextRenderer::clearCache() {
 }
 
 const GFXfont* TextRenderer::getGFXFont(TextStyle style, int& lineHeight) {
-    const GFXfont* normal;
-    const GFXfont* bold;
-    const GFXfont* h4;
-    const GFXfont* h3;
-    const GFXfont* h2;
-    const GFXfont* h1;
+    TrueTypeEngine& ttEngine = TrueTypeEngine::getInstance();
 
-#define B32_FONT_SET(NORMAL9, NORMAL12, NORMAL18, BOLD9, BOLD12, BOLD18, BOLD24)                             \
-    switch (_fontSize) {                                                                                     \
-        case 18:                                                                                             \
-            normal = &NORMAL18;                                                                              \
-            bold = &BOLD18;                                                                                  \
-            h4 = &BOLD18;                                                                                    \
-            h3 = &BOLD18;                                                                                    \
-            h2 = &BOLD24;                                                                                    \
-            h1 = &BOLD24;                                                                                    \
-            break;                                                                                           \
-        case 14:                                                                                             \
-            normal = &NORMAL12;                                                                              \
-            bold = &BOLD12;                                                                                  \
-            h4 = &BOLD12;                                                                                    \
-            h3 = &BOLD18;                                                                                    \
-            h2 = &BOLD24;                                                                                    \
-            h1 = &BOLD24;                                                                                    \
-            break;                                                                                           \
-        case 12:                                                                                             \
-            normal = &NORMAL12;                                                                              \
-            bold = &BOLD12;                                                                                  \
-            h4 = &BOLD12;                                                                                    \
-            h3 = &BOLD18;                                                                                    \
-            h2 = &BOLD18;                                                                                    \
-            h1 = &BOLD24;                                                                                    \
-            break;                                                                                           \
-        case 10:                                                                                             \
-            normal = &NORMAL9;                                                                               \
-            bold = &BOLD9;                                                                                   \
-            h4 = &BOLD9;                                                                                     \
-            h3 = &BOLD12;                                                                                    \
-            h2 = &BOLD18;                                                                                    \
-            h1 = &BOLD24;                                                                                    \
-            break;                                                                                           \
-        case 8:                                                                                              \
-        default:                                                                                             \
-            normal = &NORMAL9;                                                                               \
-            bold = &BOLD9;                                                                                   \
-            h4 = &BOLD9;                                                                                     \
-            h3 = &BOLD12;                                                                                    \
-            h2 = &BOLD18;                                                                                    \
-            h1 = &BOLD24;                                                                                    \
-            break;                                                                                           \
-    }
-
+    // Map ReaderFontFamily to Embedded TTF indices:
+    // 0: Atkinson Hyperlegible
+    // 1: Merriweather
+    // 2: Literata
+    // 3: Source Serif 4
+    // 4: Gelasio
+    // 5: Open Sans
+    int ttfIndex = 0;
     switch (_fontFamily) {
         case READER_FONT_MERRIWEATHER:
-            B32_FONT_SET(Merriweather_Regular9pt8b, Merriweather_Regular12pt8b, Merriweather_Regular18pt8b,
-                         Merriweather_Bold9pt8b, Merriweather_Bold12pt8b, Merriweather_Bold18pt8b,
-                         Merriweather_Bold24pt8b)
-            break;
+            ttfIndex = 3;
+            break; // Merriweather
         case READER_FONT_LITERATA:
-            B32_FONT_SET(Literata_Regular9pt8b, Literata_Regular12pt8b, Literata_Regular18pt8b,
-                         Literata_Bold9pt8b, Literata_Bold12pt8b, Literata_Bold18pt8b, Literata_Bold24pt8b)
-            break;
+            ttfIndex = 1;
+            break; // Literata
         case READER_FONT_SOURCE_SERIF:
-            B32_FONT_SET(SourceSerif4_Regular9pt8b, SourceSerif4_Regular12pt8b, SourceSerif4_Regular18pt8b,
-                         SourceSerif4_Bold9pt8b, SourceSerif4_Bold12pt8b, SourceSerif4_Bold18pt8b,
-                         SourceSerif4_Bold24pt8b)
-            break;
+            ttfIndex = 4;
+            break; // Source Serif 4
         case READER_FONT_GELASIO:
-            B32_FONT_SET(Gelasio_Regular9pt8b, Gelasio_Regular12pt8b, Gelasio_Regular18pt8b,
-                         Gelasio_Bold9pt8b, Gelasio_Bold12pt8b, Gelasio_Bold18pt8b, Gelasio_Bold24pt8b)
-            break;
+            ttfIndex = 5;
+            break; // Gelasio
         case READER_FONT_OPEN_SANS:
-            B32_FONT_SET(OpenSans_Regular9pt8b, OpenSans_Regular12pt8b, OpenSans_Regular18pt8b,
-                         OpenSans_Bold9pt8b, OpenSans_Bold12pt8b, OpenSans_Bold18pt8b, OpenSans_Bold24pt8b)
-            break;
+            ttfIndex = 2;
+            break; // Open Sans
         case READER_FONT_SANS:
         default:
-            B32_FONT_SET(FreeSans9pt8b, FreeSans12pt8b, FreeSans18pt8b, FreeSansBold9pt8b, FreeSansBold12pt8b,
-                         FreeSansBold18pt8b, FreeSansBold24pt8b)
-            break;
+            ttfIndex = 0;
+            break; // Atkinson Hyperlegible
     }
-#undef B32_FONT_SET
+    ttEngine.setFont(ttfIndex);
 
-    const GFXfont* font;
+    float basePt = (float)_fontSize;
+    float targetPt = basePt;
+    bool bold = false;
+
     switch (style) {
         case STYLE_HEADER1:
-            font = h1;
+            targetPt = basePt * 1.75f;
+            if (targetPt < 18.0f) targetPt = 18.0f;
+            bold = true;
             break;
         case STYLE_HEADER2:
-            font = h2;
+            targetPt = basePt * 1.45f;
+            if (targetPt < 15.0f) targetPt = 15.0f;
+            bold = true;
             break;
         case STYLE_HEADER3:
-            font = h3;
+            targetPt = basePt * 1.25f;
+            if (targetPt < 13.0f) targetPt = 13.0f;
+            bold = true;
             break;
         case STYLE_HEADER4:
-            font = h4;
+            targetPt = basePt * 1.10f;
+            bold = true;
             break;
         case STYLE_BOLD:
-            font = bold;
+            targetPt = basePt;
+            bold = true;
             break;
         default:
-            font = normal;
+            targetPt = basePt;
+            bold = false;
             break;
     }
 
-    // Proportional ~1.35x line height calibrated for readability and breathability
-    int extra = 0;
-    if (_fontSize == 14)
-        extra = 6;
-    else if (_fontSize == 10)
-        extra = 4;
-    lineHeight = ((font->yAdvance * 135) / 100) + extra;
+    const GFXfont* font = ttEngine.getGFXFont(targetPt, bold);
+    if (!font) {
+        // Safe fallback to FreeSans9pt8b if TTF engine fails
+        font = &FreeSans9pt8b;
+    }
+
+    // Airy proportional line-height (~1.35x)
+    lineHeight = (font->yAdvance * 135) / 100;
     return font;
 }
 

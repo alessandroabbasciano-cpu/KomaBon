@@ -170,7 +170,7 @@ void AppReader::drawOverlaySettings() {
         char fontSizeStr[32];
         snprintf(fontSizeStr, sizeof(fontSizeStr), "Font Size: %d pt", _fontSizePt);
 
-        const char* fontNames[] = {"FreeSans",     "Merriweather", "Literata",
+        const char* fontNames[] = {"Atkinson",     "Merriweather", "Literata",
                                    "Source Serif", "Gelasio",      "Open Sans"};
         char fontFamilyStr[40];
         // Safety bound check

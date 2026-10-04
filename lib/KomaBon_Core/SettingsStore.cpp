@@ -21,6 +21,7 @@ SettingsStore::Transaction::~Transaction() {
 
 int SettingsStore::clampFontSize(int pt) {
     if (pt >= 18) return 18;
+    if (pt >= 16) return 16;
     if (pt >= 14) return 14;
     if (pt >= 12) return 12;
     if (pt >= 10) return 10;

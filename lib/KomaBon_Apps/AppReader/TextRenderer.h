@@ -8,11 +8,7 @@
 // Adafruit <Fonts/FreeSans*pt7b.h> headers so Portuguese text renders in the
 // reader when the Sans family is selected.
 #include "Fonts/FreeSans.h"
-#include "Fonts/Merriweather.h"
-#include "Fonts/Literata.h"
-#include "Fonts/SourceSerif4.h"
-#include "Fonts/Gelasio.h"
-#include "Fonts/OpenSans.h"
+#include "../../KomaBon_Core/TrueTypeEngine.h"
 #include "DisplayMgr.h"
 #include "EpubLoader.h"
 

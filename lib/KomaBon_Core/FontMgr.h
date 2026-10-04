@@ -5,11 +5,6 @@
 #include "DisplayMgr.h"
 
 #include "Fonts/FreeSans.h"
-#include "Fonts/Gelasio.h"
-#include "Fonts/Literata.h"
-#include "Fonts/Merriweather.h"
-#include "Fonts/OpenSans.h"
-#include "Fonts/SourceSerif4.h"
 
 // Font size presets (in pixels) - mapped to GFX fonts
 #define FONT_SIZE_SMALL 14

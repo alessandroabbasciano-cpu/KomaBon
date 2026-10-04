@@ -11,8 +11,8 @@ static const char* ROW_LABELS[] = {"Font size",     "Font family",  "Orientation
                                    "Sleep timeout", "Sleep screen", "Network",     "System",
                                    "Joystick",      "Save",         "Discard"};
 
-static const char* FONT_FAMILY_NAMES[] = {"FreeSans",       "Merriweather", "Literata",
-                                          "Source Serif 4", "Gelasio",      "Open Sans"};
+static const char* FONT_FAMILY_NAMES[] = {"Atkinson Hyperlegible", "Merriweather", "Literata",
+                                          "Source Serif 4",        "Gelasio",      "Open Sans"};
 
 static const int LIST_START_Y = 130;
 static const int ROW_HEIGHT = 52;

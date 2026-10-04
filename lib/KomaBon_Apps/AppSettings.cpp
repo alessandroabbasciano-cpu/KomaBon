@@ -11,7 +11,7 @@
 #include <WiFiManager.h>
 #include <KomaBonFS.h>
 
-static const int FONT_SIZES[] = {8, 10, 12, 14, 18};
+static const int FONT_SIZES[] = {8, 10, 12, 14, 16, 18};
 static const int FONT_SIZES_COUNT = sizeof(FONT_SIZES) / sizeof(FONT_SIZES[0]);
 static const int REFRESH_FREQS[] = {5, 10, 20, 50};
 static const int SLEEP_TIMEOUTS[] = {0, 5, 15, 30, 60};

@@ -45,6 +45,8 @@ void AppReader::handleInput(InputAction action) {
                 else if (_fontSizePt == 12)
                     _fontSizePt = 14;
                 else if (_fontSizePt == 14)
+                    _fontSizePt = 16;
+                else if (_fontSizePt == 16)
                     _fontSizePt = 18;
                 else
                     _fontSizePt = 8;
