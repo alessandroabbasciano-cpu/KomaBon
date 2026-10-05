@@ -114,8 +114,7 @@ void AppSettings::drawMainScreen() {
         display.setTextColor(GxEPD_BLACK);
 
         if (i == _selectedIndex) {
-            display.drawRect(12, y - 30, w - 24, ROW_HEIGHT - 8, GxEPD_BLACK);
-            display.drawRect(13, y - 29, w - 26, ROW_HEIGHT - 10, GxEPD_BLACK);
+            display.fillRect(12, y - 26, 6, ROW_HEIGHT - 16, GxEPD_BLACK);
         }
 
         String label = String(ROW_LABELS[i]);
@@ -130,7 +129,7 @@ void AppSettings::drawMainScreen() {
     }
 
     display.setTextColor(GxEPD_BLACK);
-    drawFooter("Joy: Move  |  Center: Select  |  Hold Left: exit");
+    drawFooter("▲▼ Move   ● Select   ◀ Back");
 }
 
 void AppSettings::drawFontScreen() {
@@ -145,8 +144,7 @@ void AppSettings::drawFontScreen() {
         display.setTextColor(GxEPD_BLACK);
 
         if (i == _subSelectedIndex) {
-            display.drawRect(12, y - 30, w - 24, ROW_HEIGHT - 8, GxEPD_BLACK);
-            display.drawRect(13, y - 29, w - 26, ROW_HEIGHT - 10, GxEPD_BLACK);
+            display.fillRect(12, y - 26, 6, ROW_HEIGHT - 16, GxEPD_BLACK);
         }
 
         String label = String(FONT_FAMILY_NAMES[i]);
@@ -156,7 +154,7 @@ void AppSettings::drawFontScreen() {
     }
 
     display.setTextColor(GxEPD_BLACK);
-    drawFooter("Joy: Move  |  Center: Select  |  Hold Left: back");
+    drawFooter("▲▼ Move   ● Select   ◀ Back");
 }
 
 void AppSettings::drawNetworkScreen() {
@@ -200,7 +198,7 @@ void AppSettings::drawNetworkScreen() {
         font.drawText(display, rssi.c_str(), 200, y, FONT_SIZE_BODY, GxEPD_BLACK);
     }
 
-    drawFooter("Hold Left: back");
+    drawFooter("◀ Back");
 }
 
 void AppSettings::drawSystemScreen() {
@@ -238,15 +236,14 @@ void AppSettings::drawSystemScreen() {
         display.setTextColor(GxEPD_BLACK);
 
         if (i == _subSelectedIndex) {
-            display.drawRect(12, ay - 30, w - 24, ROW_HEIGHT - 8, GxEPD_BLACK);
-            display.drawRect(13, ay - 29, w - 26, ROW_HEIGHT - 10, GxEPD_BLACK);
+            display.fillRect(12, ay - 26, 6, ROW_HEIGHT - 16, GxEPD_BLACK);
         }
 
         font.drawText(display, actions[i], 26, ay, FONT_SIZE_BODY, GxEPD_BLACK);
     }
 
     display.setTextColor(GxEPD_BLACK);
-    drawFooter("Joy: Move  |  Center: Select  |  Hold Left: back");
+    drawFooter("▲▼ Move   ● Select   ◀ Back");
 }
 
 void AppSettings::drawConfirmScreen() {
@@ -266,15 +263,14 @@ void AppSettings::drawConfirmScreen() {
         display.setTextColor(GxEPD_BLACK);
 
         if (i == _subSelectedIndex) {
-            display.drawRect(12, oy - 30, w - 24, ROW_HEIGHT - 8, GxEPD_BLACK);
-            display.drawRect(13, oy - 29, w - 26, ROW_HEIGHT - 10, GxEPD_BLACK);
+            display.fillRect(12, oy - 26, 6, ROW_HEIGHT - 16, GxEPD_BLACK);
         }
 
         font.drawText(display, options[i], 26, oy, FONT_SIZE_BODY, GxEPD_BLACK);
     }
 
     display.setTextColor(GxEPD_BLACK);
-    drawFooter("Joy: Move  |  Center: Select  |  Hold Left: back");
+    drawFooter("▲▼ Move   ● Select   ◀ Back");
 }
 
 void AppSettings::drawConfirmForgetWifiScreen() {
@@ -296,15 +292,14 @@ void AppSettings::drawConfirmForgetWifiScreen() {
         display.setTextColor(GxEPD_BLACK);
 
         if (i == _subSelectedIndex) {
-            display.drawRect(12, oy - 30, w - 24, ROW_HEIGHT - 8, GxEPD_BLACK);
-            display.drawRect(13, oy - 29, w - 26, ROW_HEIGHT - 10, GxEPD_BLACK);
+            display.fillRect(12, oy - 26, 6, ROW_HEIGHT - 16, GxEPD_BLACK);
         }
 
         font.drawText(display, options[i], 26, oy, FONT_SIZE_BODY, GxEPD_BLACK);
     }
 
     display.setTextColor(GxEPD_BLACK);
-    drawFooter("Joy: Move  |  Center: Select  |  Hold Left: back");
+    drawFooter("▲▼ Move   ● Select   ◀ Back");
 }
 
 void AppSettings::drawJoyCalScreen() {
@@ -340,7 +335,7 @@ void AppSettings::drawJoyCalScreen() {
     if (_joyCalStep < 5) {
         drawFooter("KEY3: abort");
     } else {
-        drawFooter("Center: exit to menu");
+        drawFooter("● Exit to menu");
     }
 }
 
@@ -408,6 +403,15 @@ void AppSettings::draw() {
             int screenW = display.width();
             SettingsDirtyRect dirty =
                 unionRect(settingsRowRect(prevIndex, screenW), settingsRowRect(currIndex, screenW));
+            display.setPartialWindow(dirty.x, dirty.y, dirty.w, dirty.h);
+        } else if (_screen == SCREEN_SYSTEM || _screen == SCREEN_CONFIRM ||
+                   _screen == SCREEN_CONFIRM_FORGET_WIFI) {
+            int prevIndex = _previousSubSelectedIndex;
+            int currIndex = _subSelectedIndex;
+            int screenW = display.width();
+            int baseOffset = (_screen == SCREEN_SYSTEM) ? 3 : 0;
+            SettingsDirtyRect dirty = unionRect(settingsRowRect(prevIndex + baseOffset, screenW),
+                                                settingsRowRect(currIndex + baseOffset, screenW));
             display.setPartialWindow(dirty.x, dirty.y, dirty.w, dirty.h);
         } else if (_screen == SCREEN_OTA_MODAL) {
             int w = display.width();
