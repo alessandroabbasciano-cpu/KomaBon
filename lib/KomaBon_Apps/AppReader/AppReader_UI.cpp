@@ -257,10 +257,8 @@ void AppReader::drawOverlayGoto() {
 
         display.drawLine(ox + 20, oy + 144, ox + ow - 20, oy + 144, GxEPD_BLACK);
 
-        fontMgr.drawTextCentered(display, "< / >: +/-1    ^ / v: +/-10", oy + 168, FONT_SIZE_SMALL,
-                                 GxEPD_BLACK);
-        fontMgr.drawTextCentered(display, "SELECT: Jump    BACK: Cancel", oy + 194, FONT_SIZE_SMALL,
-                                 GxEPD_BLACK);
+        fontMgr.drawTextCentered(display, "◀ ▶ +/-1      ▲▼ +/-10", oy + 168, FONT_SIZE_SMALL, GxEPD_BLACK);
+        fontMgr.drawTextCentered(display, "● Jump        ◀ Back", oy + 194, FONT_SIZE_SMALL, GxEPD_BLACK);
     } while (display.nextPage());
 }
 
@@ -311,10 +309,10 @@ void AppReader::drawOverlayTOC() {
             }
 
             if (_overlayScrollOffset > 0) {
-                fontMgr.drawTextCentered(display, "^", oy + 65, FONT_SIZE_SMALL, GxEPD_BLACK);
+                fontMgr.drawTextCentered(display, "▲", oy + 65, FONT_SIZE_SMALL, GxEPD_BLACK);
             }
             if (_overlayScrollOffset + itemsPerPage < totalChapters) {
-                fontMgr.drawTextCentered(display, "v", oy + oh - 15, FONT_SIZE_SMALL, GxEPD_BLACK);
+                fontMgr.drawTextCentered(display, "▼", oy + oh - 15, FONT_SIZE_SMALL, GxEPD_BLACK);
             }
         }
     } while (display.nextPage());
@@ -372,17 +370,17 @@ void AppReader::drawOverlayBookmarks() {
             }
 
             if (_overlayScrollOffset > 0) {
-                fontMgr.drawTextCentered(display, "^", oy + 58, FONT_SIZE_SMALL, GxEPD_BLACK);
+                fontMgr.drawTextCentered(display, "▲", oy + 58, FONT_SIZE_SMALL, GxEPD_BLACK);
             }
             if (_overlayScrollOffset + itemsPerPage < (int)bookmarks.size()) {
-                fontMgr.drawTextCentered(display, "v", oy + oh - 52, FONT_SIZE_SMALL, GxEPD_BLACK);
+                fontMgr.drawTextCentered(display, "▼", oy + oh - 52, FONT_SIZE_SMALL, GxEPD_BLACK);
             }
         }
 
         display.drawLine(ox + 20, oy + oh - 48, ox + ow - 20, oy + oh - 48, GxEPD_BLACK);
-        fontMgr.drawTextCentered(display, "^ / v: Scroll    SELECT: Jump", oy + oh - 30, FONT_SIZE_SMALL,
+        fontMgr.drawTextCentered(display, "▲▼ Scroll      ● Jump", oy + oh - 30, FONT_SIZE_SMALL,
                                  GxEPD_BLACK);
-        fontMgr.drawTextCentered(display, "<: Delete    BACK: Close", oy + oh - 12, FONT_SIZE_SMALL,
+        fontMgr.drawTextCentered(display, "◀ Delete       [◀] Close", oy + oh - 12, FONT_SIZE_SMALL,
                                  GxEPD_BLACK);
     } while (display.nextPage());
 }
