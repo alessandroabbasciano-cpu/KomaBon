@@ -33,8 +33,8 @@ class TrueTypeEngine {
         size_t bitmapSize;
     };
 
-    static const int MAX_CACHED_FONTS = 8;
-    CachedGFXFont _cache[MAX_CACHED_FONTS];
+    static const int MAX_CACHED_FONTS = 16;
+    CachedGFXFont* _cache[MAX_CACHED_FONTS];
     int _cacheCount;
 
     void freeCache();

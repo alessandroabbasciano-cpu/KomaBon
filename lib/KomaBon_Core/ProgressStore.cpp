@@ -313,7 +313,7 @@ static void collectPresentOriginalNames(std::map<String, bool>& present) {
 
         String lower = name;
         lower.toLowerCase();
-        if (lower.endsWith(".epub")) {
+        if (lower.endsWith(".epub") || lower.endsWith(".kmb")) {
             auto meta = metadata.find(name);
             present[(meta != metadata.end()) ? meta->second : name] = true;
         }

@@ -317,14 +317,13 @@ void AppReader::closeBook(bool markInactive) {
     _killPageCountTask = true;
     _countingActive = false;
     if (_pageCountTaskHandle != nullptr) {
-        int timeout = 50;
+        int timeout = 100;
         while (_pageCountTaskHandle != nullptr && timeout > 0) {
             vTaskDelay(pdMS_TO_TICKS(10));
             timeout--;
         }
         if (_pageCountTaskHandle != nullptr) {
-            vTaskDelete(_pageCountTaskHandle);
-            _pageCountTaskHandle = nullptr;
+            Serial.println("AppReader: Warning - page count task did not exit in time on close");
         }
     }
 

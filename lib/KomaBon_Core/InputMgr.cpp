@@ -6,7 +6,7 @@
 #include "StandbyGuard.h"
 #include "JoystickMgr.h"
 
-InputMgr::InputMgr() : btn(), btnBack(PIN_BUTTON_BACK, true, true), btnSleep(PIN_BUTTON_SLEEP, true, true) {
+InputMgr::InputMgr() {
     callback = nullptr;
 }
 
@@ -17,18 +17,7 @@ InputMgr& InputMgr::getInstance() {
 
 void InputMgr::init() {
     JoystickMgr::getInstance().init();
-    btn.setDebounceMs(BUTTON_DEBOUNCE_MIN_MS);
-    btn.setClickMs(100);
-    btn.setPressMs(BUTTON_LONG_PRESS_MS);
-
-    btn.attachClick(staticClick, this);
-    btn.attachLongPressStart(staticLongPress, this);
-
-    btnBack.setDebounceMs(BUTTON_DEBOUNCE_MIN_MS);
-    btnBack.setPressMs(BUTTON_LONG_PRESS_MS);
-
-    btnSleep.setDebounceMs(BUTTON_DEBOUNCE_MIN_MS);
-    btnSleep.setPressMs(STANDBY_HOLD_MS);
+    pinMode(PIN_BUTTON_BACK, INPUT_PULLUP);
     pinMode(PIN_BUTTON_SLEEP, INPUT_PULLUP);
 
     if (!_taskHandle) {
@@ -363,32 +352,4 @@ bool InputMgr::dequeueAction(InputAction& action) {
     }
     portEXIT_CRITICAL(&_queueMux);
     return hasAction;
-}
-
-void InputMgr::staticClick(void* ptr) {
-    if (ptr) static_cast<InputMgr*>(ptr)->onClick();
-}
-void InputMgr::staticDoubleClick(void* ptr) {
-    if (ptr) static_cast<InputMgr*>(ptr)->onDoubleClick();
-}
-void InputMgr::staticLongPress(void* ptr) {
-    if (ptr) static_cast<InputMgr*>(ptr)->onLongPress();
-}
-
-void InputMgr::onClick() {
-    Serial.println("INPUT: Click -> NEXT");
-    BatteryMgr::getInstance().resetIdleTimer();
-    enqueueAction(INPUT_NEXT);
-}
-
-void InputMgr::onDoubleClick() {
-    Serial.println("INPUT: Double-Click -> PREV");
-    BatteryMgr::getInstance().resetIdleTimer();
-    enqueueAction(INPUT_PREV);
-}
-
-void InputMgr::onLongPress() {
-    Serial.println("INPUT: Long Press -> SELECT");
-    BatteryMgr::getInstance().resetIdleTimer();
-    enqueueAction(INPUT_SELECT);
 }

@@ -28,8 +28,6 @@ static unsigned long gBootTimestamp = 0;
 static bool gOtaConfirmedValid = false;
 
 void setup() {
-    esp_ota_mark_app_valid_cancel_rollback(); // Must be early: USB-CDC reset handshake requires valid OTA
-                                              // state
     Serial.begin(115200);
     // NOTE: Serial.setTxTimeoutMs(0) is applied in loop() on first iteration.
     // Setting it here breaks the USB-CDC auto-reset handshake needed for upload.
@@ -211,6 +209,7 @@ void setup() {
     }
 
     Serial.println("[BOOT] Sequence Complete. Entering Lazy Render Loop.");
+    gBootTimestamp = millis();
 }
 
 void loop() {

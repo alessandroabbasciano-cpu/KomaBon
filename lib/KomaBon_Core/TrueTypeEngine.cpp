@@ -10,6 +10,9 @@ TrueTypeEngine& TrueTypeEngine::getInstance() {
 
 TrueTypeEngine::TrueTypeEngine() {
     _cacheCount = 0;
+    for (int i = 0; i < MAX_CACHED_FONTS; i++) {
+        _cache[i] = nullptr;
+    }
     _fontLoaded = false;
     _currentData = nullptr;
     _currentSize = 0;
@@ -28,10 +31,12 @@ TrueTypeEngine::~TrueTypeEngine() {
 
 void TrueTypeEngine::freeCache() {
     for (int i = 0; i < _cacheCount; i++) {
-        if (_cache[i].glyphs) free(_cache[i].glyphs);
-        if (_cache[i].bitmaps) free(_cache[i].bitmaps);
-        _cache[i].glyphs = nullptr;
-        _cache[i].bitmaps = nullptr;
+        if (_cache[i]) {
+            if (_cache[i]->glyphs) free(_cache[i]->glyphs);
+            if (_cache[i]->bitmaps) free(_cache[i]->bitmaps);
+            delete _cache[i];
+            _cache[i] = nullptr;
+        }
     }
     _cacheCount = 0;
 }
@@ -118,9 +123,9 @@ const GFXfont* TrueTypeEngine::getGFXFont(float ptSize, bool bold) {
 
     // Check cache
     for (int i = 0; i < _cacheCount; i++) {
-        if (_cache[i].fontSource == _currentData && abs(_cache[i].ptSize - ptSize) < 0.1f &&
-            _cache[i].bold == bold) {
-            return &_cache[i].gfxFont;
+        if (_cache[i] && _cache[i]->fontSource == _currentData && abs(_cache[i]->ptSize - ptSize) < 0.1f &&
+            _cache[i]->bold == bold) {
+            return &_cache[i]->gfxFont;
         }
     }
 
@@ -253,26 +258,38 @@ const GFXfont* TrueTypeEngine::buildGFXFont(float ptSize, bool bold) {
     memcpy(finalBitmaps, bitmapBytes.data(), bitmapBytes.size());
 
     if (_cacheCount >= MAX_CACHED_FONTS) {
-        free(_cache[0].glyphs);
-        free(_cache[0].bitmaps);
+        if (_cache[0]) {
+            if (_cache[0]->glyphs) free(_cache[0]->glyphs);
+            if (_cache[0]->bitmaps) free(_cache[0]->bitmaps);
+            delete _cache[0];
+            _cache[0] = nullptr;
+        }
         for (int i = 0; i < MAX_CACHED_FONTS - 1; i++) {
             _cache[i] = _cache[i + 1];
         }
+        _cache[MAX_CACHED_FONTS - 1] = nullptr;
         _cacheCount = MAX_CACHED_FONTS - 1;
     }
 
+    CachedGFXFont* fontEntry = new (std::nothrow) CachedGFXFont();
+    if (!fontEntry) {
+        free(glyphs);
+        free(finalBitmaps);
+        return nullptr;
+    }
+
     int entry = _cacheCount++;
-    _cache[entry].ptSize = ptSize;
-    _cache[entry].bold = bold;
-    _cache[entry].fontSource = _currentData;
-    _cache[entry].glyphs = glyphs;
-    _cache[entry].bitmaps = finalBitmaps;
-    _cache[entry].bitmapSize = bitmapBytes.size();
+    _cache[entry] = fontEntry;
+    fontEntry->ptSize = ptSize;
+    fontEntry->bold = bold;
+    fontEntry->fontSource = _currentData;
+    fontEntry->glyphs = glyphs;
+    fontEntry->bitmaps = finalBitmaps;
+    fontEntry->bitmapSize = bitmapBytes.size();
 
     int lineAdvance = (int)((ascent - descent + lineGap) * scale + 0.5f);
 
-    _cache[entry].gfxFont = {finalBitmaps, glyphs, (uint8_t)firstChar, (uint8_t)lastChar,
-                             (uint8_t)lineAdvance};
+    fontEntry->gfxFont = {finalBitmaps, glyphs, (uint8_t)firstChar, (uint8_t)lastChar, (uint8_t)lineAdvance};
 
-    return &_cache[entry].gfxFont;
+    return &fontEntry->gfxFont;
 }

@@ -1,6 +1,5 @@
 #pragma once
 #include <Arduino.h>
-#include <OneButton.h>
 #include <freertos/FreeRTOS.h>
 #include <freertos/task.h>
 #include "Config.h"
@@ -57,9 +56,6 @@ class InputMgr {
 
   private:
     InputMgr();
-    OneButton btn;
-    OneButton btnBack;
-    OneButton btnSleep;
     InputCallback callback;
     TaskHandle_t _taskHandle = nullptr;
     bool _taskRunning = false;
@@ -99,11 +95,6 @@ class InputMgr {
     bool dequeueAction(InputAction& action);
     static void inputTask(void* parameter);
 
-    void onClick();
-    void onDoubleClick();
-    void onLongPress();
-    void onBackLongPress();
-
     // Handled inside InputMgr rather than dispatched to the active app, so
     // standby works everywhere including modal screens.
     //
@@ -122,9 +113,4 @@ class InputMgr {
     volatile bool _isInteracting = false;
     volatile unsigned long _lastPhysicalInputTime = 0;
     volatile bool _suppressWakeRelease = false;
-
-    static void staticClick(void* ptr);
-    static void staticDoubleClick(void* ptr);
-    static void staticLongPress(void* ptr);
-    static void staticBackLongPress(void* ptr);
 };

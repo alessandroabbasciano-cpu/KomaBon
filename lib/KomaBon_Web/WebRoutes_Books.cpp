@@ -10,6 +10,7 @@
 #include "../KomaBon_Core/BookMeta.h"
 #include "../KomaBon_Core/ProgressStore.h"
 #include "../KomaBon_Core/PageCountStore.h"
+#include "../KomaBon_Core/BookmarkStore.h"
 #include <SD.h>
 #include "../KomaBon_Core/SDMgr.h"
 #include <set>
@@ -266,12 +267,14 @@ static bool deleteSingleBookInternal(const String& filename) {
     removeFromBookOrder(filename);
     removeBookMetadata(filename);
     PageCountStore::getInstance().remove(getOriginalFilename(filename));
+    BookmarkStore::getInstance().clearBookmarks(getOriginalFilename(filename));
 
     int dot = filename.lastIndexOf('.');
     String base = (dot > 0) ? filename.substring(0, dot) : filename;
     const char* derivedExts[] = {".thumb", ".cover", ".cover2"};
     for (const char* ext : derivedExts) {
         String derived = "/covers/" + base + ext;
+        if (SystemFS.exists(derived)) SystemFS.remove(derived);
         if (EbookFS.exists(derived)) EbookFS.remove(derived);
     }
     return true;
@@ -555,17 +558,7 @@ void setupBookEndpoints(AsyncWebServer* server) {
                 }
 
                 size_t freeBytes = (totalBytes > usedBytes) ? (totalBytes - usedBytes) : 0;
-                bool isKmb = hasExtensionCI(safeName, ".kmb");
-                UploadVerdict verdict = UploadVerdict::Ok;
-
-                if (isKmb) {
-                    if (request->contentLength() > freeBytes)
-                        verdict = UploadVerdict::NoSpace;
-                    else if (!isSafeBookName(safeName))
-                        verdict = UploadVerdict::UnsafeName;
-                } else {
-                    verdict = checkUpload(safeName, request->contentLength(), freeBytes);
-                }
+                UploadVerdict verdict = checkUpload(safeName, request->contentLength(), freeBytes);
 
                 switch (verdict) {
                     case UploadVerdict::BadExtension:
@@ -710,15 +703,7 @@ void setupBookEndpoints(AsyncWebServer* server) {
         }
 
         size_t freeBytes = (totalBytes > usedBytes) ? (totalBytes - usedBytes) : 0;
-        UploadVerdict verdict = UploadVerdict::Ok;
-        if (hasExtensionCI(safeName, ".kmb")) {
-            if (size > freeBytes)
-                verdict = UploadVerdict::NoSpace;
-            else if (!isSafeBookName(safeName))
-                verdict = UploadVerdict::UnsafeName;
-        } else {
-            verdict = checkUpload(safeName, size, freeBytes);
-        }
+        UploadVerdict verdict = checkUpload(safeName, size, freeBytes);
 
         if (verdict == UploadVerdict::BadExtension) {
             request->send(415, "application/json", "{\"ok\":false,\"error\":\"unsupported file type\"}");
@@ -771,11 +756,22 @@ void setupBookEndpoints(AsyncWebServer* server) {
             if (!request->hasParam("name") || !request->hasParam("offset")) return;
 
             String safeName = request->getParam("name")->value();
+            if (!isSafeBookName(safeName)) return;
+
             size_t chunkOffset = request->getParam("offset")->value().toInt();
             String tempPath = "/" + safeName + ".part";
 
             File* f = nullptr;
             if (index == 0) {
+                request->onDisconnect([request]() {
+                    if (request->_tempObject != nullptr) {
+                        File* tf = (File*)request->_tempObject;
+                        tf->close();
+                        delete tf;
+                        request->_tempObject = nullptr;
+                    }
+                });
+
                 if (chunkOffset == 0) {
                     f = new File(EbookFS.open(tempPath, "w"));
                 } else {
@@ -804,6 +800,11 @@ void setupBookEndpoints(AsyncWebServer* server) {
         }
         String safeName = request->getParam("name")->value();
         String origName = request->getParam("orig")->value();
+        if (!isSafeBookName(safeName)) {
+            request->send(400, "application/json", "{\"ok\":false,\"error\":\"invalid name\"}");
+            return;
+        }
+
         String tempPath = "/" + safeName + ".part";
         String finalPath = "/" + safeName;
 

@@ -113,6 +113,7 @@ void SafeBoot::run() {
 
     // Mount SystemFS if possible, but continue even if failed
     SystemFS.begin();
+    KomaBonStorage::ensureReady();
 
     // Configure SoftAP in isolation
     WiFi.disconnect(true);
@@ -130,12 +131,18 @@ void SafeBoot::run() {
 
     // Wipe configs
     s_rescueServer.on("/api/rescue/wipe_configs", HTTP_POST, [](AsyncWebServerRequest* request) {
-        const char* configs[] = {"/joy_cal.json",    "/progress.json",      "/reader_progress.json",
-                                 "/book_order.json", "/reader_config.json", "/sleep_config.json"};
+        const char* configs[] = {"/joy_cal.json",        "/progress.json",      "/reader_progress.json",
+                                 "/book_order.json",     "/reader_config.json", "/sleep_config.json",
+                                 "/display_config.json", "/book_meta.json",     "/page_counts.json",
+                                 "/bookmarks.json"};
         int wiped = 0;
         for (const char* path : configs) {
             if (SystemFS.exists(path)) {
                 SystemFS.remove(path);
+                wiped++;
+            }
+            if (EbookFSPtr != nullptr && EbookFSPtr != &SystemFS && EbookFS.exists(path)) {
+                EbookFS.remove(path);
                 wiped++;
             }
         }
