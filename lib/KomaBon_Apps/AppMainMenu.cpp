@@ -23,6 +23,8 @@ struct MenuDirtyRect {
 };
 
 // Dynamic bounds calculation adaptive for Portrait (480x800) and Landscape (800x480)
+// Selection refresh is restricted strictly to the left sidebar column (x: 12..28)
+// to avoid redrawing full rows, icons, and hero cards on simple navigation movements.
 static MenuDirtyRect menuItemRect(int index, int screenW, int screenH, int numApps) {
     bool isPortrait = screenH > screenW;
     int ROW_HEIGHT = isPortrait ? 80 : 50;
@@ -32,12 +34,12 @@ static MenuDirtyRect menuItemRect(int index, int screenW, int screenH, int numAp
     if (index == 0) {
         int wy = isPortrait ? 110 : 50;
         int wh = isPortrait ? 220 : 175;
-        return {10, wy, screenW - 20, wh};
+        return {12, wy, 16, wh};
     }
 
     int idx = index - 1;
     int y = START_Y + idx * ROW_HEIGHT;
-    return {10, y - 5, screenW - 20, ROW_HEIGHT + 10};
+    return {12, y - 5, 16, ROW_HEIGHT + 10};
 }
 
 static MenuDirtyRect unionRect(MenuDirtyRect a, MenuDirtyRect b) {
@@ -459,8 +461,7 @@ void AppMainMenu::draw() {
         }
 
         // --- 4. FOOTER ---
-        fontMgr.drawTextCentered(display, "Joy: Move  |  Center: Select", screenH - 22, FONT_SIZE_SMALL,
-                                 GxEPD_BLACK);
+        fontMgr.drawTextCentered(display, "▲▼ Move   ● Select", screenH - 22, FONT_SIZE_SMALL, GxEPD_BLACK);
 
     } while (display.nextPage());
 }
