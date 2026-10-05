@@ -20,13 +20,31 @@ const float BatteryMgr::CRITICAL_VOLTAGE = 3.0f;
 const float BatteryMgr::HIGH_VOLTAGE_THRESHOLD = 4.0f;
 const float BatteryMgr::SPIKE_REJECT_THRESHOLD = 0.5f;
 
-static int voltageToPercentage(float voltage) {
-    if (voltage >= BATTERY_FULL_VOLTAGE) return 100;
-    if (voltage <= BATTERY_EMPTY_VOLTAGE) return 0;
+// Standard Li-Po discharge curve (Open Circuit Voltage / light load profile)
+// Accounts for the steep drop from 4.2V, the prolonged 3.7V-3.85V plateau, and the rapid cliff under 3.5V.
+struct BatteryPoint {
+    float voltage;
+    int percentage;
+};
 
-    return (int)(((voltage - BATTERY_EMPTY_VOLTAGE) / (BATTERY_FULL_VOLTAGE - BATTERY_EMPTY_VOLTAGE)) *
-                     100.0f +
-                 0.5f);
+static const BatteryPoint BATT_CURVE[] = {{4.18f, 100}, {4.05f, 90}, {3.95f, 80}, {3.87f, 70},
+                                          {3.82f, 60},  {3.78f, 50}, {3.74f, 40}, {3.70f, 30},
+                                          {3.65f, 20},  {3.55f, 10}, {3.40f, 5},  {BATTERY_EMPTY_VOLTAGE, 0}};
+static const size_t BATT_CURVE_SIZE = sizeof(BATT_CURVE) / sizeof(BATT_CURVE[0]);
+
+static int voltageToPercentage(float voltage) {
+    if (voltage >= BATT_CURVE[0].voltage) return 100;
+    if (voltage <= BATT_CURVE[BATT_CURVE_SIZE - 1].voltage) return 0;
+
+    for (size_t i = 0; i < BATT_CURVE_SIZE - 1; i++) {
+        if (voltage <= BATT_CURVE[i].voltage && voltage >= BATT_CURVE[i + 1].voltage) {
+            float vRange = BATT_CURVE[i].voltage - BATT_CURVE[i + 1].voltage;
+            float pRange = (float)(BATT_CURVE[i].percentage - BATT_CURVE[i + 1].percentage);
+            float vDelta = voltage - BATT_CURVE[i + 1].voltage;
+            return BATT_CURVE[i + 1].percentage + (int)((vDelta / vRange) * pRange + 0.5f);
+        }
+    }
+    return 0;
 }
 
 BatteryMgr::BatteryMgr()
@@ -142,15 +160,15 @@ void BatteryMgr::updateCache(bool clearStaleCharging) {
     KomaBonGuard guard(_mutex);
 #ifdef PIN_VBAT_SWITCH
     digitalWrite(PIN_VBAT_SWITCH, VBAT_SWITCH_LEVEL);
-    // RC STABILIZATION: 5 Tau = 25ms (R28||R29=50k, C62=100nF). Padded to 30ms.
-    delay(30);
+    // RC Stabilization: C62 (1nF) and divider stabilize quickly. 10ms delay as in Seeed hardware cookbook.
+    delay(10);
 #endif
 
     analogRead(PIN_BAT_VOLT);
     uint32_t raw_mv = 0;
     for (int i = 0; i < 30; i++) {
         raw_mv += analogReadMilliVolts(PIN_BAT_VOLT);
-        delay(1);
+        delayMicroseconds(100);
     }
     raw_mv /= 30;
 
