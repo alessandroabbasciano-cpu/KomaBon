@@ -12,38 +12,43 @@
 #define ZIP_SUCCESS 0
 #endif
 
+static int zipFd = -1;
+
 void* myOpen(const char* filename, int32_t* size) {
+    if (zipFd >= 0) {
+        close(zipFd);
+        zipFd = -1;
+    }
     String fullPath = filename;
     if (!fullPath.startsWith("/littlefs") && !fullPath.startsWith("/ebooks"))
         fullPath = "/littlefs" + fullPath;
-    int fd = open(fullPath.c_str(), O_RDONLY);
-    if (fd < 0) return NULL;
+    zipFd = open(fullPath.c_str(), O_RDONLY);
+    if (zipFd < 0) return NULL;
     struct stat st;
-    if (fstat(fd, &st) != 0) {
-        close(fd);
+    if (fstat(zipFd, &st) != 0) {
+        close(zipFd);
+        zipFd = -1;
         return NULL;
     }
     *size = st.st_size;
-    return (void*)(intptr_t)(fd + 1);
+    return (void*)(intptr_t)(zipFd + 1);
 }
 
 void myClose(void* p) {
-    int fd = (int)(intptr_t)p - 1;
-    if (fd >= 0) {
-        close(fd);
+    if (zipFd >= 0) {
+        close(zipFd);
+        zipFd = -1;
     }
 }
 
 int32_t myRead(void* p, uint8_t* buffer, int32_t length) {
-    int fd = (int)(intptr_t)p - 1;
-    if (fd < 0 || !buffer || length <= 0) return -1;
-    return (int32_t)read(fd, buffer, length);
+    if (zipFd < 0 || !buffer || length <= 0) return -1;
+    return (int32_t)read(zipFd, buffer, length);
 }
 
 int32_t mySeek(void* p, int32_t position, int iType) {
-    int fd = (int)(intptr_t)p - 1;
-    if (fd < 0) return -1;
-    return (int32_t)lseek(fd, position, iType);
+    if (zipFd < 0) return -1;
+    return (int32_t)lseek(zipFd, position, iType);
 }
 
 EpubLoader::EpubLoader() {
@@ -79,6 +84,10 @@ bool EpubLoader::open(const char* path) {
 
 void EpubLoader::close() {
     if (zip) zip->closeZIP();
+    if (zipFd >= 0) {
+        ::close(zipFd);
+        zipFd = -1;
+    }
     spine.clear();
     manifest.clear();
     coverHref = "";

@@ -17,16 +17,16 @@ void AppReader::pageCountTask(void* param) {
 void AppReader::startTotalPagesCounting() {
     if (_pageCountTaskHandle != nullptr) {
         _killPageCountTask = true;
-        _countingActive = false;
-        // Wait up to 1000ms for the task to cleanly exit and null its own handle
-        int timeout = 100;
+        // Wait up to 500ms for the task to cleanly exit and null its own handle
+        int timeout = 50;
         while (_pageCountTaskHandle != nullptr && timeout > 0) {
             vTaskDelay(pdMS_TO_TICKS(10));
             timeout--;
         }
         if (_pageCountTaskHandle != nullptr) {
-            Serial.println("AppReader: Warning - old page count task still exiting; skipping spawn");
-            return;
+            // Force kill if it's deadlocked
+            vTaskDelete(_pageCountTaskHandle);
+            _pageCountTaskHandle = nullptr;
         }
     }
 

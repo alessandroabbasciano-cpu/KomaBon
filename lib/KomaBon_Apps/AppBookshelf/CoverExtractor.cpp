@@ -114,11 +114,7 @@ bool CoverExtractor::processNextCover(std::vector<BookEntry>& books) {
 
         } else {
             EpubLoader* epub = new EpubLoader();
-            String fullPath = book.path;
-            if (!EbookFS.exists(fullPath) && !fullPath.startsWith("/ebooks")) {
-                String alt = "/ebooks" + fullPath;
-                if (EbookFS.exists(alt)) fullPath = alt;
-            }
+            String fullPath = "/ebooks" + book.path;
 
             if (epub->open(fullPath.c_str())) {
                 size_t thumbSize = 0, coverSize = 0;

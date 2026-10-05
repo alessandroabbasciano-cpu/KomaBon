@@ -456,7 +456,7 @@ void AppSettings::update() {
         if (digitalRead(PIN_BUTTON_BACK) == LOW) {
             Serial.println("AppSettings: Calibration aborted via physical button.");
 
-            if (!EbookFS.exists("/joy_cal.json") && !SystemFS.exists("/joy_cal.json")) {
+            if (!SystemFS.exists("/joy_cal.json")) {
                 Serial.println("AppSettings: No calibration found. Saving defaults.");
                 JoystickMgr::getInstance().saveCalibration(0, 3350, 1250, 2650, 1950);
             }
