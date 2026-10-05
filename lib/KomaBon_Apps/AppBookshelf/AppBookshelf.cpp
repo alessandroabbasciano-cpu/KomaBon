@@ -176,11 +176,11 @@ struct LibraryDirtyRect {
     int h;
 };
 
-static LibraryDirtyRect libraryItemRect(int index, int scrollOffset, int screenW) {
+static LibraryDirtyRect libraryItemBarRect(int index, int scrollOffset) {
     const int HEADER_H = 50;
     const int ITEM_HEIGHT = 88;
     int visibleRow = index - scrollOffset;
-    return {12, HEADER_H + (visibleRow * ITEM_HEIGHT), screenW - 24, ITEM_HEIGHT + 4};
+    return {10, HEADER_H + (visibleRow * ITEM_HEIGHT), 16, ITEM_HEIGHT + 4};
 }
 
 static int libraryItemsPerPage(int screenHeight) {
@@ -582,6 +582,7 @@ void AppBookshelf::exitCurrentLevel() {
 
 void AppBookshelf::drawFolderTile(KomaBonDisplay& display, int x, int y, int w, int h, bool selected,
                                   const uint8_t* thumbData) {
+    (void)selected;
     if (thumbData) {
         display.drawBitmap(x, y, thumbData, 60, 80, GxEPD_BLACK);
     } else {
@@ -596,15 +597,12 @@ void AppBookshelf::drawFolderTile(KomaBonDisplay& display, int x, int y, int w, 
         display.drawFastHLine(x + 16, y + 32, w - 32, GxEPD_BLACK);
         display.drawFastHLine(x + 16, y + 44, w - 32, GxEPD_BLACK);
     }
-
-    if (selected) {
-        display.drawRect(x - 3, y - 3, w + 6, h + 6, GxEPD_BLACK);
-        display.drawRect(x - 2, y - 2, w + 4, h + 4, GxEPD_BLACK);
-    }
 }
 
 void AppBookshelf::drawBookTile(KomaBonDisplay& display, const BookEntry& book, int x, int y, int w, int h,
                                 bool selected, const uint8_t* thumbData) {
+    (void)selected;
+    (void)book;
     if (thumbData) {
         display.drawBitmap(x, y, thumbData, 60, 80, GxEPD_BLACK);
     } else {
@@ -621,11 +619,6 @@ void AppBookshelf::drawBookTile(KomaBonDisplay& display, const BookEntry& book, 
         display.drawFastHLine(pageX, pageY + 24, pageW, GxEPD_BLACK);
         display.drawFastHLine(pageX, pageY + 36, pageW - 11, GxEPD_BLACK);
     }
-
-    if (selected) {
-        display.drawRect(x - 3, y - 3, w + 6, h + 6, GxEPD_BLACK);
-        display.drawRect(x - 2, y - 2, w + 4, h + 4, GxEPD_BLACK);
-    }
 }
 
 void AppBookshelf::updateLibraryScroll() {
@@ -636,12 +629,13 @@ void AppBookshelf::updateLibraryScroll() {
     int itemsPerPage = libraryItemsPerPage(display.height());
     if (itemsPerPage <= 0) return;
 
-    if (_selectedBookIndex < _libraryScrollOffset) {
-        _libraryScrollOffset = _selectedBookIndex;
-        _librarySelectionOnlyRedraw = false;
-    } else if (_selectedBookIndex >= _libraryScrollOffset + itemsPerPage) {
-        _libraryScrollOffset = _selectedBookIndex - itemsPerPage + 1;
-        _librarySelectionOnlyRedraw = false;
+    // Discrete paging: page offset snaps to multiples of itemsPerPage
+    int targetPage = _selectedBookIndex / itemsPerPage;
+    int targetOffset = targetPage * itemsPerPage;
+
+    if (_libraryScrollOffset != targetOffset) {
+        _libraryScrollOffset = targetOffset;
+        _librarySelectionOnlyRedraw = false; // Changed page: full screen redraw
     }
 }
 
@@ -668,12 +662,14 @@ void AppBookshelf::drawLibrary() {
     const int ITEM_HEIGHT = 88;
     const int ITEM_PADDING = 20;
 
-    if (_librarySelectionOnlyRedraw) {
-        LibraryDirtyRect dirty =
-            unionLibraryRect(libraryItemRect(_previousBookIndex, _libraryScrollOffset, display.width()),
-                             libraryItemRect(_selectedBookIndex, _libraryScrollOffset, display.width()));
-        LibraryDirtyRect footer = {12, display.height() - 45, display.width() - 24, 42};
-        dirty = unionLibraryRect(dirty, footer);
+    bool isSelectionOnly = _librarySelectionOnlyRedraw;
+    int prevIdx = _previousBookIndex;
+    int currIdx = _selectedBookIndex;
+
+    if (isSelectionOnly) {
+        // FAST REFRESH: only the vertical selection bar column on the left (x: 10..26)
+        LibraryDirtyRect dirty = unionLibraryRect(libraryItemBarRect(prevIdx, _libraryScrollOffset),
+                                                  libraryItemBarRect(currIdx, _libraryScrollOffset));
         dirty.x = std::max(0, dirty.x);
         dirty.y = std::max(0, dirty.y);
         if (dirty.x + dirty.w > display.width()) dirty.w = display.width() - dirty.x;
@@ -878,35 +874,29 @@ void AppBookshelf::drawLibrary() {
 
                 y += ITEM_HEIGHT;
             }
-
-            int itemsPerPage = libraryItemsPerPage(display.height());
-            if ((int)_activeItems.size() > itemsPerPage) {
-                int scrollBarX = display.width() - 8;
-                int scrollBarY = HEADER_H;
-                int scrollBarH = display.height() - scrollBarY - 45;
-
-                display.drawFastVLine(scrollBarX + 1, scrollBarY, scrollBarH, GxEPD_BLACK);
-
-                float progress = (float)_libraryScrollOffset / (_activeItems.size() - itemsPerPage);
-                int thumbH = std::max(20, (scrollBarH * itemsPerPage) / (int)_activeItems.size());
-                int thumbY = scrollBarY + (int)(progress * (scrollBarH - thumbH));
-                display.fillRect(scrollBarX - 1, thumbY, 4, thumbH, GxEPD_BLACK);
-            }
         }
 
         char pageStr[24];
         if (_activeItems.empty()) {
-            snprintf(pageStr, sizeof(pageStr), "0/0");
+            snprintf(pageStr, sizeof(pageStr), "Page 0/0");
         } else {
-            snprintf(pageStr, sizeof(pageStr), "%d/%d", _selectedBookIndex + 1, (int)_activeItems.size());
+            int itemsPerPage = libraryItemsPerPage(display.height());
+            if (itemsPerPage <= 0) itemsPerPage = 1;
+            int currentPage = (_libraryScrollOffset / itemsPerPage) + 1;
+            int totalPages = ((int)_activeItems.size() + itemsPerPage - 1) / itemsPerPage;
+            snprintf(pageStr, sizeof(pageStr), "Page %d/%d", currentPage, totalPages);
         }
 
-        const char* hintText = (_currentVolumeFilter.length() > 0)
-                                   ? "Joy: Move | Center: Read | Left: Back | Hold Left: Menu"
-                                   : ((_currentSeriesFilter.length() > 0)
-                                          ? "Joy: Move | Center: Open | Left: Back | Hold Left: Menu"
-                                          : "Joy: Move | Center: Select | Hold Left: Menu");
-        fontMgr.drawText(display, hintText, 16, display.height() - 16, FONT_SIZE_SMALL, GxEPD_BLACK);
+        String footerHint = "▲▼ Move  ● ";
+        if (_currentVolumeFilter.length() > 0) {
+            footerHint += "Read  ◀ Back  [◀] Menu";
+        } else if (_currentSeriesFilter.length() > 0) {
+            footerHint += "Open  ◀ Back  [◀] Menu";
+        } else {
+            footerHint += "Select  [◀] Menu";
+        }
+        fontMgr.drawText(display, footerHint.c_str(), 16, display.height() - 16, FONT_SIZE_SMALL,
+                         GxEPD_BLACK);
 
         fontMgr.drawTextRight(display, pageStr, display.width() - 16, display.height() - 16, FONT_SIZE_SMALL,
                               GxEPD_BLACK);

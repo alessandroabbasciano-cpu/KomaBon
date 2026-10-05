@@ -163,6 +163,50 @@ void FontMgr::utf8ToLatin1(const char* src, char* dst, size_t dstSize) {
             dst[o++] = (char)cp;
         } else {
             switch (cp) {
+                case 0x25B2: // ▲
+                    if (o > 0 && dst[o - 1] == '[' && *s == ']') {
+                        dst[o - 1] = (char)0x82; // [▲]
+                        s++;
+                    } else {
+                        dst[o++] = (char)0x81; // ▲
+                    }
+                    break;
+                case 0x25BC: // ▼
+                    if (o > 0 && (uint8_t)dst[o - 1] == 0x81) {
+                        dst[o - 1] = (char)0x80; // ▲▼
+                    } else if (o > 0 && dst[o - 1] == '[' && *s == ']') {
+                        dst[o - 1] = (char)0x84; // [▼]
+                        s++;
+                    } else {
+                        dst[o++] = (char)0x83; // ▼
+                    }
+                    break;
+                case 0x25C0: // ◀
+                    if (o > 0 && dst[o - 1] == '[' && *s == ']') {
+                        dst[o - 1] = (char)0x86; // [◀]
+                        s++;
+                    } else {
+                        dst[o++] = (char)0x85; // ◀
+                    }
+                    break;
+                case 0x25B6: // ▶
+                    if (o > 0 && (uint8_t)dst[o - 1] == 0x85) {
+                        dst[o - 1] = (char)0x89; // ◀▶
+                    } else if (o > 0 && dst[o - 1] == '[' && *s == ']') {
+                        dst[o - 1] = (char)0x88; // [▶]
+                        s++;
+                    } else {
+                        dst[o++] = (char)0x87; // ▶
+                    }
+                    break;
+                case 0x25CF: // ●
+                    if (o > 0 && dst[o - 1] == '[' && *s == ']') {
+                        dst[o - 1] = (char)0x8B; // [●]
+                        s++;
+                    } else {
+                        dst[o++] = (char)0x8A; // ●
+                    }
+                    break;
                 case 0x2018:
                 case 0x2019:
                 case 0x201A:
