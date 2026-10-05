@@ -149,6 +149,8 @@ bool AppReader::openBook(const String& path, bool restoreProgress) {
         if (!_kbReader->open(path.c_str())) {
             delete _kbReader;
             _kbReader = nullptr;
+            _currentBookPath = "";
+            _progressDirty = false;
             return false;
         }
 
@@ -159,6 +161,8 @@ bool AppReader::openBook(const String& path, bool restoreProgress) {
             Serial.println("AppReader: FATAL - PSRAM allocation failed for KMB buffer.");
             delete _kbReader;
             _kbReader = nullptr;
+            _currentBookPath = "";
+            _progressDirty = false;
             return false;
         }
 
@@ -196,6 +200,8 @@ bool AppReader::openBook(const String& path, bool restoreProgress) {
         if (!_epubLoader->open(fullPath.c_str())) {
             delete _epubLoader;
             _epubLoader = nullptr;
+            _currentBookPath = "";
+            _progressDirty = false;
             return false;
         }
 
