@@ -106,8 +106,8 @@ void AppWebTransfer::draw() {
             drawReady();
         }
 
-        fontMgr.drawTextCentered(display, "Push LEFT to close and disable Wi-Fi", display.height() - 40,
-                                 FONT_SIZE_SMALL, GxEPD_BLACK);
+        fontMgr.drawTextCentered(display, "◀ Close and disable Wi-Fi", display.height() - 40, FONT_SIZE_SMALL,
+                                 GxEPD_BLACK);
 
     } while (display.nextPage());
 

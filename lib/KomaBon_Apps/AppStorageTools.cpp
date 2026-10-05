@@ -75,7 +75,7 @@ void AppStorageTools::handleInput(InputAction action) {
         _needsRedraw = true;
     } else if (action == INPUT_SELECT) {
         executeSelection();
-    } else if (action == INPUT_BACK) {
+    } else if (action == INPUT_BACK || action == INPUT_GO_TO_MAIN_MENU) {
         AppMgr::getInstance().switchTo("Main Menu");
     }
 }
@@ -253,14 +253,13 @@ void AppStorageTools::draw() {
             int ay = actionsStartY + i * ROW_HEIGHT;
 
             if (i == _selectedIndex) {
-                display.drawRect(12, ay - 30, w - 24, ROW_HEIGHT - 8, GxEPD_BLACK);
-                display.drawRect(13, ay - 29, w - 26, ROW_HEIGHT - 10, GxEPD_BLACK);
+                display.fillRect(12, ay - 26, 6, ROW_HEIGHT - 16, GxEPD_BLACK);
             }
 
             font.drawText(display, ACTIONS[i], 26, ay, FONT_SIZE_BODY, GxEPD_BLACK);
         }
 
-        drawFooter("Joy: Move  |  Center: Select  |  Hold Left: exit");
+        drawFooter("▲▼ Move   ● Select   ◀ Back");
 
     } while (display.nextPage());
 }
