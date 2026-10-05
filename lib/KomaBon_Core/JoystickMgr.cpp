@@ -96,13 +96,25 @@ bool JoystickMgr::saveCalibration(int center, int up, int down, int left, int ri
     doc["left"] = _cal.left;
     doc["right"] = _cal.right;
 
-    File file = EbookFS.open("/joy_cal.json", "w");
-    if (!file) return false;
-    serializeJson(doc, file);
-    file.close();
+    bool saved = false;
 
-    Serial.println("JoystickMgr: Calibration saved to /joy_cal.json on EbookFS");
-    return true;
+    File fileSd = EbookFS.open("/joy_cal.json", "w");
+    if (fileSd) {
+        serializeJson(doc, fileSd);
+        fileSd.close();
+        Serial.println("JoystickMgr: Calibration saved to /joy_cal.json on EbookFS");
+        saved = true;
+    }
+
+    File fileSys = SystemFS.open("/joy_cal.json", "w");
+    if (fileSys) {
+        serializeJson(doc, fileSys);
+        fileSys.close();
+        Serial.println("JoystickMgr: Calibration saved to /joy_cal.json on SystemFS");
+        saved = true;
+    }
+
+    return saved;
 }
 
 void JoystickMgr::setCalibration(const JoyCalibration& cal) {
