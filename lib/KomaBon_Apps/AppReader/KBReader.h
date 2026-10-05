@@ -34,6 +34,7 @@ class KBReader {
 
   private:
     File _file;
+    String _path;
 
     uint16_t _width;
     uint16_t _height;
