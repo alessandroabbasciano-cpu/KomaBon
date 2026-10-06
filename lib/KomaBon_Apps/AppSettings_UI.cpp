@@ -404,14 +404,38 @@ void AppSettings::draw() {
             SettingsDirtyRect dirty =
                 unionRect(settingsRowRect(prevIndex, screenW), settingsRowRect(currIndex, screenW));
             display.setPartialWindow(dirty.x, dirty.y, dirty.w, dirty.h);
-        } else if (_screen == SCREEN_SYSTEM || _screen == SCREEN_CONFIRM ||
-                   _screen == SCREEN_CONFIRM_FORGET_WIFI) {
+        } else if (_screen == SCREEN_SYSTEM) {
             int prevIndex = _previousSubSelectedIndex;
             int currIndex = _subSelectedIndex;
             int screenW = display.width();
-            int baseOffset = (_screen == SCREEN_SYSTEM) ? 3 : 0;
-            SettingsDirtyRect dirty = unionRect(settingsRowRect(prevIndex + baseOffset, screenW),
-                                                settingsRowRect(currIndex + baseOffset, screenW));
+            int sysActionBaseY = LIST_START_Y + 3 * ROW_HEIGHT + 20;
+            auto subRowRect = [&](int idx) -> SettingsDirtyRect {
+                int y = sysActionBaseY + idx * ROW_HEIGHT;
+                return {12, y - 30, screenW - 24, ROW_HEIGHT - 8};
+            };
+            SettingsDirtyRect dirty = unionRect(subRowRect(prevIndex), subRowRect(currIndex));
+            display.setPartialWindow(dirty.x, dirty.y, dirty.w, dirty.h);
+        } else if (_screen == SCREEN_CONFIRM) {
+            int prevIndex = _previousSubSelectedIndex;
+            int currIndex = _subSelectedIndex;
+            int screenW = display.width();
+            int confirmBaseY = LIST_START_Y + 70;
+            auto subRowRect = [&](int idx) -> SettingsDirtyRect {
+                int y = confirmBaseY + idx * ROW_HEIGHT;
+                return {12, y - 30, screenW - 24, ROW_HEIGHT - 8};
+            };
+            SettingsDirtyRect dirty = unionRect(subRowRect(prevIndex), subRowRect(currIndex));
+            display.setPartialWindow(dirty.x, dirty.y, dirty.w, dirty.h);
+        } else if (_screen == SCREEN_CONFIRM_FORGET_WIFI) {
+            int prevIndex = _previousSubSelectedIndex;
+            int currIndex = _subSelectedIndex;
+            int screenW = display.width();
+            int forgetBaseY = LIST_START_Y + 100;
+            auto subRowRect = [&](int idx) -> SettingsDirtyRect {
+                int y = forgetBaseY + idx * ROW_HEIGHT;
+                return {12, y - 30, screenW - 24, ROW_HEIGHT - 8};
+            };
+            SettingsDirtyRect dirty = unionRect(subRowRect(prevIndex), subRowRect(currIndex));
             display.setPartialWindow(dirty.x, dirty.y, dirty.w, dirty.h);
         } else if (_screen == SCREEN_OTA_MODAL) {
             int w = display.width();
