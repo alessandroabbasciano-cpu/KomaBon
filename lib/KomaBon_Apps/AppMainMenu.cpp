@@ -167,7 +167,7 @@ void AppMainMenu::handleInput(InputAction action) {
 void AppMainMenu::update() {
     unsigned long now = millis();
 
-    if (now - _lastBatteryPoll >= 10000) {
+    if (now - _lastBatteryPoll >= 3000) {
         _lastBatteryPoll = now;
         BatteryStatus status = BatteryMgr::getInstance().refreshNow();
         bool changed = status.charging != _lastBatteryStatus.charging ||

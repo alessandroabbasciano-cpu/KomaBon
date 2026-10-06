@@ -369,6 +369,11 @@ void AppSettings::handleInput(InputAction action) {
 }
 
 bool AppSettings::applyAndSave() {
+    if (BatteryMgr::getInstance().isBatteryLowForWrites()) {
+        setStatus("Battery low! Save blocked.", 4000);
+        return false;
+    }
+
     SettingsStore& store = SettingsStore::getInstance();
 
     bool ok;

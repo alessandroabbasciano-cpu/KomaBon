@@ -41,6 +41,10 @@ class BatteryMgr {
         return _sleepScreenMode;
     }
 
+    // Low voltage threshold where filesystem writes should be blocked
+    static const float LOW_VOLTAGE_WRITE_THRESHOLD;
+    bool isBatteryLowForWrites();
+
     // Draws the complete status bar icons (Wi-Fi, SD, Battery) into the provided display buffer
     void drawStatusBar(KomaBonDisplay& display, int startX, int startY);
 
@@ -53,7 +57,7 @@ class BatteryMgr {
 
     BatteryStatus _cachedStatus;
     unsigned long _lastReadTime;
-    static const unsigned long CACHE_DURATION_MS = 5000;
+    static const unsigned long CACHE_DURATION_MS = 3000;
 
     float _voltageHistory[5];
     unsigned long _historyTimes[5];
@@ -67,6 +71,10 @@ class BatteryMgr {
     static const float CRITICAL_VOLTAGE;
 
     float _lastValidVoltage;
+    float _chargePeakVoltage;
+    int _displayedPercentage;
+    int _dischargeConfirmCount;
+    unsigned long _lastChargeStepTime;
     int _criticalCount;
     unsigned long _lastChargingTime;
     static const int CRITICAL_CONFIRM_COUNT = 3;

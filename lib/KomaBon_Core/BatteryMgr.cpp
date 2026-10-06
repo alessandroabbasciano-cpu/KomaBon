@@ -17,6 +17,7 @@
 
 const float BatteryMgr::CHARGE_THRESHOLD = 0.03f;
 const float BatteryMgr::CRITICAL_VOLTAGE = 3.0f;
+const float BatteryMgr::LOW_VOLTAGE_WRITE_THRESHOLD = 3.35f;
 const float BatteryMgr::HIGH_VOLTAGE_THRESHOLD = 4.0f;
 const float BatteryMgr::SPIKE_REJECT_THRESHOLD = 0.5f;
 
@@ -50,7 +51,8 @@ static int voltageToPercentage(float voltage) {
 BatteryMgr::BatteryMgr()
     : _lastReadTime(0), _historyIndex(0), _lastHistoryUpdate(0), _previousVoltage(0.0f),
       _sleepTimeoutMinutes(0), _sleepScreenMode(SLEEP_SCREEN_COVER), _sleepMessage("Press button to wake"),
-      _lastActivityTime(0), _lastValidVoltage(0.0f), _criticalCount(0), _lastChargingTime(0) {
+      _lastActivityTime(0), _lastValidVoltage(0.0f), _displayedPercentage(-1), _criticalCount(0),
+      _lastChargingTime(0) {
     _cachedStatus = {0.0f, 0, false};
     for (int i = 0; i < 5; i++) {
         _voltageHistory[i] = 0.0f;
@@ -63,6 +65,11 @@ BatteryMgr& BatteryMgr::getInstance() {
     return instance;
 }
 
+bool BatteryMgr::isBatteryLowForWrites() {
+    KomaBonGuard guard(_mutex);
+    return !_cachedStatus.charging && (_cachedStatus.voltage <= LOW_VOLTAGE_WRITE_THRESHOLD);
+}
+
 void BatteryMgr::init() {
     KomaBonGuard guard(_mutex);
     pinMode(PIN_BAT_VOLT, INPUT);
@@ -72,8 +79,9 @@ void BatteryMgr::init() {
 #endif
     analogSetAttenuation(ADC_11db);
 
-    updateCache();
+    updateCache(false);
 
+    _displayedPercentage = _cachedStatus.percentage;
     _previousVoltage = _cachedStatus.voltage;
     for (int i = 0; i < 5; i++) {
         _voltageHistory[i] = _cachedStatus.voltage;
@@ -81,7 +89,8 @@ void BatteryMgr::init() {
     }
     _lastHistoryUpdate = millis();
 
-    Serial.printf("Battery: Initial voltage %.2fV (%d%%)\n", _cachedStatus.voltage, _cachedStatus.percentage);
+    Serial.printf("Battery: Initial voltage %.2fV (%d%%, charging=%s)\n", _cachedStatus.voltage,
+                  _cachedStatus.percentage, _cachedStatus.charging ? "yes" : "no");
 
     loadSleepSettings();
     _lastActivityTime = millis();
@@ -95,7 +104,7 @@ void BatteryMgr::update() {
 
         if (now - _lastHistoryUpdate >= HISTORY_INTERVAL_MS) {
             if (now - _lastReadTime >= CACHE_DURATION_MS) {
-                updateCache();
+                updateCache(false);
             }
 
             _voltageHistory[_historyIndex] = _cachedStatus.voltage;
@@ -113,6 +122,7 @@ void BatteryMgr::update() {
                 if (voltageChange > CHARGE_THRESHOLD) {
                     if (!_cachedStatus.charging) {
                         _cachedStatus.charging = true;
+                        _lastActivityTime = now;
                         Serial.printf("Battery: Charging detected via trend (%.3fV -> %.3fV, +%.3fV)\n",
                                       oldestVoltage, _cachedStatus.voltage, voltageChange);
                     }
@@ -121,6 +131,7 @@ void BatteryMgr::update() {
                            voltageChange < -(CHARGE_THRESHOLD * 3.0f)) {
                     if (_cachedStatus.charging) {
                         _cachedStatus.charging = false;
+                        _lastActivityTime = now;
                         Serial.printf("Battery: Discharging detected (%.3fV -> %.3fV, %.3fV)\n",
                                       oldestVoltage, _cachedStatus.voltage, voltageChange);
                     }
@@ -182,40 +193,86 @@ void BatteryMgr::updateCache(bool clearStaleCharging) {
         rawVoltage = BATTERY_FULL_VOLTAGE;
     }
 
-    // EXPONENTIAL MOVING AVERAGE (EMA): Kills hardware noise and micro-bounces
-    if (_lastValidVoltage <= 0.0f) {
-        _lastValidVoltage = rawVoltage;
-    } else {
-        // 85% historical weight, 15% new reading weight
-        _lastValidVoltage = (_lastValidVoltage * 0.85f) + (rawVoltage * 0.15f);
-    }
-
-    float voltage = _lastValidVoltage;
-    int percentage = voltageToPercentage(voltage);
-    float previousVoltage = _previousVoltage;
-
-    bool currentCharging = _cachedStatus.charging;
+    bool wasCharging = _cachedStatus.charging;
+    bool currentCharging = wasCharging;
     if (clearStaleCharging) {
         currentCharging = false;
     }
 
-    if (previousVoltage > 0 && voltage > previousVoltage + 0.25f) {
-        if (!currentCharging && !gNetworkStartupInProgress) {
+    // Fast Step & Threshold Detection
+    static int plugConfirmCount = 0;
+
+    if (_lastValidVoltage <= 0.0f) {
+        _lastValidVoltage = rawVoltage;
+        if (rawVoltage >= 4.17f) {
             currentCharging = true;
-            Serial.printf("Battery: Hard USB plug detected (%.3fV -> %.3fV, +%.3fV)\n", previousVoltage,
-                          voltage, voltage - previousVoltage);
+            _lastChargingTime = millis();
         }
-        _lastChargingTime = millis();
-    } else if (previousVoltage > 0 && voltage < previousVoltage - 0.20f) {
+    } else {
+        if (!currentCharging) {
+            // Charging detection:
+            // 1. High float voltage: On Xiao under load, unplugged battery never sustains >= 4.17V.
+            // 2. Positive step: When USB is plugged at lower SoC, charger pushes current and voltage steps up
+            // (+35mV).
+            if (rawVoltage >= 4.17f) {
+                currentCharging = true;
+                plugConfirmCount = 0;
+            } else if (rawVoltage > _lastValidVoltage + 0.035f) {
+                plugConfirmCount++;
+                if (plugConfirmCount >= 2) {
+                    currentCharging = true;
+                    plugConfirmCount = 0;
+                }
+            } else {
+                plugConfirmCount = 0;
+            }
+        } else {
+            plugConfirmCount = 0;
+            // Unplug detection:
+            // Negative step (-35mV) or dropping down from float level (<= 4.14V).
+            bool unplugStep = (rawVoltage < _lastValidVoltage - 0.035f);
+            bool droppedFromFloat = (_lastValidVoltage >= 4.17f && rawVoltage <= 4.14f);
+            if (unplugStep || droppedFromFloat) {
+                currentCharging = false;
+            }
+        }
+    }
+
+    if (currentCharging != wasCharging) {
+        _lastActivityTime = millis(); // Reset idle sleep timer so unplugging does not trigger instant sleep!
         if (currentCharging) {
-            currentCharging = false;
-            Serial.printf("Battery: Hard USB unplug detected (%.3fV -> %.3fV, %.3fV)\n", previousVoltage,
-                          voltage, voltage - previousVoltage);
+            _lastChargingTime = millis();
+            Serial.printf("Battery: USB plugged in (%.3fV -> %.3fV)\n", _lastValidVoltage, rawVoltage);
+        } else {
+            Serial.printf("Battery: USB unplugged (%.3fV -> %.3fV)\n", _lastValidVoltage, rawVoltage);
+        }
+        // Jump voltage filter immediately on state change to eliminate lag
+        _lastValidVoltage = rawVoltage;
+    } else {
+        // Steady state EMA filter: kills ADC noise and minor load fluctuations
+        _lastValidVoltage = (_lastValidVoltage * 0.85f) + (rawVoltage * 0.15f);
+    }
+
+    float voltage = _lastValidVoltage;
+    int calculatedPercent = voltageToPercentage(voltage);
+
+    // Monotonic percentage handling:
+    // When discharging, battery percentage must NEVER bounce upward due to e-ink load release.
+    // When charging, percentage increases up to 100%.
+    if (_displayedPercentage < 0) {
+        _displayedPercentage = calculatedPercent;
+    } else if (currentCharging) {
+        if (calculatedPercent > _displayedPercentage) {
+            _displayedPercentage = calculatedPercent;
+        }
+    } else {
+        if (calculatedPercent < _displayedPercentage) {
+            _displayedPercentage = calculatedPercent;
         }
     }
 
     _previousVoltage = voltage;
-    _cachedStatus = {voltage, percentage, currentCharging};
+    _cachedStatus = {voltage, _displayedPercentage, currentCharging};
     _lastReadTime = millis();
 }
 
@@ -263,7 +320,7 @@ BatteryStatus BatteryMgr::getStatus() {
 
 BatteryStatus BatteryMgr::refreshNow() {
     KomaBonGuard guard(_mutex);
-    updateCache(true);
+    updateCache(false);
     return _cachedStatus;
 }
 
@@ -490,8 +547,36 @@ void BatteryMgr::drawStatusBar(KomaBonDisplay& display, int startX, int startY) 
 
     cx += batW + 6;
 
+    display.fillRect(cx, cy, 45, 18, GxEPD_WHITE);
+
     display.setFont(&FreeSans9pt8b);
     display.setCursor(cx, cy + 13);
-    display.printf("%d%%", percentage);
-    if (currentCharging) display.print("+");
+    display.printf("%d", percentage);
+
+    if (currentCharging) {
+        // Draw crisp solid lightning bolt ⚡ in place of '%'
+        int boltX = display.getCursorX() + 2;
+        int boltY = cy + 2;
+        static const uint8_t boltBitmap[] = {
+            0x38, // ..###..
+            0x18, // ...##..
+            0x30, // ..##...
+            0x60, // .##....
+            0xC0, // ##.....
+            0xFE, // #######
+            0x0C, // ....##.
+            0x18, // ...##..
+            0x30, // ..##...
+            0x60, // .##....
+            0x40  // .#.....
+        };
+        display.drawBitmap(boltX, boltY, boltBitmap, 7, 11, GxEPD_BLACK);
+    } else if (bat.voltage <= LOW_VOLTAGE_WRITE_THRESHOLD) {
+        // Draw solid bold exclamation point '!' in place of '%'
+        int exX = display.getCursorX() + 3;
+        display.fillRect(exX, cy + 2, 3, 8, GxEPD_BLACK);
+        display.fillRect(exX, cy + 12, 3, 3, GxEPD_BLACK);
+    } else {
+        display.print("%");
+    }
 }
