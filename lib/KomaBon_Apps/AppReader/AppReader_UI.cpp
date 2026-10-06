@@ -390,6 +390,9 @@ void AppReader::drawSleepCover() {
     KomaBonDisplay& display = dispMgr.getDisplay();
     FontMgr& fontMgr = FontMgr::getInstance();
 
+    // Ensure full refresh waveform and disable fast A2 partial refresh
+    // to cleanly discharge ink particles and prevent burn-in during deep sleep
+    dispMgr.disableFastRefreshA2();
     display.setFullWindow();
 
     String fileName = normalizedBookName(_currentBookPath);

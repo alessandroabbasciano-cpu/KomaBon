@@ -316,9 +316,13 @@ bool BatteryMgr::loadCustomScreensaver(uint8_t* buffer, size_t maxLen) {
 }
 
 void BatteryMgr::drawDefaultSleepScreen() {
-    KomaBonDisplay& display = DisplayMgr::getInstance().getDisplay();
+    DisplayMgr& dispMgr = DisplayMgr::getInstance();
+    KomaBonDisplay& display = dispMgr.getDisplay();
     FontMgr& fontMgr = FontMgr::getInstance();
 
+    // Ensure full refresh waveform and disable fast A2 partial refresh
+    // to cleanly discharge ink particles and prevent burn-in during deep sleep
+    dispMgr.disableFastRefreshA2();
     display.setFullWindow();
 
     bool drawnCustom = false;
